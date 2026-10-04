@@ -1,0 +1,242 @@
+{
+  "name": "Luồng 1: AI Email Triage & Multi-Department Routing",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-1",
+      "name": "Node 1 (Webhook Trigger)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-2",
+      "name": "Node 2 (Filter Spam & Bounces)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-3",
+      "name": "Node 3 (Cleanse & Normalize Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-4",
+      "name": "Node 4 (Check Reputation Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        580,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-5",
+      "name": "Node 5 (IF Blacklisted)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-6",
+      "name": "Node 6 (Fetch Depts HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-7",
+      "name": "Node 7 (AI Real Classifier Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-8",
+      "name": "Node 8 (Output Schema Validator)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-9",
+      "name": "Node 9 (Switch Department Route)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-10",
+      "name": "Node 10 (Audit Technical Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-11",
+      "name": "Node 11 (Audit Sales Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-12",
+      "name": "Node 12 (Audit Finance Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-13",
+      "name": "Node 13 (Audit General Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2020,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-14",
+      "name": "Node 14 (Merge Branch Data)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-15",
+      "name": "Node 15 (IF Priority P1 Urgent)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-16",
+      "name": "Node 16 (Urgent Incident Dispatcher Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-17",
+      "name": "Node 17 (Store Email Triage Log Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-18",
+      "name": "Node 18 (Send Confirmation Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2820,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-19",
+      "name": "Node 19 (Compute SLA Target Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2980,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-20",
+      "name": "Node 20 (Commit SLA Target in DB Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        3140,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-21",
+      "name": "Node 21 (Global Blacklist Quarantine Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        300
+      ]
+    }
+  ],
+  "connections": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1"
+}

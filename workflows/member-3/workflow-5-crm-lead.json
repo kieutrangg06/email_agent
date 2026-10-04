@@ -1,0 +1,242 @@
+{
+  "name": "Luồng 5: AI Email-to-CRM Lead Extraction & Follow-up",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-1",
+      "name": "Node 1 (Webhook Sales Trigger)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-2",
+      "name": "Node 2 (Extract Signature Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-3",
+      "name": "Node 3 (AI Entity Extractor Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-4",
+      "name": "Node 4 (JSON Lead Formatter Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        580,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-5",
+      "name": "Node 5 (Check Customer Exists Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-6",
+      "name": "Node 6 (IF Existing Customer)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-7",
+      "name": "Node 7 (Insert Customer Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-8",
+      "name": "Node 8 (Update Customer Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-9",
+      "name": "Node 9 (Merge Customer State Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-10",
+      "name": "Node 10 (Calculate Lead Score Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-11",
+      "name": "Node 11 (Create Deal in NestJS HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-12",
+      "name": "Node 12 (IF High-Value Lead)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-13",
+      "name": "Node 13 (Assign Priority Sales Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2020,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-14",
+      "name": "Node 14 (Email Notification to Sales)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-15",
+      "name": "Node 15 (Send Intro Deck Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-16",
+      "name": "Node 16 (Wait Follow-up Window)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-17",
+      "name": "Node 17 (Query Customer Response Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-18",
+      "name": "Node 18 (IF No Response Yet)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2820,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-19",
+      "name": "Node 19 (Send Follow-up Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2980,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-20",
+      "name": "Node 20 (Update CRM Status Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        3140,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-21",
+      "name": "Node 21 (Error Handler Node)",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        300
+      ]
+    }
+  ],
+  "connections": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1"
+}

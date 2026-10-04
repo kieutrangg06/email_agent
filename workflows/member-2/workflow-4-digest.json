@@ -1,0 +1,231 @@
+{
+  "name": "Luồng 4: Daily Inbox Intelligence & Automated Digest",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-1",
+      "name": "Node 1 (Daily Cron Trigger)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-2",
+      "name": "Node 2 (Count Total Inbound Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-3",
+      "name": "Node 3 (Query Pending Tickets Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-4",
+      "name": "Node 4 (Query Negative Issues Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        580,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-5",
+      "name": "Node 5 (Aggregate Stats Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-6",
+      "name": "Node 6 (AI Insights Generator Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-7",
+      "name": "Node 7 (Markdown Digest Builder Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-8",
+      "name": "Node 8 (HTML Email Template Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-9",
+      "name": "Node 9 (Fetch Exec Emails Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-10",
+      "name": "Node 10 (Save Daily Summary Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-11",
+      "name": "Node 11 (Detect Incident Spike Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-12",
+      "name": "Node 12 (IF Incident Spike)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-13",
+      "name": "Node 13 (Send Alert Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2020,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-14",
+      "name": "Node 14 (Audit Spike Flagged Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-15",
+      "name": "Node 15 (Split In Batches)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-16",
+      "name": "Node 16 (Send Executive Digest Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-17",
+      "name": "Node 17 (Push Stats to NestJS HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-18",
+      "name": "Node 18 (Confirm Batch Done Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2820,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-19",
+      "name": "Node 19 (Audit Report Finalized Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2980,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-20",
+      "name": "Node 20 (Error Catch Handler)",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        3140,
+        300
+      ]
+    }
+  ],
+  "connections": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1"
+}

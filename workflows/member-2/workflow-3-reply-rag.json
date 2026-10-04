@@ -1,0 +1,253 @@
+{
+  "name": "Luồng 3: AI Email Reply Agent with RAG & Human-in-the-Loop",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-1",
+      "name": "Node 1 (Webhook Ingest Trigger)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-2",
+      "name": "Node 2 (Extract Query Keywords Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-3",
+      "name": "Node 3 (Normalize Search Vector Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-4",
+      "name": "Node 4 (Query Knowledge Base Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        580,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-5",
+      "name": "Node 5 (Inject Context Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-6",
+      "name": "Node 6 (AI Reply Generator Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-7",
+      "name": "Node 7 (JSON Output Parser Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-8",
+      "name": "Node 8 (IF High Confidence)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-9",
+      "name": "Node 9 (Save Draft to Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-10",
+      "name": "Node 10 (Notify Next.js HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-11",
+      "name": "Node 11 (Audit Draft Created Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-12",
+      "name": "Node 12 (Human-in-the-loop Wait)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-13",
+      "name": "Node 13 (Webhook Approval Resume)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        2020,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-14",
+      "name": "Node 14 (Switch Approval Route Code)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-15",
+      "name": "Node 15 (Prepare Payload Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-16",
+      "name": "Node 16 (Send Official Email)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-17",
+      "name": "Node 17 (Update Draft Resolved Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-18",
+      "name": "Node 18 (Calc Resolution Time Code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2820,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-19",
+      "name": "Node 19 (Log Agent KPI Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2980,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-20",
+      "name": "Node 20 (Sync Dashboard State HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        3140,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-21",
+      "name": "Node 21 (Audit Sent Confirmation Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "node-22",
+      "name": "Node 22 (Workflow Error Handler)",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        3460,
+        300
+      ]
+    }
+  ],
+  "connections": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1"
+}
