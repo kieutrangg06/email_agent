@@ -147,8 +147,8 @@ export class InvoicesService {
          VALUES ($1, $2, $3)`,
         [invoiceNumber, auditStatus, auditNote]
       );
-    } catch (e) {
-      console.warn('[InvoicesService] Could not insert finance audit log:', e.message);
+    } catch (e: any) {
+      console.warn('[InvoicesService] Could not insert finance audit log:', e?.message || e);
     }
 
     return {
