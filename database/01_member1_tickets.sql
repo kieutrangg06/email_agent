@@ -39,12 +39,13 @@ CREATE TABLE IF NOT EXISTS support_agents (
 
 -- Seed Chuyên viên hỗ trợ
 INSERT INTO support_agents (name, email, category, status, active_tickets_count) VALUES
-('Nguyễn Văn An', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', 1),
-('Trần Hoàng Bách', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', 0),
-('Lê Thị Mai', 'tranglee12306@gmail.com', 'Sales', 'AVAILABLE', 0),
-('Phạm Đức Trọng', 'tranglee12306@gmail.com', 'Finance', 'AVAILABLE', 0),
-('Đỗ Thúy Vy', 'tranglee12306@gmail.com', 'General', 'AVAILABLE', 0)
+('Nguyễn Văn An', 'an.nguyen@enterprise.vn', 'Technical', 'AVAILABLE', 1),
+('Trần Hoàng Bách', 'bach.tran@enterprise.vn', 'Technical', 'AVAILABLE', 0),
+('Lê Thị Mai', 'mai.le@enterprise.vn', 'Sales', 'AVAILABLE', 0),
+('Phạm Đức Trọng', 'trong.pham@enterprise.vn', 'Finance', 'AVAILABLE', 0),
+('Đỗ Thúy Vy', 'vy.do@enterprise.vn', 'General', 'AVAILABLE', 0)
 ON CONFLICT (email) DO UPDATE SET
+    name = EXCLUDED.name,
     category = EXCLUDED.category,
     status = EXCLUDED.status;
 
