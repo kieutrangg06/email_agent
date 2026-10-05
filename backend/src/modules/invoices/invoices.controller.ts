@@ -14,4 +14,14 @@ export class InvoicesController {
   async createInvoice(@Body() body: any) {
     return this.invoicesService.createInvoice(body);
   }
+
+  @Get('summary')
+  async getSummary() {
+    return this.invoicesService.getSummary();
+  }
+
+  @Get('audit-logs')
+  async getAuditLogs() {
+    return this.invoicesService.getAuditLogs();
+  }
 }
