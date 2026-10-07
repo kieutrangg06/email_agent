@@ -31,6 +31,7 @@ services:
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-email_automation_db}
       - DB_POSTGRESDB_USER=${POSTGRES_USER:-admin}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-SecretPassword123!}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n
 
