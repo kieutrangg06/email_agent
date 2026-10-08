@@ -9,6 +9,14 @@ export class TicketsService {
 
   async getDepartments() {
     const res = await this.db.query('SELECT id, name, description, head_email FROM departments ORDER BY id ASC;');
+    if (!res.rows || res.rows.length === 0) {
+      return [
+        { id: 1, name: 'Technical', description: 'Khắc phục sự cố kỹ thuật', head_email: 'tranglee12306@gmail.com' },
+        { id: 2, name: 'Sales', description: 'Tư vấn kinh doanh & báo giá', head_email: 'tranglee12306@gmail.com' },
+        { id: 3, name: 'Finance', description: 'Đối soát hóa đơn & thanh toán', head_email: 'tranglee12306@gmail.com' },
+        { id: 4, name: 'General', description: 'Hỗ trợ chung & thông tin', head_email: 'tranglee12306@gmail.com' },
+      ];
+    }
     return res.rows;
   }
 
@@ -65,10 +73,17 @@ export class TicketsService {
     const description = data.description || '';
     const summary = data.summary || description.substring(0, 200);
 
+    const pri = String(priority);
+    let slaInterval = '8 hours';
+    if (pri.includes('P1')) slaInterval = '2 hours';
+    else if (pri.includes('P2')) slaInterval = '4 hours';
+    else if (pri.includes('P3')) slaInterval = '8 hours';
+    else if (pri.includes('P4')) slaInterval = '24 hours';
+
     const res = await this.db.query(
       `INSERT INTO tickets 
        (ticket_code, sender_email, title, description, summary, category, priority, assigned_to, agent_email, first_response_sla, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW() + INTERVAL '2 hours', 'OPEN')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW() + INTERVAL '${slaInterval}', 'OPEN')
        ON CONFLICT (ticket_code) DO UPDATE SET
          title = EXCLUDED.title,
          description = EXCLUDED.description,

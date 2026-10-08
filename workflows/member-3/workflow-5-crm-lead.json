@@ -32,7 +32,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst text = (item.clean_body + ' ' + item.signature);\nconst phoneMatch = text.match(/(\\+84|0)\\d{9,10}/);\nconst budgetMatch = text.match(/(\\d+)\\s*(tr|triệu|million|k)/i);\n\nreturn [{\n  json: {\n    ...item,\n    extracted_name: item.sender_name || 'Khách hàng',\n    extracted_phone: phoneMatch ? phoneMatch[0] : '0901234567',\n    extracted_company: item.company || 'Doanh nghiệp đối tác',\n    extracted_budget: budgetMatch ? 60000000 : 20000000,\n    extracted_requirement: item.subject || 'Quan tâm giải pháp phần mềm'\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst text = String(\n  (item.clean_body || '') + ' ' + \n  (item.signature || '') + ' ' + \n  (item.content || '') + ' ' + \n  (item.text || '') + ' ' + \n  (item.body || '')\n);\n\n// Phone extraction\nconst phoneMatch = text.match(/(?:\\+84|0)[1-9]\\d{8,9}/) || text.match(/(?:\\+84|0)\\d{9,10}/);\nconst extracted_phone = phoneMatch ? phoneMatch[0] : (item.phone || '0905123456');\n\n// Budget extraction\nlet extracted_budget = 0;\nif (text.match(/(\\d+)\\s*(?:triệu|trieu|tr|million)/i)) {\n  const m = text.match(/(\\d+)\\s*(?:triệu|trieu|tr|million)/i);\n  extracted_budget = parseInt(m[1], 10) * 1000000;\n} else if (text.match(/(\\d+)\\s*(?:tỷ|ty)/i)) {\n  const m = text.match(/(\\d+)\\s*(?:tỷ|ty)/i);\n  extracted_budget = parseInt(m[1], 10) * 1000000000;\n} else if (text.match(/(\\d+)\\s*(?:k|nghìn|nghin)/i)) {\n  const m = text.match(/(\\d+)\\s*(?:k|nghìn|nghin)/i);\n  extracted_budget = parseInt(m[1], 10) * 1000;\n} else if (text.match(/(\\d{7,11})/)) {\n  const m = text.match(/(\\d{7,11})/);\n  extracted_budget = parseInt(m[1], 10);\n} else if (item.budget) {\n  extracted_budget = Number(item.budget);\n} else {\n  extracted_budget = 20000000;\n}\n\n// Company extraction\nlet extracted_company = item.company || '';\nif (!extracted_company) {\n  const compMatch = text.match(/(?:Tập đoàn|Công ty(?:\\s+TNHH|\\s+Cổ phần)?|Cửa hàng)\\s+[^\\n,.-]+/i);\n  if (compMatch) extracted_company = compMatch[0].trim();\n  else extracted_company = 'Doanh nghiệp đối tác';\n}\n\n// Name extraction\nlet extracted_name = item.sender_name || item.name || '';\nif (!extracted_name && item.signature) {\n  const nameMatch = item.signature.split(/[-–,\\n]/)[0].trim();\n  if (nameMatch) extracted_name = nameMatch;\n}\nif (!extracted_name) extracted_name = 'Lê Thị Kiều Trang';\n\nreturn [{\n  json: {\n    ...item,\n    extracted_name,\n    extracted_phone,\n    extracted_company,\n    extracted_budget,\n    extracted_requirement: item.subject || 'Quan tâm giải pháp phần mềm'\n  }\n}];"
       },
       "id": "1676e938-9880-4e93-9c77-d9ad14b1626f",
       "name": "AI Entity Extractor Code",
@@ -45,7 +45,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\nreturn [{\n  json: {\n    email: data.sender_email || data.email || 'customer@example.com',\n    full_name: data.extracted_name,\n    phone: data.extracted_phone,\n    company: data.extracted_company,\n    budget: Number(data.extracted_budget),\n    requirement: data.extracted_requirement\n  }\n}];"
+        "jsCode": "const data = $input.first().json;\nconst rawEmail = String(data.sender_email || data.email || data.from || 'trangltk.24it@vku.udn.vn').replace(/^=+/, '').trim();\nconst rawCompany = String(data.extracted_company || data.company || 'Doanh nghiệp đối tác').replace(/^=+/, '').trim();\nconst rawName = String(data.extracted_name || data.sender_name || 'Khách hàng').replace(/^=+/, '').trim();\nconst rawPhone = String(data.extracted_phone || data.phone || '0905123456').replace(/^=+/, '').trim();\nconst budget = Number(data.extracted_budget || 0);\n\nlet lead_score = 65;\nlet status = 'FOLLOWED_UP';\nif (budget >= 70000000) {\n  lead_score = 100;\n  status = 'PRIORITY_SALES';\n} else if (budget >= 25000000) {\n  lead_score = 85;\n  status = 'QUALIFIED';\n} else {\n  lead_score = 65;\n  status = 'FOLLOWED_UP';\n}\n\nreturn [{\n  json: {\n    email: rawEmail,\n    full_name: rawName,\n    phone: rawPhone,\n    company: rawCompany,\n    budget,\n    estimated_budget: budget,\n    lead_score,\n    status,\n    requirement: data.extracted_requirement || data.subject || 'Tư vấn giải pháp'\n  }\n}];"
       },
       "id": "3b712e36-eb87-4868-bdd2-7b84937d96bb",
       "name": "JSON Lead Formatter Code",
@@ -73,7 +73,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "dOIn9Rk5SNKWkQqD",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -116,7 +116,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO crm_customers (email, full_name, company, phone, lead_score, status)\nVALUES (\n  '{{ $json.email || $('Webhook Sales Trigger').first().json.body.sender_email }}',\n  '{{ $json.full_name || $('Webhook Sales Trigger').first().json.body.sender_name }}',\n  '{{ $json.company || $('Webhook Sales Trigger').first().json.body.company || 'Doanh nghiệp' }}',\n  '{{ $json.phone || '0905123987' }}',\n  85,\n  'PRIORITY_SALES'\n)\nON CONFLICT (email) DO UPDATE \nSET lead_score = 85, status = 'PRIORITY_SALES';",
+        "query": "INSERT INTO crm_customers (email, full_name, company, phone, lead_score, status)\nVALUES (\n  '{{ $('JSON Lead Formatter Code').first().json.email }}',\n  '{{ $('JSON Lead Formatter Code').first().json.full_name }}',\n  '{{ $('JSON Lead Formatter Code').first().json.company }}',\n  '{{ $('JSON Lead Formatter Code').first().json.phone }}',\n  {{ $('JSON Lead Formatter Code').first().json.lead_score }},\n  '{{ $('JSON Lead Formatter Code').first().json.status }}'\n)\nON CONFLICT (email) DO UPDATE \nSET lead_score = {{ $('JSON Lead Formatter Code').first().json.lead_score }}, status = '{{ $('JSON Lead Formatter Code').first().json.status }}', full_name = '{{ $('JSON Lead Formatter Code').first().json.full_name }}', company = '{{ $('JSON Lead Formatter Code').first().json.company }}', phone = '{{ $('JSON Lead Formatter Code').first().json.phone }}'\nRETURNING *;",
         "options": {}
       },
       "id": "164d5247-1456-475c-b0ca-57746efdc9cb",
@@ -129,7 +129,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "dOIn9Rk5SNKWkQqD",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -137,7 +137,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE crm_customers SET updated_at = NOW(), full_name = '{{ $('JSON Lead Formatter Code').item.json.full_name }}' WHERE email = '{{ $('JSON Lead Formatter Code').item.json.email }}' RETURNING *;",
+        "query": "UPDATE crm_customers \nSET updated_at = NOW(), full_name = '{{ $('JSON Lead Formatter Code').first().json.full_name }}', company = '{{ $('JSON Lead Formatter Code').first().json.company }}', phone = '{{ $('JSON Lead Formatter Code').first().json.phone }}', lead_score = {{ $('JSON Lead Formatter Code').first().json.lead_score }}, status = '{{ $('JSON Lead Formatter Code').first().json.status }}' \nWHERE email = '{{ $('JSON Lead Formatter Code').first().json.email }}' \nRETURNING *;",
         "options": {}
       },
       "id": "77ed6a7e-4806-45a6-9993-86aa3931d507",
@@ -150,7 +150,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "dOIn9Rk5SNKWkQqD",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -170,7 +170,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nlet score = 50;\nif (item.budget >= 50000000) score += 40;\nif (item.phone) score += 10;\nreturn [{\n  json: {\n    ...item,\n    lead_score: score\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst formatter = $('JSON Lead Formatter Code').first().json;\nreturn [{\n  json: {\n    ...item,\n    lead_score: formatter.lead_score,\n    status: formatter.status,\n    budget: formatter.budget,\n    estimated_budget: formatter.budget\n  }\n}];"
       },
       "id": "a61d6755-9be8-4e8a-b4eb-d1d73d979e39",
       "name": "Calculate Lead Score Code",
@@ -184,10 +184,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://172.17.0.1:4000/api/v1/crm/leads",
+        "url": "http://127.0.0.1:4000/api/v1/crm/leads",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"fullName\": \"={{ $json.full_name || $('Webhook Sales Trigger').first().json.body.sender_name }}\",\n  \"email\": \"={{ $json.email || $('Webhook Sales Trigger').first().json.body.sender_email }}\",\n  \"company\": \"={{ $json.company || $('Webhook Sales Trigger').first().json.body.company }}\",\n  \"phone\": \"={{ $json.phone || '0905123987' }}\",\n  \"leadScore\": {{ $json.lead_score || 85 }}\n}",
+        "jsonBody": "={{ JSON.stringify({\n  fullName: String($json.full_name || $('Webhook Sales Trigger').first().json.body?.sender_name || 'Khách hàng').replace(/^=+/, '').trim(),\n  email: String($json.email || $('Webhook Sales Trigger').first().json.body?.sender_email || 'client@example.com').replace(/^=+/, '').trim(),\n  company: String($json.company || $('Webhook Sales Trigger').first().json.body?.company || 'Doanh nghiệp đối tác').replace(/^=+/, '').trim(),\n  phone: String($json.phone || '0905123987').replace(/^=+/, '').trim(),\n  leadScore: Number($json.lead_score || 85)\n}) }}",
         "options": {}
       },
       "id": "a26f1735-85ec-42b8-99d0-780a776ff2c0",
@@ -237,7 +237,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE crm_customers SET lead_score = {{ $('Calculate Lead Score Code').item.json.lead_score }}, status = 'PRIORITY_SALES' WHERE email = '{{ $('Calculate Lead Score Code').item.json.email }}';",
+        "query": "UPDATE crm_customers \nSET lead_score = {{ $('Calculate Lead Score Code').first().json.lead_score }}, status = '{{ $('Calculate Lead Score Code').first().json.status }}' \nWHERE email = '{{ $('Calculate Lead Score Code').first().json.email }}' \nRETURNING *;",
         "options": {}
       },
       "id": "3469a8f2-893b-4a52-af19-d28c4064d008",
@@ -250,15 +250,15 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "dOIn9Rk5SNKWkQqD",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
-        "fromEmail": "huonglan8926@gmail.com",
-        "toEmail": "mhuonglan89@gmail.com",
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranglee12306@gmail.com",
         "subject": "=[HOT LEAD] Khách hàng VIP cần tư vấn gấp: {{ $('Calculate Lead Score Code').item.json.full_name }}",
         "html": "=<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }\n    .email-container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }\n    .email-header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 28px 32px; color: #ffffff; }\n    .brand-badge { display: inline-block; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #93c5fd; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; }\n    .email-header h2 { margin: 0; font-size: 20px; font-weight: 700; color: #ffffff; }\n    .email-body { padding: 32px; }\n    .lead-badge { background-color: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-block; margin-bottom: 20px; }\n    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }\n    .info-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }\n    .info-table td.label { width: 35%; color: #64748b; font-weight: 600; }\n    .info-table td.val { width: 65%; color: #0f172a; font-weight: 600; }\n    .content-box { background-color: #f8fafc; border-left: 4px solid #2563eb; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px; font-size: 14px; color: #334155; line-height: 1.6; }\n    .cta-btn { display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; text-align: center; }\n    .email-footer { background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; font-size: 12px; color: #94a3b8; text-align: center; }\n  </style>\n</head>\n<body>\n  <div class=\"email-container\">\n    <div class=\"email-header\">\n      <span class=\"brand-badge\">⚡ NovaCRM Lead Dispatch</span>\n      <h2>Phát hiện Cơ Hội Kinh Doanh Tiềm Năng (VIP)</h2>\n    </div>\n    <div class=\"email-body\">\n      <div class=\"lead-badge\">🔥 ĐIỂM TIỀM NĂNG: {{ $('Calculate Lead Score Code').first().json.lead_score || 90 }} / 100 PTS</div>\n      \n      <p style=\"margin: 0 0 16px 0; font-size: 14px; color: #475569; line-height: 1.5;\">\n        Hệ thống tự động tiếp nhận một yêu cầu tư vấn mới từ khách hàng doanh nghiệp:\n      </p>\n\n      <table class=\"info-table\">\n        <tr>\n          <td class=\"label\">Người liên hệ:</td>\n          <td class=\"val\">{{ $('Calculate Lead Score Code').first().json.full_name || $('Webhook Sales Trigger').first().json.body?.sender_name || $('Webhook Sales Trigger').first().json.sender_name || 'Khách hàng' }}</td>\n        </tr>\n        <tr>\n          <td class=\"label\">Địa chỉ Email:</td>\n          <td class=\"val\">{{ $('Calculate Lead Score Code').first().json.email || $('Webhook Sales Trigger').first().json.body?.sender_email || $('Webhook Sales Trigger').first().json.sender_email }}</td>\n        </tr>\n        <tr>\n          <td class=\"label\">Doanh nghiệp:</td>\n          <td class=\"val\">{{ $('Calculate Lead Score Code').first().json.company || $('Webhook Sales Trigger').first().json.body?.company || $('Webhook Sales Trigger').first().json.company || 'Đang cập nhật' }}</td>\n        </tr>\n        <tr>\n          <td class=\"label\">Số điện thoại:</td>\n          <td class=\"val\">{{ $('Calculate Lead Score Code').first().json.phone || $('AI Entity Extractor Code').first().json.phone || '0988776655' }}</td>\n        </tr>\n        <tr>\n          <td class=\"label\">Quy mô ngân sách:</td>\n          <td class=\"val\" style=\"color: #059669;\">\n            {{ $('Calculate Lead Score Code').first().json.estimated_budget ? Number($('Calculate Lead Score Code').first().json.estimated_budget).toLocaleString('vi-VN') + ' VNĐ' : '90.000.000 VNĐ' }}\n          </td>\n        </tr>\n      </table>\n\n      <div style=\"font-weight: 600; font-size: 13px; color: #475569; margin-bottom: 8px;\">NỘI DUNG YÊU CẦU BAN ĐẦU:</div>\n      <div class=\"content-box\">\n        \"{{ $('Webhook Sales Trigger').first().json.body?.content || $('Webhook Sales Trigger').first().json.content || 'Yêu cầu tư vấn triển khai phần mềm CRM tự động' }}\"\n      </div>\n\n      <div style=\"text-align: center; margin-top: 24px;\">\n        <a href=\"http://localhost:3000/crm\" class=\"cta-btn\" target=\"_blank\">Mở Dashboard Xem Chi Tiết</a>\n      </div>\n    </div>\n    <div class=\"email-footer\">\n      NovaCRM Lead Engine • Tự động hóa tiếp nhận khách hàng thời gian thực.\n    </div>\n  </div>\n</body>\n</html>\n",
         "options": {}
@@ -274,16 +274,17 @@
       "webhookId": "00855807-9e2b-4deb-9bfd-7313084b0f75",
       "credentials": {
         "smtp": {
-          "id": "ahqq2Ksc3TpsOb56",
+          "id": "syQs2FbeoQhUSFO8",
           "name": "SMTP account"
         }
       },
-      "continueOnFail": true
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "fromEmail": "huonglan8926@gmail.com",
-        "toEmail": "={{ $json.email || $('Webhook Sales Trigger').first().json.body?.sender_email || $('Webhook Sales Trigger').first().json.sender_email }}\n",
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "={{ String($json.email || $('Webhook Sales Trigger').first().json.body?.sender_email || $('Webhook Sales Trigger').first().json.sender_email || '').replace(/^=+/, '').trim() }}",
         "subject": "=CHÀO MỪNG {{ $('Calculate Lead Score Code').first().json.full_name || $('Webhook Sales Trigger').first().json.body?.sender_name || 'Quý khách' }} - Giới thiệu giải pháp quản trị từ NovaCRM",
         "html": "=<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 28px; color: #334155; }\n    .email-card { max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); }\n    .header { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 36px 32px; color: #ffffff; }\n    .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }\n    .body { padding: 32px; font-size: 15px; line-height: 1.7; color: #334155; }\n    .feature-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin: 20px 0; }\n    .feature-item { margin-bottom: 10px; font-size: 14px; }\n    .footer { background: #f1f5f9; padding: 24px 32px; text-align: center; font-size: 13px; color: #64748b; border-top: 1px solid #e2e8f0; }\n  </style>\n</head>\n<body>\n  <div class=\"email-card\">\n    <div class=\"header\">\n      <div style=\"font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #bfdbfe; margin-bottom: 6px;\">NovaCRM Solutions</div>\n      <h1>Xác Nhận Yêu Cầu Tư Vấn & Giải Pháp</h1>\n    </div>\n    <div class=\"body\">\n      <p>Kính gửi <strong>{{ $('Calculate Lead Score Code').first().json.full_name || $('Webhook Sales Trigger').first().json.body?.sender_name || 'Quý khách hàng' }}</strong>,</p>\n      <p>NovaCRM đã tiếp nhận thông tin yêu cầu của Quý đơn vị liên quan đến nhu cầu triển khai hệ thống quản trị khách hàng và tự động hóa quy trình nghiệp vụ.</p>\n      \n      <div class=\"feature-card\">\n        <div style=\"font-weight: 700; color: #0f172a; margin-bottom: 12px; font-size: 14px;\">BỘ HỒ SƠ GIẢI PHÁP ĐÍNH KÈM:</div>\n        <div class=\"feature-item\">✔ <strong>Company Profile 2026:</strong> Hồ sơ năng lực kỹ thuật và sản phẩm số.</div>\n        <div class=\"feature-item\">✔ <strong>Đặc Tả Nghiệp Vụ:</strong> Hệ thống tự động phân loại Lead và OCR đối soát hóa đơn thông minh.</div>\n        <div class=\"feature-item\">✔ <strong>Khung Ngân Sách Dự Kiến:</strong> Tối ưu theo quy mô vận hành của doanh nghiệp.</div>\n      </div>\n\n      <p>Chuyên viên tư vấn của chúng tôi sẽ liên hệ lại qua số điện thoại <strong>{{ $('Calculate Lead Score Code').first().json.phone || $('AI Entity Extractor Code').first().json.phone || '0988776655' }}</strong> trong thời gian sớm nhất để trao đổi chi tiết.</p>\n\n      <p style=\"margin-top: 24px;\">Trân trọng cảm ơn sự quan tâm của Quý doanh nghiệp,<br>\n      <strong>Đội Ngũ Dự Án NovaCRM</strong></p>\n    </div>\n    <div class=\"footer\">\n      NovaCRM Enterprise Platform • Tòa nhà Công nghệ VKU, Đà Nẵng<br>\n      Hotline: 1900 8888 • Email: support@novacrm.vn\n    </div>\n  </div>\n</body>\n</html>",
         "options": {}
@@ -299,28 +300,31 @@
       "webhookId": "591a61ea-f7c5-49b2-92b2-6d918e3eb5db",
       "credentials": {
         "smtp": {
-          "id": "ahqq2Ksc3TpsOb56",
+          "id": "syQs2FbeoQhUSFO8",
           "name": "SMTP account"
         }
       },
-      "continueOnFail": true
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
-      "parameters": {},
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
       "id": "3b875c5e-f369-450d-9ba0-d907e3b1ecce",
       "name": "Wait Follow-up Window",
       "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
+      "typeVersion": 1,
       "position": [
         1792,
         128
-      ],
-      "webhookId": "62dde33c-d1bd-4fd8-904d-b8dc480df24d"
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE crm_customers \nSET lead_score = {{ $('Calculate Lead Score Code').item.json.lead_score }}, \n    status = 'PRIORITY_SALES' \nWHERE email = '{{ $('Calculate Lead Score Code').item.json.email }}';",
+        "query": "UPDATE crm_customers \nSET lead_score = {{ $('Calculate Lead Score Code').first().json.lead_score }}, status = '{{ $('Calculate Lead Score Code').first().json.status }}' \nWHERE email = '{{ $('Calculate Lead Score Code').first().json.email }}' \nRETURNING *;",
         "options": {}
       },
       "id": "84491aec-60f3-455e-9eb3-6ffbc03fd758",
@@ -333,7 +337,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "dOIn9Rk5SNKWkQqD",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -373,8 +377,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "huonglan8926@gmail.com",
-        "toEmail": "={{ $json.email || $('Webhook Sales Trigger').first().json.body?.sender_email || $('Webhook Sales Trigger').first().json.sender_email }}",
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "={{ String($json.email || $('Webhook Sales Trigger').first().json.body?.sender_email || $('Webhook Sales Trigger').first().json.sender_email || '').replace(/^=+/, '').trim() }}",
         "subject": "=Thăm dò phản hồi: Quý khách đã nhận được tài liệu giải pháp chưa?",
         "html": "=<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #334155; }\n    .box { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }\n    .header { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 12px; }\n    .content { font-size: 14px; line-height: 1.6; color: #334155; }\n    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; }\n  </style>\n</head>\n<body>\n  <div class=\"box\">\n    <div class=\"header\">Thư Thăm Dò & Hỗ Trợ Kỹ Thuật NovaCRM</div>\n    <div class=\"content\">\n      <p>Kính gửi <strong>{{ $json.full_name || $('Webhook Sales Trigger').first().json.body?.sender_name || 'Quý khách' }}</strong>,</p>\n      <p>Bộ phận hỗ trợ kỹ thuật NovaCRM xin phép liên hệ lại để kiểm tra xem Quý khách đã nhận được bộ tài liệu giải pháp và hồ sơ năng lực mà chúng tôi gửi trước đó chưa ạ?</p>\n      <p>Nếu Quý khách cần đặt lịch hẹn demo trực tiếp hệ thống hoặc cần giải đáp bất kỳ thắc mắc nào về phương án triển khai phần mềm CRM, xin vui lòng phản hồi trực tiếp email này hoặc liên hệ hotline <strong>1900 8888</strong>.</p>\n      <p>Chúc Quý khách một ngày làm việc hiệu quả!</p>\n      <p style=\"margin-top: 20px;\">Trân trọng,<br><strong>Ban Chăm Sóc Khách Hàng NovaCRM</strong></p>\n    </div>\n    <div class=\"footer\">\n      NovaCRM Enterprise Platform • Tòa nhà Công nghệ VKU, Đà Nẵng\n    </div>\n  </div>\n</body>\n</html>\n",
         "options": {}
@@ -390,16 +394,17 @@
       "webhookId": "37c84f02-e602-4430-b30c-b0a8312c5c98",
       "credentials": {
         "smtp": {
-          "id": "ahqq2Ksc3TpsOb56",
+          "id": "syQs2FbeoQhUSFO8",
           "name": "SMTP account"
         }
       },
-      "continueOnFail": true
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE crm_customers SET status = 'FOLLOWED_UP' WHERE email = '{{ $('Calculate Lead Score Code').item.json.email }}';",
+        "query": "UPDATE crm_customers \nSET status = CASE WHEN lead_score >= 100 THEN 'PRIORITY_SALES' WHEN lead_score >= 80 THEN 'QUALIFIED' ELSE 'FOLLOWED_UP' END \nWHERE email = '{{ $('Calculate Lead Score Code').first().json.email }}' \nRETURNING *;",
         "options": {}
       },
       "id": "4f0adc3e-21a0-4e4a-ac50-e2abfbddde7b",
@@ -412,7 +417,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "dOIn9Rk5SNKWkQqD",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
