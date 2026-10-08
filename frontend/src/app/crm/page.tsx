@@ -50,48 +50,7 @@ export default function CrmPage() {
         setLoading(false);
       })
       .catch(() => {
-        setCustomers([
-          {
-            id: 1,
-            email: 'khoa.tran@example.com',
-            full_name: 'Trần Anh Khoa',
-            company: 'Tập đoàn Công nghệ Alpha',
-            phone: '0912345678',
-            lead_score: 90,
-            status: 'PRIORITY_SALES',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 2,
-            email: 'director@vietcorp.vn',
-            full_name: 'Trần Văn Bình',
-            company: 'Viet Solution Corp',
-            phone: '0912345678',
-            lead_score: 85,
-            status: 'QUALIFIED',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 3,
-            email: 'lan.mai@vku.udn.vn',
-            full_name: 'Mai Hương Lan',
-            company: 'Đại học VKU',
-            phone: '0988776655',
-            lead_score: 65,
-            status: 'FOLLOWED_UP',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 4,
-            email: 'contact@partner.vn',
-            full_name: 'Nguyễn Văn Minh',
-            company: 'Minh Phát Logistics',
-            phone: '0903334444',
-            lead_score: 85,
-            status: 'QUALIFIED',
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        setCustomers([]);
         setLoading(false);
       });
   };

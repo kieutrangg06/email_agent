@@ -12,15 +12,16 @@
       "id": "w2-node-1",
       "name": "1. Webhook Ticket Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         200,
         300
-      ]
+      ],
+      "webhookId": "incoming-ticket-trigger"
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst sender = payload.sender_email || payload.from || \"guest@enterprise.com\";\nconst subject = payload.subject || \"Yêu cầu hỗ trợ kỹ thuật\";\nconst body = payload.clean_body || payload.text || payload.body || \"Không có nội dung chi tiết\";\nconst category = payload.category || \"Technical\";\nconst priority = payload.priority || \"P1 - Critical\";\n\nreturn [{\n  json: {\n    sender_email: sender,\n    title: subject,\n    raw_description: body,\n    category: category,\n    priority: priority\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst sender = payload.sender_email || payload.from || \"guest@enterprise.com\";\nconst senderName = payload.sender_name || payload.name || sender.split('@')[0];\nconst subject = payload.subject || \"Yêu cầu hỗ trợ kỹ thuật\";\nconst body = payload.clean_body || payload.text || payload.body || \"Không có nội dung chi tiết\";\nconst category = payload.category || \"Technical\";\nconst priority = payload.priority || \"P1 - Critical\";\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: sender,\n    sender_name: senderName,\n    title: subject,\n    raw_description: body,\n    category: category,\n    priority: priority\n  }\n}];"
       },
       "id": "w2-node-2",
       "name": "2. Clean Payload Code",
@@ -64,7 +65,7 @@
       "onError": "continueRegularOutput",
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -190,7 +191,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -228,7 +229,7 @@
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "={{ $('6. Format Markdown Code').first().json.sender_email }}",
         "subject": "=🎫 [Mã Yêu Cầu Hỗ Trợ: {{ $('6. Format Markdown Code').first().json.ticket_code }}] {{$('6. Format Markdown Code').first().json.title }}",
-        "html": "=<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;\"><div style=\"background-color: #2563eb; color: #ffffff; padding: 16px; border-radius: 8px 8px 0 0;\"><h3 style=\"margin: 0;\">🎫 PHIẾU HỖ TRỢ ĐÃ ĐƯỢC TẠO THÀNH CÔNG</h3></div><div style=\"padding: 20px; border: 1px solid #cbd5e1; border-top: none;\"><p>Xin chào quý khách <strong>{{ $('6. Format Markdown Code').first().json.sender_email }}</strong>,</p><p>Hệ thống hỗ trợ kỹ thuật đã khởi tạo mã Ticket chính thức cho vấn đề của bạn:</p><table style=\"border-collapse: collapse; width: 100%; font-size: 13px; margin: 15px 0;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc; width: 35%;\"><strong>Mã tra cứu Ticket:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #2563eb;\">{{ $('6. Format Markdown Code').first().json.ticket_code }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc;\"><strong>Chuyên viên phụ trách:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">{{ $('6. Format Markdown Code').first().json.assigned_to }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc;\"><strong>Tóm tắt sự cố:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; white-space: pre-line;\">{{ $('6. Format Markdown Code').first().json.summary }}</td></tr></table><p style=\"font-size: 12px; color: #64748b;\">Thời hạn phản hồi đầu tiên (First Response SLA): Trong vòng <strong>2 giờ</strong>.</p></div></div>",
+        "html": "=<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;\"><div style=\"background-color: #2563eb; color: #ffffff; padding: 16px; border-radius: 8px 8px 0 0;\"><h3 style=\"margin: 0;\">🎫 PHIẾU HỖ TRỢ ĐÃ ĐƯỢC TẠO THÀNH CÔNG</h3></div><div style=\"padding: 20px; border: 1px solid #cbd5e1; border-top: none;\"><p>Xin chào quý khách <strong>{{ $('6. Format Markdown Code').first().json.sender_email }}</strong>,</p><p>Hệ thống hỗ trợ kỹ thuật đã khởi tạo mã Ticket chính thức cho vấn đề của bạn:</p><table style=\"border-collapse: collapse; width: 100%; font-size: 13px; margin: 15px 0;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc; width: 35%;\"><strong>Mã tra cứu Ticket:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #2563eb;\">{{ $('6. Format Markdown Code').first().json.ticket_code }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc;\"><strong>Chuyên viên phụ trách:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">{{ $('6. Format Markdown Code').first().json.assigned_to }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc;\"><strong>Mức độ ưu tiên:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;\">{{ $('6. Format Markdown Code').first().json.priority }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background: #f8fafc;\"><strong>Tóm tắt sự cố:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; white-space: pre-line;\">{{ $('6. Format Markdown Code').first().json.summary }}</td></tr></table><p style=\"font-size: 12px; color: #64748b;\">Thời hạn phản hồi đầu tiên (First Response SLA): Trong vòng <strong>{{ $('6. Format Markdown Code').first().json.priority.includes('P1') ? '2 giờ' : ($('6. Format Markdown Code').first().json.priority.includes('P2') ? '4 giờ' : ($('6. Format Markdown Code').first().json.priority.includes('P3') ? '8 giờ' : '24 giờ')) }}</strong>.</p></div></div>",
         "options": {}
       },
       "id": "w2-node-11",
@@ -238,7 +239,14 @@
       "position": [
         2620,
         200
-      ]
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -258,7 +266,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -279,7 +287,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const deadline = new Date();\ndeadline.setHours(deadline.getHours() + 2);\n\nreturn [{\n  json: {\n    ticket_code: $(\"6. Format Markdown Code\").first().json.ticket_code,\n    first_response_sla: deadline.toISOString()\n  }\n}];"
+        "jsCode": "const base = $('6. Format Markdown Code').first().json;\nconst pri = String(base.priority || '');\nlet hours = 8;\nif (pri.includes('P1')) hours = 2;\nelse if (pri.includes('P2')) hours = 4;\nelse if (pri.includes('P3')) hours = 8;\nelse if (pri.includes('P4')) hours = 24;\n\nconst deadline = new Date();\ndeadline.setHours(deadline.getHours() + hours);\n\nreturn [{\n  json: {\n    ticket_code: base.ticket_code,\n    first_response_sla: deadline.toISOString(),\n    sla_hours: hours\n  }\n}];"
       },
       "id": "w2-node-14",
       "name": "14. Calc First-Response SLA Code",
@@ -308,7 +316,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -331,7 +339,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       },
@@ -340,12 +348,20 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('6. Format Markdown Code').first().json;\nreturn [{\n  json: {\n    ticket_code: base.ticket_code,\n    sender_email: base.sender_email,\n    title: base.title,\n    summary: base.summary,\n    assigned_to: base.assigned_to,\n    priority: base.priority || 'P1 - Critical',\n    is_escalated: true\n  }\n}];"
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('6. Format Markdown Code').first().json.priority }}",
+              "operation": "contains",
+              "value2": "P1"
+            }
+          ]
+        }
       },
       "id": "w2-node-17",
       "name": "17. Filter Escalation Priority",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
       "position": [
         3940,
         200
@@ -355,8 +371,8 @@
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "tranglee12306@gmail.com",
-        "subject": "=⚡ [LEO THANG KHẨN CẤP / ESCALATION] Ticket P1: {{ $json.ticket_code }}",
-        "html": "=<div style=\"background: #fff1f2; border: 1px solid #fecdd3; padding: 18px; border-radius: 8px; font-family: Arial, sans-serif;\"><h3 style=\"color: #b91c1c; margin-top: 0;\">🚨 CẢNH BÁO LEO THANG SỰ CỐ KHẨN CẤP (P1)</h3><p>Kính gửi <strong>Trưởng Bộ Phận Kỹ Thuật</strong>,</p><p>Hệ thống tự động phát hiện Ticket mức độ nghiêm trọng cần giám sát can thiệp khẩn cấp:</p><ul><li><strong>Mã Ticket:</strong> {{ $json.ticket_code }}</li><li><strong>Tiêu đề:</strong> {{ $json.title }}</li><li><strong>Chuyên viên phụ trách:</strong> {{ $json.assigned_to }}</li><li><strong>Hạn First-Response SLA:</strong> Trong vòng 2 giờ tới</li></ul><p>Vui lòng đăng nhập hệ thống tại <a href=\"http://localhost:3000/helpdesk\">Dashboard Helpdesk</a> để kiểm tra.</p></div>",
+        "subject": "=⚡ [LEO THANG KHẨN CẤP / ESCALATION] Ticket P1: {{ $('6. Format Markdown Code').first().json.ticket_code }}",
+        "html": "=<div style=\"background: #fff1f2; border: 1px solid #fecdd3; padding: 18px; border-radius: 8px; font-family: Arial, sans-serif;\"><h3 style=\"color: #b91c1c; margin-top: 0;\">🚨 CẢNH BÁO LEO THANG SỰ CỐ KHẨN CẤP (P1)</h3><p>Kính gửi <strong>Trưởng Bộ Phận Kỹ Thuật</strong>,</p><p>Hệ thống tự động phát hiện Ticket mức độ nghiêm trọng cần giám sát can thiệp khẩn cấp:</p><ul><li><strong>Mã Ticket:</strong> {{ $('6. Format Markdown Code').first().json.ticket_code }}</li><li><strong>Tiêu đề:</strong> {{ $('6. Format Markdown Code').first().json.title }}</li><li><strong>Chuyên viên phụ trách:</strong> {{ $('6. Format Markdown Code').first().json.assigned_to }}</li><li><strong>Hạn First-Response SLA:</strong> Trong vòng 2 giờ tới</li></ul><p>Vui lòng đăng nhập hệ thống tại <a href=\"http://localhost:3000/helpdesk\">Dashboard Helpdesk</a> để kiểm tra.</p></div>",
         "options": {}
       },
       "id": "w2-node-18",
@@ -366,12 +382,19 @@
       "position": [
         4180,
         100
-      ]
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (event_type, payload) VALUES ($1, $2::jsonb);",
+        "query": "INSERT INTO system_audit_logs (event_type, payload) VALUES ($1, $2::jsonb) RETURNING id;",
         "options": {
           "queryReplacement": "={{ [\"CRITICAL_TICKET_ESCALATED\", JSON.stringify({ ticket_code: $json.ticket_code, triggered_reason: \"High severity P1 incident\" })] }}"
         }
@@ -386,7 +409,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -409,10 +432,38 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/generate-reply-trigger",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ticket_code: $('3. Gen Ticket Code').first().json.ticket_code,\n  sender_email: $('2. Clean Payload Code').first().json.sender_email,\n  sender_name: $('2. Clean Payload Code').first().json.sender_name || 'Khách hàng',\n  subject: $('2. Clean Payload Code').first().json.title,\n  body: $('2. Clean Payload Code').first().json.raw_description\n}) }}",
+        "options": {}
+      },
+      "id": "w2-node-trigger-luong-3",
+      "name": "Trigger Luong 3 RAG Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4640,
+        100
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -600,37 +651,48 @@
       ]
     },
     "16. Check Status Postgres": {
-    "main": [
-      [
-        {
-          "node": "17. Filter Escalation Priority",
-          "type": "main",
-          "index": 0
-        }
+      "main": [
+        [
+          {
+            "node": "17. Filter Escalation Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
-    ]
-  },
-  "17. Filter Escalation Priority": {
-    "main": [
-      [
-        {
-          "node": "18. Send Escalation Email",
-          "type": "main",
-          "index": 0
-        }
+    },
+    "17. Filter Escalation Priority": {
+      "main": [
+        [
+          {
+            "node": "18. Send Escalation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
-    ]
-  },
-  "18. Send Escalation Email": {
-    "main": [
-      [
-        {
-          "node": "19. Audit Escalation Postgres",
-          "type": "main",
-          "index": 0
-        }
+    },
+    "18. Send Escalation Email": {
+      "main": [
+        [
+          {
+            "node": "19. Audit Escalation Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
-    ]
-  }
+    },
+    "19. Audit Escalation Postgres": {
+      "main": [
+        [
+          {
+            "node": "Trigger Luong 3 RAG Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   }
 }
