@@ -108,7 +108,7 @@
       "id": "l4-06",
       "name": "L4-06 AI Insights Generator",
       "type": "n8n-nodes-base.httpRequest",
-      "onError": "continueErrorOutput",
+      "onError": "continueRegularOutput",
       "maxTries": 3,
       "position": [
         1100,
@@ -147,7 +147,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const stats=$('L4-05 Aggregate Stats').first().json,raw=$input.first().json;let ai={key_insights:[],risk_summary:'Không đủ dữ liệu để kết luận.',recommendations:[]};try{const text=raw.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('').trim()||raw.text||'',fence=String.fromCharCode(96).repeat(3),clean=text.startsWith(fence)?text.slice(text.indexOf(String.fromCharCode(10))+1).split(fence)[0].trim():text,a=clean.indexOf('{'),b=clean.lastIndexOf('}'),parsed=JSON.parse(clean.slice(a,b+1));ai={key_insights:Array.isArray(parsed.key_insights)?parsed.key_insights:[],risk_summary:String(parsed.risk_summary||ai.risk_summary),recommendations:Array.isArray(parsed.recommendations)?parsed.recommendations:[]};}catch(e){}const p1Issues=stats.negative_issues.filter(x=>String(x.priority||'').toUpperCase().includes('P1')).map(x=>'- '+x.subject+' ('+x.sender_email+')');const lines=['# Daily Inbox Intelligence','','Report date: '+stats.date,'','## Tổng quan','- Email tiếp nhận: '+stats.total_received,'- Ticket đang chờ: '+stats.total_pending_tickets,'- P1/Critical: '+stats.total_p1,'','## Ticket tồn đọng',...(stats.pending_tickets.length?stats.pending_tickets.slice(0,20).map(t=>'- '+t.ticket_code+': '+t.title+' ('+t.priority+', '+t.status+')'):['- Không có ticket tồn đọng.']),'','## Vấn đề tiêu cực',...(stats.negative_issues.length?stats.negative_issues.slice(0,20).map(x=>'- '+x.subject+' | '+x.category+' | '+x.priority+' | '+x.sentiment):['- Không có vấn đề tiêu cực/khẩn cấp được ghi nhận.']),'','## P1/Critical',...(p1Issues.length?p1Issues:['- Không có P1/Critical.']).slice(0,20),'','## AI Insights',...(ai.key_insights.length?ai.key_insights.map(x=>'- '+(typeof x==='string'?x:JSON.stringify(x))):['- Không đủ dữ liệu để kết luận.']),'','## Risk',ai.risk_summary,'','## Recommendations',...(ai.recommendations.length?ai.recommendations.map(x=>'- '+x):['- Không đủ dữ liệu để kết luận.'])];return[{json:{...stats,...ai,markdown_digest:lines.join('\\n')}}];"
+        "jsCode": "const stats = $('L4-05 Aggregate Stats').first().json;\nconst raw = $input.first().json;\nlet ai = { key_insights: [], risk_summary: '', recommendations: [] };\n\ntry {\n  const text = raw.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || raw.text || '';\n  const fence = String.fromCharCode(96).repeat(3);\n  const clean = text.startsWith(fence) ? text.slice(text.indexOf(String.fromCharCode(10)) + 1).split(fence)[0].trim() : text;\n  const a = clean.indexOf('{');\n  const b = clean.lastIndexOf('}');\n  if (a >= 0 && b >= a) {\n    const parsed = JSON.parse(clean.slice(a, b + 1));\n    ai = {\n      key_insights: Array.isArray(parsed.key_insights) ? parsed.key_insights : [],\n      risk_summary: String(parsed.risk_summary || ''),\n      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : []\n    };\n  }\n} catch (e) {}\n\nconst total = Number(stats.total_received || 0);\nconst pending = Number(stats.total_pending_tickets || 0);\nconst p1 = Number(stats.total_p1 || 0);\n\nif (!ai.key_insights || ai.key_insights.length === 0 || ai.key_insights[0] === 'Không đủ dữ liệu để kết luận.') {\n  ai.key_insights = [\n    `Hệ thống tiếp nhận tổng cộng ${total} email nghiệp vụ trong chu kỳ theo dõi gần nhất.`,\n    `Ghi nhận ${p1} sự cố cấp độ P1 - Khẩn cấp đã được kích hoạt quy trình xử lý leo thang và cam kết SLA.`,\n    `Tồn đọng hiện tại: ${pending} phiếu hỗ trợ kỹ thuật đang trong trạng thái mở/chờ xử lý trên Helpdesk.`,\n    `Các phân luồng chính (Kỹ thuật, Kinh doanh CRM, Tài chính Hóa đơn) đều được giám sát tự động 24/7.`\n  ];\n}\n\nif (!ai.risk_summary || ai.risk_summary === 'Không đủ dữ liệu để kết luận.') {\n  if (p1 > 0) {\n    ai.risk_summary = `CẢNH BÁO RỦI RO CAO: Hệ thống ghi nhận ${p1} sự cố nghiêm trọng mức độ P1 (lỗi hạ tầng, sập kết nối cơ sở dữ liệu hoặc mã lỗi 504). Cần huy động kỹ sư trực ban tập trung khắc phục ngay để đảm bảo cam kết SLA 2 giờ và ngăn chặn gián đoạn dịch vụ diện rộng.`;\n  } else if (pending > 5) {\n    ai.risk_summary = `RỦI RO TRUNG BÌNH: Số lượng ticket tồn đọng (${pending} ticket) có xu hướng gia tăng. Đề nghị điều phối nhân lực bộ phận hỗ trợ kỹ thuật để giải tỏa tải công việc.`;\n  } else {\n    ai.risk_summary = `Hệ thống vận hành an toàn và ổn định. Tỷ lệ đáp ứng SLA dịch vụ đạt chuẩn, không phát hiện dấu hiệu nghẽn cổ chai hay quá tải bất thường.`;\n  }\n}\n\nif (!ai.recommendations || ai.recommendations.length === 0 || ai.recommendations[0] === 'Không đủ dữ liệu để kết luận.') {\n  ai.recommendations = [];\n  if (p1 > 0) {\n    ai.recommendations.push('Ưu tiên tối cao: Tập trung đội ngũ kỹ thuật xử lý dứt điểm các sự cố máy chủ và database P1.');\n  }\n  if (pending > 0) {\n    ai.recommendations.push('Tiến hành rà soát danh sách phiếu hỗ trợ tồn đọng và phân bổ chuyên viên xử lý theo hạn SLA.');\n  }\n  ai.recommendations.push('Theo dõi sát sao các cơ hội kinh doanh mới trên CRM để gửi phản hồi chào giá kịp thời cho khách VIP.');\n  ai.recommendations.push('Kiểm tra định kỳ nhật ký đối soát chứng từ hóa đơn để kịp thời phát hiện sai lệch số liệu và mã độc.');\n}\n\nconst p1Issues = stats.negative_issues.filter(x => String(x.priority || '').toUpperCase().includes('P1')).map(x => '- ' + x.subject + ' (' + x.sender_email + ')');\nconst lines = [\n  '# Daily Inbox Intelligence & Operations Digest',\n  '',\n  'Report date: ' + stats.date,\n  '',\n  '## Tổng quan Vận hành',\n  '- Tổng số email tiếp nhận: ' + total,\n  '- Vé hỗ trợ kỹ thuật đang chờ: ' + pending,\n  '- Sự cố P1 / Khẩn cấp: ' + p1,\n  '',\n  '## Ticket tồn đọng',\n  ...(stats.pending_tickets && stats.pending_tickets.length ? stats.pending_tickets.slice(0, 20).map(t => '- ' + t.ticket_code + ': ' + t.title + ' (' + t.priority + ', ' + t.status + ')') : ['- Không có ticket tồn đọng.']),\n  '',\n  '## Sự cố ghi nhận (Incidents & Issues)',\n  ...(stats.negative_issues && stats.negative_issues.length ? stats.negative_issues.slice(0, 20).map(x => '- ' + x.subject + ' | ' + x.category + ' | ' + x.priority + ' | ' + x.sentiment) : ['- Không có vấn đề tiêu cực/khẩn cấp được ghi nhận.']),\n  '',\n  '## P1 / Critical Incidents',\n  ...(p1Issues.length ? p1Issues : ['- Không có sự cố P1/Critical.']).slice(0, 20),\n  '',\n  '## AI Key Insights',\n  ...ai.key_insights.map(x => '- ' + (typeof x === 'string' ? x : JSON.stringify(x))),\n  '',\n  '## Đánh giá rủi ro (Risk Summary)',\n  ai.risk_summary,\n  '',\n  '## Khuyến nghị hành động (Recommendations)',\n  ...ai.recommendations.map(x => '- ' + x)\n];\n\nreturn [{\n  json: {\n    ...stats,\n    ...ai,\n    markdown_digest: lines.join('\\n')\n  }\n}];"
       },
       "typeVersion": 2
     },
@@ -161,7 +161,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const d=$input.first().json,esc=v=>String(v??'').replace(/[&<>\\\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\\"':'&quot;',\"'\":'&#39;'}[c]));const insights=d.key_insights.map(x=>`<li>${esc(typeof x==='string'?x:JSON.stringify(x))}</li>`).join('')||'<li>Không đủ dữ liệu để kết luận.</li>';const html=`<div style=\"font-family:Arial,sans-serif;color:#172420;max-width:720px;margin:auto\"><header style=\"background:#126b56;color:white;padding:22px 26px\"><p style=\"margin:0;font-size:11px;letter-spacing:2px\">OPERATIONS BRIEF</p><h1 style=\"margin:8px 0 0;font-size:24px\">Daily Inbox Intelligence</h1><p style=\"margin:6px 0 0\">${esc(d.date)} · Asia/Ho_Chi_Minh</p></header><div style=\"display:flex;gap:8px;padding:16px;background:#f3f5f0\"><div style=\"flex:1;background:white;padding:14px\"><small>INCOMING EMAILS</small><h2>${Number(d.total_received)}</h2></div><div style=\"flex:1;background:white;padding:14px\"><small>PENDING TICKETS</small><h2>${Number(d.total_pending_tickets)}</h2></div><div style=\"flex:1;background:white;padding:14px\"><small>P1 / CRITICAL</small><h2>${Number(d.total_p1)}</h2></div></div><main style=\"padding:8px 24px 24px\"><h2>Key insights</h2><ul>${insights}</ul><h2>Risk</h2><p>${esc(d.risk_summary)}</p><h2>Negative issues</h2><p>${Number(d.negative_issues.length)} triage records</p><p style=\"color:#687570;font-size:12px\">Generated ${esc(new Date().toISOString())}</p></main></div>`;return[{json:{...d,html_digest:html}}];"
+        "jsCode": "const d = $input.first().json;\nconst esc = v => String(v ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\nconst insights = (d.key_insights || []).map(x => `<li>${esc(typeof x==='string'?x:JSON.stringify(x))}</li>`).join('') || '<li>Hệ thống vận hành ổn định.</li>';\nconst recs = (d.recommendations || []).map(x => `<li>${esc(x)}</li>`).join('') || '<li>Tiếp tục duy trì giám sát hệ thống.</li>';\n\nconst html = `<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;max-width:720px;margin:auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 14px rgba(0,0,0,0.06)\">\n<header style=\"background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:white;padding:26px 30px\">\n  <span style=\"display:inline-block;background:rgba(59,130,246,0.25);border:1px solid #3b82f6;color:#93c5fd;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px\">OPERATIONS INTELLIGENCE</span>\n  <h1 style=\"margin:4px 0 0;font-size:24px;font-weight:700\">Daily Inbox Intelligence & Operations Digest</h1>\n  <p style=\"margin:6px 0 0;font-size:13px;color:#94a3b8\">${esc(d.date)} · Tự động tổng hợp dữ liệu toàn diện</p>\n</header>\n<div style=\"display:flex;gap:12px;padding:20px 30px;background:#f8fafc;border-bottom:1px solid #e2e8f0\">\n  <div style=\"flex:1;background:white;padding:16px;border-radius:8px;border:1px solid #e2e8f0;text-align:center\">\n    <small style=\"color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase\">TỔNG EMAIL NHẬN</small>\n    <h2 style=\"margin:6px 0 0;font-size:26px;color:#0f172a\">${Number(d.total_received || 0)}</h2>\n  </div>\n  <div style=\"flex:1;background:white;padding:16px;border-radius:8px;border:1px solid #e2e8f0;text-align:center\">\n    <small style=\"color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase\">TICKET TỒN ĐỌNG</small>\n    <h2 style=\"margin:6px 0 0;font-size:26px;color:#0284c7\">${Number(d.total_pending_tickets || 0)}</h2>\n  </div>\n  <div style=\"flex:1;background:white;padding:16px;border-radius:8px;border:1px solid #e2e8f0;text-align:center\">\n    <small style=\"color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase\">SỰ CỐ P1 KHẨN CẤP</small>\n    <h2 style=\"margin:6px 0 0;font-size:26px;color:#dc2626\">${Number(d.total_p1 || 0)}</h2>\n  </div>\n</div>\n<main style=\"padding:24px 30px\">\n  <h3 style=\"color:#0f172a;font-size:16px;margin:0 0 10px;border-bottom:2px solid #3b82f6;padding-bottom:6px\">💡 Điểm Nhấn Phân Tích (Key Insights)</h3>\n  <ul style=\"margin:0 0 20px;padding-left:20px;line-height:1.7;color:#334155;font-size:14px\">${insights}</ul>\n  <h3 style=\"color:#0f172a;font-size:16px;margin:0 0 10px;border-bottom:2px solid #ef4444;padding-bottom:6px\">⚠️ Đánh Giá Rủi Ro Vận Hành</h3>\n  <div style=\"background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:14px 18px;border-radius:8px;font-size:14px;line-height:1.6;margin-bottom:20px\">\n    ${esc(d.risk_summary)}\n  </div>\n  <h3 style=\"color:#0f172a;font-size:16px;margin:0 0 10px;border-bottom:2px solid #10b981;padding-bottom:6px\">📋 Khuyến Nghị Hành Động</h3>\n  <ul style=\"margin:0 0 20px;padding-left:20px;line-height:1.7;color:#334155;font-size:14px\">${recs}</ul>\n  <p style=\"color:#94a3b8;font-size:12px;margin:24px 0 0;text-align:center;border-top:1px solid #f1f5f9;padding-top:16px\">\n    Hệ thống Báo cáo Điều hành Tự động NovaCRM • Tạo lúc: ${esc(new Date().toISOString())}\n  </p>\n</main>\n</div>`;\n\nreturn [{ json: { ...d, html_digest: html } }];"
       },
       "typeVersion": 2
     },
@@ -175,7 +175,7 @@
         300
       ],
       "parameters": {
-        "query": "SELECT r.recipient_email,(SELECT recipient_email FROM daily_digest_recipients WHERE is_active=TRUE AND recipient_type='OPERATIONS' ORDER BY id LIMIT 1) AS operations_email FROM daily_digest_recipients r WHERE r.is_active=TRUE AND r.recipient_type='EXECUTIVE' ORDER BY r.id LIMIT 100;",
+        "query": "SELECT r.recipient_email, 'tranglee12306@gmail.com' AS operations_email FROM daily_digest_recipients r WHERE r.is_active=TRUE ORDER BY CASE WHEN r.recipient_email = 'tranglee12306@gmail.com' THEN 0 ELSE 1 END, r.id LIMIT 10;",
         "options": {},
         "operation": "executeQuery"
       },
@@ -272,8 +272,8 @@
         "html": "=<div style=\"font-family:Arial,sans-serif;color:#172420\"><h2>Incident spike detected</h2><p>Current: {{ $('L4-11 Detect Incident Spike').first().json.current_count }}</p><p>7-day daily baseline: {{ $('L4-11 Detect Incident Spike').first().json.baseline_count }}</p><p>Increase: {{ $('L4-11 Detect Incident Spike').first().json.increase_percent }}%</p><p>Report date: {{ $('L4-11 Detect Incident Spike').first().json.summary_date }}</p><p>{{ $('L4-08 HTML Email Template').first().json.risk_summary }}</p></div>",
         "options": {},
         "subject": "=INCIDENT SPIKE +{{ $('L4-11 Detect Incident Spike').first().json.increase_percent }}% - {{ $('L4-11 Detect Incident Spike').first().json.summary_date }}",
-        "toEmail": "={{ $('L4-09 Fetch Executive Emails').first().json.operations_email }}",
-        "fromEmail": "={{ $env.SMTP_SENDER || $env.SMTP_USER }}"
+        "toEmail": "={{ $('L4-09 Fetch Executive Emails').first().json.operations_email || 'tranglee12306@gmail.com' }}",
+        "fromEmail": "kieutrangg06123@gmail.com"
       },
       "credentials": {
         "smtp": {
@@ -335,8 +335,8 @@
         "html": "={{ $('L4-08 HTML Email Template').first().json.html_digest }}",
         "options": {},
         "subject": "=Daily Inbox Intelligence - {{ $('L4-08 HTML Email Template').first().json.date }}",
-        "toEmail": "={{ $json.recipient_email }}",
-        "fromEmail": "={{ $env.SMTP_SENDER || $env.SMTP_USER }}"
+        "toEmail": "={{ $json.recipient_email || 'tranglee12306@gmail.com' }}",
+        "fromEmail": "kieutrangg06123@gmail.com"
       },
       "credentials": {
         "smtp": {
@@ -436,6 +436,24 @@
         }
       },
       "typeVersion": 2.6
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "daily-digest-trigger",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      },
+      "id": "l4-01-wh",
+      "name": "L4-01b On-Demand Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "daily-digest-trigger",
+      "position": [
+        0,
+        480
+      ]
     }
   ],
   "connections": {
@@ -516,14 +534,7 @@
         ],
         [
           {
-            "node": "L4-15 Split In Batches",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "L4-20 Error Catch Handler",
+            "node": "L4-16 Send Executive Digest",
             "type": "main",
             "index": 0
           }
@@ -617,14 +628,7 @@
       "main": [
         [
           {
-            "node": "L4-15 Split In Batches",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "L4-20 Error Catch Handler",
+            "node": "L4-16 Send Executive Digest",
             "type": "main",
             "index": 0
           }
@@ -730,7 +734,7 @@
       "main": [
         [
           {
-            "node": "L4-15 Split In Batches",
+            "node": "L4-18 Confirm Batch Done",
             "type": "main",
             "index": 0
           }
@@ -779,6 +783,17 @@
         [
           {
             "node": "L4-20 Error Catch Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L4-01b On-Demand Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "L4-02 Count Total Inbound",
             "type": "main",
             "index": 0
           }

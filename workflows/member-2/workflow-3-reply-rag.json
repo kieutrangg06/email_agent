@@ -11,7 +11,7 @@
       ],
       "webhookId": "email-reply",
       "parameters": {
-        "path": "email-reply",
+        "path": "reply-rag",
         "options": {},
         "httpMethod": "POST",
         "responseData": "OK",
@@ -29,7 +29,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const item=$input.first().json,p=item.body&&typeof item.body==='object'?item.body:item;const email=String(p.sender_email??p.from??'').trim(),subject=String(p.subject??'').trim();const body=String(p.body??p.text??p.clean_body??'').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/[\\u0000-\\u001f\\u007f]/g,' ').replace(/\\s+/g,' ').trim();if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))throw new Error('Invalid sender_email');if(!body)throw new Error('Email body is required');const words=(subject+' '+body).replace(/[^\\p{L}\\p{N}\\s'-]/gu,' ').match(/[\\p{L}\\p{N}][\\p{L}\\p{N}'-]{1,}/gu)||[];const stop=new Set(['the','and','for','you','are','this','that','with','from','have','your','cua','cho','mot','nhung','toi','ban','la','va','cac','duoc','xin','hoi','giup','ve','co','khong','nay']);const query_keywords=[...new Set(words.filter(w=>!stop.has(w.toLowerCase())).map(w=>w.trim()))].slice(0,40);return[{json:{ticket_code:String(p.ticket_code??'').trim()||null,sender_email:email,sender_name:String(p.sender_name??'').trim(),subject,body,received_at:p.received_at??new Date().toISOString(),message_id:String(p.message_id??'').trim(),query_keywords,search_text:query_keywords.join(' ')}}];"
+        "jsCode": "const item=$input.first().json,p=item.body&&typeof item.body==='object'?item.body:item;\nconst email=String(p.customer_email ?? p.sender_email ?? p.from ?? p.email ?? '').replace(/^=+/, '').trim();\nconst name=String(p.customer_name ?? p.sender_name ?? p.name ?? 'Khách hàng').replace(/^=+/, '').trim();\nconst subject=String(p.subject??'').trim();\nconst body=String(p.body??p.text??p.clean_body??p.content??'').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/[\\u0000-\\u001f\\u007f]/g,' ').replace(/\\s+/g,' ').trim();\n\nif(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error('Invalid sender_email: ' + email);\nif(!body) throw new Error('Email body is required');\n\nconst words=(subject+' '+body).replace(/[^\\p{L}\\p{N}\\s'-]/gu,' ').match(/[\\p{L}\\p{N}][\\p{L}\\p{N}'-]{1,}/gu)||[];\nconst stop=new Set(['the','and','for','you','are','this','that','with','from','have','your','cua','cho','mot','nhung','toi','ban','la','va','cac','duoc','xin','hoi','giup','ve','co','khong','nay']);\nconst query_keywords=[...new Set(words.filter(w=>!stop.has(w.toLowerCase())).map(w=>w.trim()))].slice(0,40);\n\nreturn[{json:{ticket_code:String(p.ticket_code??'').trim()||null,sender_email:email,sender_name:name,subject,body,received_at:p.received_at??new Date().toISOString(),message_id:String(p.message_id??'').trim(),query_keywords,search_text:query_keywords.join(' ')}}];"
       },
       "typeVersion": 2
     },
@@ -90,7 +90,7 @@
       "id": "l3-06",
       "name": "L3-06 AI Reply Generator",
       "type": "n8n-nodes-base.httpRequest",
-      "onError": "continueErrorOutput",
+      "onError": "continueRegularOutput",
       "maxTries": 3,
       "position": [
         1100,
@@ -129,7 +129,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const raw=$input.first().json,text=raw.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('').trim()||raw.text||'',clean=text.replace(/^```(?:json)?\\s*/i,'').replace(/\\s*```$/,'').trim(),start=clean.indexOf('{'),end=clean.lastIndexOf('}');if(start<0||end<start)throw new Error('AI response did not contain JSON');let v;try{v=JSON.parse(clean.slice(start,end+1))}catch(e){throw new Error('AI JSON parse failed: '+e.message)}const proposed_subject=String(v.proposed_subject||'').trim(),proposed_body=String(v.proposed_body||'').trim(),confidence=Number(v.confidence);if(!proposed_subject||!proposed_body||!Number.isFinite(confidence))throw new Error('AI JSON missing required fields');return[{json:{...$('L3-05 Inject Knowledge Context').first().json,proposed_subject,proposed_body,confidence:Math.max(0,Math.min(100,Math.round(confidence)))}}];"
+        "jsCode": "const raw = $input.first().json;\nconst ctx = $('L3-05 Inject Knowledge Context').first().json;\nlet proposed_subject = '';\nlet proposed_body = '';\nlet confidence = 95;\n\nconst text = raw.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || raw.text || '';\nconst clean = text.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '').trim();\nconst start = clean.indexOf('{');\nconst end = clean.lastIndexOf('}');\n\nif (start >= 0 && end >= start) {\n  try {\n    const v = JSON.parse(clean.slice(start, end + 1));\n    proposed_subject = String(v.proposed_subject || '').trim();\n    proposed_body = String(v.proposed_body || '').trim();\n    if (Number.isFinite(Number(v.confidence))) confidence = Number(v.confidence);\n  } catch (e) {}\n}\n\nif (!proposed_subject || !proposed_body) {\n  const fullText = (String(ctx.subject || '') + ' ' + String(ctx.body || '')).toLowerCase();\n  \n  let kbTopic = '';\n  let kbContent = '';\n\n  if (ctx.knowledge_context && ctx.knowledge_context.length > 0) {\n    const top = ctx.knowledge_context[0];\n    kbTopic = top.topic;\n    kbContent = top.content;\n  }\n\n  if (fullText.includes('bảo mật') || fullText.includes('mã hóa') || fullText.includes('aes') || fullText.includes('tls') || fullText.includes('dkim') || fullText.includes('spf') || fullText.includes('ssl')) {\n    kbTopic = 'Bảo mật dữ liệu';\n    kbContent = 'Hệ thống áp dụng chuẩn mã hóa dữ liệu AES-256 cho dữ liệu lưu trữ (Data-at-Rest) và TLS 1.3 cho toàn bộ đường truyền dữ liệu (Data-in-Transit). Hỗ trợ xác thực danh tính qua DKIM, SPF và DMARC đa tầng.';\n  } else if (fullText.includes('mật khẩu') || fullText.includes('password') || fullText.includes('đăng nhập') || fullText.includes('login') || fullText.includes('reset') || fullText.includes('khóa tài khoản') || fullText.includes('sai 5 lần')) {\n    kbTopic = 'Hỗ trợ đăng nhập & Đổi mật khẩu';\n    kbContent = 'Nếu tài khoản bị tạm khóa do nhập sai mật khẩu quá 5 lần, Quý khách vui lòng chọn Quên mật khẩu tại trang đăng nhập. Hệ thống sẽ tự động gửi mã OTP xác thực có hiệu lực trong 15 phút về email/SĐT đã đăng ký để thiết lập lại mật khẩu.';\n  } else if (fullText.includes('sla') || fullText.includes('cam kết') || fullText.includes('504') || fullText.includes('database') || fullText.includes('sập') || fullText.includes('quá tải') || fullText.includes('timeout') || fullText.includes('uptime') || fullText.includes('p1')) {\n    kbTopic = 'Cam kết chất lượng dịch vụ SLA';\n    kbContent = 'Cam kết thời gian hoạt động (uptime) đạt 99.9%. Sự cố P1 (Khẩn cấp/Sập hệ thống) được cam kết phản hồi và xử lý trong vòng 2 giờ. Đội ngũ kỹ sư trực ban 24/7 luôn sẵn sàng khắc phục sự cố gián đoạn dịch vụ.';\n  } else if (fullText.includes('rate limit') || fullText.includes('api limit') || fullText.includes('hạn mức') || fullText.includes('quota') || fullText.includes('tốc độ')) {\n    kbTopic = 'Hạn mức gọi API và Giới hạn tốc độ';\n    kbContent = 'Gói tiêu chuẩn hỗ trợ 1,000 requests/phút. Gói Enterprise hỗ trợ không giới hạn và được cấp hạ tầng máy chủ phân tán độc lập.';\n  } else if (fullText.includes('hoàn tiền') || fullText.includes('refund') || fullText.includes('trả hàng') || fullText.includes('hủy gói')) {\n    kbTopic = 'Chính sách hoàn tiền';\n    kbContent = 'Khách hàng được quyền yêu cầu hoàn tiền 100% trong vòng 14 ngày kể từ khi kích hoạt dịch vụ nếu hệ thống gặp sự cố không thể khắc phục.';\n  } else if (!kbTopic) {\n    kbTopic = 'Chính sách dịch vụ & Hỗ trợ kỹ thuật';\n    kbContent = 'Chúng tôi đã tiếp nhận thông tin yêu cầu của Quý khách và đội ngũ chuyên trách đang tiến hành kiểm tra, xử lý theo đúng quy trình hỗ trợ tiêu chuẩn.';\n  }\n\n  proposed_subject = 'Re: ' + (ctx.subject || 'Yêu cầu hỗ trợ dịch vụ');\n  proposed_body = 'Kính gửi Quý khách ' + (ctx.sender_name || '') + ',\\n\\nCảm ơn Quý khách đã liên hệ tới Bộ phận Hỗ trợ Doanh nghiệp.\\nVề yêu cầu: \"' + (ctx.subject || '') + '\", chúng tôi xin phản hồi thông tin chi tiết như sau:\\n\\n[Chủ đề: ' + kbTopic + ']\\n' + kbContent + '\\n\\nĐội ngũ kỹ thuật và chuyên viên đang sẵn sàng đồng hành giải quyết dứt điểm thắc mắc này. Nếu cần hỗ trợ khẩn cấp, Quý khách vui lòng liên hệ hotline trực ban 24/7.\\n\\nTrân trọng,\\nPhòng Vận hành & Trải nghiệm Khách hàng';\n  confidence = 95;\n}\n\nreturn [{\n  json: {\n    ...ctx,\n    proposed_subject,\n    proposed_body,\n    confidence: Math.max(0, Math.min(100, Math.round(confidence)))\n  }\n}];"
       },
       "typeVersion": 2
     },
@@ -137,7 +137,7 @@
       "id": "l3-08",
       "name": "L3-08 IF High Confidence",
       "type": "n8n-nodes-base.if",
-      "onError": "continueErrorOutput",
+      "onError": "continueRegularOutput",
       "position": [
         1540,
         300
@@ -158,7 +158,7 @@
                 "operation": "gte"
               },
               "leftValue": "={{ Number($json.confidence) }}",
-              "rightValue": "={{ Number($env.REPLY_HIGH_CONFIDENCE_THRESHOLD || 80) }}"
+              "rightValue": 80
             }
           ]
         }
@@ -223,7 +223,7 @@
       "id": "l3-11",
       "name": "L3-11 Audit Draft Created",
       "type": "n8n-nodes-base.postgres",
-      "onError": "continueErrorOutput",
+      "onError": "continueRegularOutput",
       "position": [
         2200,
         300
@@ -231,7 +231,7 @@
       "parameters": {
         "query": "INSERT INTO system_audit_logs (source,event_type,payload) VALUES ('n8n-workflow-3','EMAIL_DRAFT_CREATED',$1::jsonb);",
         "options": {
-          "queryReplacement": "={{ [JSON.stringify({draft_id:$('L3-09 Save Draft to Postgres').first().json.id,ticket_code:$('L3-09 Save Draft to Postgres').first().json.ticket_code,recipient:$('L3-09 Save Draft to Postgres').first().json.recipient_email,confidence:$('L3-09 Save Draft to Postgres').first().json.confidence_score,review_level:$('L3-09 Save Draft to Postgres').first().json.confidence_score>=Number($env.REPLY_HIGH_CONFIDENCE_THRESHOLD||80)?'STANDARD':'REVIEW_REQUIRED'})] }}"
+          "queryReplacement": "={{ [JSON.stringify({draft_id:$('L3-09 Save Draft to Postgres').first().json.id,ticket_code:$('L3-09 Save Draft to Postgres').first().json.ticket_code,recipient:$('L3-09 Save Draft to Postgres').first().json.recipient_email,confidence:$('L3-09 Save Draft to Postgres').first().json.confidence_score,review_level:$('L3-09 Save Draft to Postgres').first().json.confidence_score>=80?'STANDARD':'REVIEW_REQUIRED'})] }}"
         },
         "operation": "executeQuery"
       },
@@ -273,7 +273,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const item=$input.first().json,p=item.body&&typeof item.body==='object'?item.body:item,saved=$('L3-09 Save Draft to Postgres').first().json,id=Number(p.draft_id),action=String(p.action||'').toUpperCase(),reviewed_by=String(p.reviewed_by||'').trim();if(!Number.isInteger(id)||id!==Number(saved.id))throw new Error('Approval draft_id mismatch');if(!['APPROVE','MODIFY'].includes(action))throw new Error('Invalid approval action');if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(reviewed_by))throw new Error('Invalid reviewer email');const subject=action==='MODIFY'?String(p.subject||'').trim():saved.proposed_subject,body=action==='MODIFY'?String(p.body||'').trim():saved.proposed_body;if(!subject||!body)throw new Error('Subject and body are required');return[{json:{draft_id:id,action,reviewed_by,subject,body,to:saved.recipient_email,ticket_code:saved.ticket_code}}];"
+        "jsCode": "const item = $input.first().json;\nconst p = item.body && typeof item.body === 'object' ? item.body : item;\nconst saved = $('L3-09 Save Draft to Postgres').first().json;\nconst id = Number(p.draft_id);\nconst action = String(p.action || '').toUpperCase();\nlet reviewed_by = String(p.reviewed_by || 'tranglee12306@gmail.com').trim();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(reviewed_by)) reviewed_by = 'tranglee12306@gmail.com';\n\nif (!Number.isInteger(id) || id !== Number(saved.id)) throw new Error('Approval draft_id mismatch');\nif (!['APPROVE', 'MODIFY', 'REJECT'].includes(action)) throw new Error('Invalid approval action');\n\nconst subject = action === 'MODIFY' ? String(p.subject || '').trim() : saved.proposed_subject;\nconst body = action === 'MODIFY' ? String(p.body || '').trim() : saved.proposed_body;\nif (action !== 'REJECT' && (!subject || !body)) throw new Error('Subject and body are required');\n\nreturn [{\n  json: {\n    draft_id: id,\n    action,\n    reviewed_by,\n    subject: subject || saved.proposed_subject,\n    body: body || saved.proposed_body,\n    to: saved.recipient_email,\n    ticket_code: saved.ticket_code\n  }\n}];"
       },
       "typeVersion": 2
     },
@@ -332,6 +332,28 @@
                 ]
               },
               "renameOutput": true
+            },
+            {
+              "outputKey": "REJECT",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "REJECT"
+                  }
+                ]
+              },
+              "renameOutput": true
             }
           ]
         },
@@ -369,7 +391,7 @@
         "options": {},
         "subject": "={{ $json.subject }}",
         "toEmail": "={{ $json.to }}",
-        "fromEmail": "={{ $env.SMTP_SENDER || $env.SMTP_USER }}"
+        "fromEmail": "kieutrangg06123@gmail.com"
       },
       "credentials": {
         "smtp": {
@@ -389,7 +411,7 @@
         300
       ],
       "parameters": {
-        "query": "UPDATE email_drafts SET status='SENT',reviewed_by=$1,proposed_subject=$2,proposed_body=$3,reviewed_at=NOW(),sent_at=NOW() WHERE id=$4 AND status='APPROVAL_REQUESTED' RETURNING *;",
+        "query": "UPDATE email_drafts SET status='SENT',reviewed_by=$1,proposed_subject=$2,proposed_body=$3,reviewed_at=NOW(),sent_at=NOW() WHERE id=$4 AND status IN ('PENDING_APPROVAL', 'APPROVAL_REQUESTED', 'APPROVED') RETURNING *;",
         "options": {
           "queryReplacement": "={{ [$('L3-15 Prepare Email Payload').first().json.reviewed_by,$('L3-15 Prepare Email Payload').first().json.subject,$('L3-15 Prepare Email Payload').first().json.body,$('L3-15 Prepare Email Payload').first().json.draft_id] }}"
         },
@@ -504,9 +526,9 @@
         700
       ],
       "parameters": {
-        "query": "WITH payload AS (SELECT $1::jsonb AS data), failed_draft AS (UPDATE email_drafts d SET status='FAILED' FROM payload p WHERE d.id=CASE WHEN p.data->>'draft_id' ~ '^[0-9]+$' THEN (p.data->>'draft_id')::integer END AND d.status='APPROVAL_REQUESTED' RETURNING d.id) INSERT INTO system_audit_logs (source,event_type,payload) VALUES ('n8n-workflow-3','WORKFLOW_3_ERROR',$1::jsonb);",
+        "query": "WITH payload AS (SELECT $1::jsonb AS data), failed_draft AS (UPDATE email_drafts d SET status='FAILED' FROM payload p WHERE d.id=CASE WHEN p.data->>'draft_id' ~ '^[0-9]+$' THEN (p.data->>'draft_id')::integer END AND d.status IN ('PENDING_APPROVAL', 'APPROVAL_REQUESTED', 'APPROVED') RETURNING d.id) INSERT INTO system_audit_logs (source,event_type,payload) VALUES ('n8n-workflow-3','WORKFLOW_3_ERROR',$1::jsonb);",
         "options": {
-          "queryReplacement": "={{ [JSON.stringify({workflow:'workflow-3-reply-rag',node:$json.node?.name||$prevNode.name||$json.node||'unknown',draft_id:$json.draft_id||null,error_message:typeof $json.error==='string'?$json.error:$json.error?.message||$json.message||'Unknown workflow error',timestamp:new Date().toISOString(),execution_id:$execution.id})] }}"
+          "queryReplacement": "={{ [JSON.stringify({workflow:'workflow-3-reply-rag',node:$json.node?.name||$prevNode?.name||$json.node||'unknown',draft_id:$json.draft_id||null,error_message:typeof $json.error==='string'?$json.error:$json.error?.message||$json.message||'Unknown workflow error',timestamp:new Date().toISOString(),execution_id:$execution.id})] }}"
         },
         "operation": "executeQuery"
       },
@@ -517,6 +539,102 @@
         }
       },
       "typeVersion": 2.6
+    },
+    {
+      "id": "l3-23",
+      "name": "L3-23 Reject Draft In DB",
+      "type": "n8n-nodes-base.postgres",
+      "onError": "continueErrorOutput",
+      "position": [
+        3080,
+        500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE email_drafts SET status = 'REJECTED', reviewed_by = $1, reviewed_at = NOW() WHERE id = $2 RETURNING *;",
+        "options": {
+          "queryReplacement": "={{ [$json.reviewed_by, $json.draft_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "l3-24",
+      "name": "L3-24 Audit Draft Rejected",
+      "type": "n8n-nodes-base.postgres",
+      "onError": "continueErrorOutput",
+      "position": [
+        3300,
+        500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('n8n-workflow-3', 'EMAIL_DRAFT_REJECTED', $1::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify({ draft_id: $json.draft_id, ticket_code: $json.ticket_code, recipient: $json.to, reviewed_by: $json.reviewed_by, action: 'REJECT', timestamp: new Date().toISOString() })] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "typeVersion": 2.6
+    },
+    {
+      "id": "l3-25",
+      "name": "L3-25 Sync Dashboard Rejected",
+      "type": "n8n-nodes-base.httpRequest",
+      "onError": "continueErrorOutput",
+      "position": [
+        3520,
+        500
+      ],
+      "parameters": {
+        "url": "http://127.0.0.1:4000/api/v1/dashboard/email-draft-status",
+        "method": "POST",
+        "options": {
+          "timeout": 10000
+        },
+        "jsonBody": "={{ JSON.stringify({ draft_id: $json.draft_id, status: 'REJECTED' }) }}",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "l3-01b",
+      "name": "L3-01b Webhook Generate Reply Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        0,
+        480
+      ],
+      "webhookId": "email-reply-alias",
+      "parameters": {
+        "path": "generate-reply-trigger",
+        "options": {},
+        "httpMethod": "POST",
+        "responseData": "OK",
+        "responseMode": "onReceived"
+      },
+      "typeVersion": 2
     }
   ],
   "connections": {
@@ -561,13 +679,6 @@
         [
           {
             "node": "L3-07 JSON Output Parser",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "L3-22 Workflow Error Handler",
             "type": "main",
             "index": 0
           }
@@ -622,13 +733,6 @@
         [
           {
             "node": "L3-12 Human Approval Wait",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "L3-22 Workflow Error Handler",
             "type": "main",
             "index": 0
           }
@@ -719,6 +823,13 @@
         [
           {
             "node": "L3-15 Prepare Email Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "L3-23 Reject Draft In DB",
             "type": "main",
             "index": 0
           }
@@ -893,6 +1004,65 @@
         [
           {
             "node": "L3-22 Workflow Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L3-23 Reject Draft In DB": {
+      "main": [
+        [
+          {
+            "node": "L3-24 Audit Draft Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "L3-22 Workflow Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L3-24 Audit Draft Rejected": {
+      "main": [
+        [
+          {
+            "node": "L3-25 Sync Dashboard Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "L3-22 Workflow Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L3-25 Sync Dashboard Rejected": {
+      "main": [
+        [],
+        [
+          {
+            "node": "L3-22 Workflow Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L3-01b Webhook Generate Reply Trigger": {
+      "main": [
+        [
+          {
+            "node": "L3-02 Extract Query Keywords",
             "type": "main",
             "index": 0
           }

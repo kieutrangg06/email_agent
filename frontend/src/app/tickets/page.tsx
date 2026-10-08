@@ -95,13 +95,13 @@ export default function TicketsPage() {
       if (triagePriority !== 'All') q.append('priority', triagePriority);
 
       const [logsRes, statsRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/v1/triage/logs?${q.toString()}`),
-        fetch('http://localhost:4000/api/v1/triage/stats'),
+        fetch(`http://localhost:4000/api/v1/triage/logs?${q.toString()}`).catch(() => null),
+        fetch('http://localhost:4000/api/v1/triage/stats').catch(() => null),
       ]);
-      if (logsRes.ok) setTriageLogs(await logsRes.json());
-      if (statsRes.ok) setTriageStats(await statsRes.json());
+      if (logsRes && logsRes.ok) setTriageLogs(await logsRes.json());
+      if (statsRes && statsRes.ok) setTriageStats(await statsRes.json());
     } catch (e) {
-      console.error('Error fetching triage data:', e);
+      console.warn('Error fetching triage data:', e);
     }
   };
 
@@ -111,10 +111,10 @@ export default function TicketsPage() {
       if (ticketStatus !== 'All') q.append('status', ticketStatus);
       if (ticketPriority !== 'All') q.append('priority', ticketPriority);
 
-      const res = await fetch(`http://localhost:4000/api/v1/tickets?${q.toString()}`);
-      if (res.ok) setTickets(await res.json());
+      const res = await fetch(`http://localhost:4000/api/v1/tickets?${q.toString()}`).catch(() => null);
+      if (res && res.ok) setTickets(await res.json());
     } catch (e) {
-      console.error('Error fetching tickets data:', e);
+      console.warn('Error fetching tickets data:', e);
     }
   };
 
@@ -148,7 +148,7 @@ export default function TicketsPage() {
         }
       }
     } catch (e) {
-      console.error(e);
+      console.warn('Error updating triage status:', e);
     }
   };
 
@@ -164,7 +164,7 @@ export default function TicketsPage() {
         }
       }
     } catch (e) {
-      console.error(e);
+      console.warn('Error resolving ticket:', e);
     }
   };
 
@@ -190,7 +190,7 @@ export default function TicketsPage() {
         await loadTicketData();
       }
     } catch (e) {
-      console.error(e);
+      console.warn('Error creating ticket:', e);
     }
   };
 

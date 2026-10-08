@@ -68,80 +68,8 @@ export default function InvoicesPage() {
         .catch(() => []),
     ])
       .then(([invoicesData, logsData]) => {
-        if (invoicesData && invoicesData.length > 0) {
-          setInvoices(invoicesData);
-        } else {
-          // Fallback initial sample data
-          setInvoices([
-            {
-              id: 1,
-              invoice_number: 'INV-2026-0899',
-              issue_date: '2026-10-02',
-              vendor_name: 'Công ty TNHH Thiết Bị Điện Tử',
-              tax_code: '0101234567',
-              subtotal: 10000000,
-              vat_amount: 1000000,
-              total_amount: 11000000,
-              is_valid: true,
-              status: 'VALID',
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: 2,
-              invoice_number: 'INV-843950',
-              issue_date: '2026-10-02',
-              vendor_name: 'Công ty Cổ phần Giải pháp Số NovaCRM',
-              tax_code: '0402123456',
-              subtotal: 50000000,
-              vat_amount: 5000000,
-              total_amount: 55000000,
-              is_valid: true,
-              status: 'VALID',
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: 3,
-              invoice_number: 'INV-2026-0900',
-              issue_date: '2026-10-03',
-              vendor_name: 'Công ty Cổ phần Logistics Global',
-              tax_code: '0309876543',
-              subtotal: 5000000,
-              vat_amount: 500000,
-              total_amount: 5800000, // Discrepancy!
-              is_valid: false,
-              status: 'FLAGGED_SUSPICIOUS',
-              created_at: new Date().toISOString(),
-            },
-          ]);
-        }
-
-        if (logsData && logsData.length > 0) {
-          setAuditLogs(logsData);
-        } else {
-          setAuditLogs([
-            {
-              id: 1,
-              invoice_number: 'INV-2026-0899',
-              audit_status: 'AUDIT_PASSED',
-              notes: 'Chứng từ hợp lệ: 10,000,000 + 1,000,000 = 11,000,000 VNĐ. Khớp 100% số liệu kế toán.',
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: 2,
-              invoice_number: 'INV-843950',
-              audit_status: 'AUDIT_PASSED',
-              notes: 'Chứng từ bóc tách OCR từ ảnh PNG hợp lệ: 50,000,000 + 5,000,000 = 55,000,000 VNĐ.',
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: 3,
-              invoice_number: 'INV-2026-0900',
-              audit_status: 'AUDIT_FLAGGED_MATH_MISMATCH',
-              notes: 'Cảnh báo sai lệch số học: Tiền hàng 5,000,000 + VAT 500,000 = 5,500,000 != Tổng thanh toán 5,800,000 (Lệch 300,000 VNĐ). Đã đánh dấu FLAGGED_SUSPICIOUS.',
-              created_at: new Date().toISOString(),
-            },
-          ]);
-        }
+        setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
+        setAuditLogs(Array.isArray(logsData) ? logsData : []);
         setLoading(false);
       });
   };
@@ -483,42 +411,48 @@ export default function InvoicesPage() {
         {/* Audit Logs Tab */}
         {activeTab === 'logs' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-950 text-xs text-slate-400 uppercase font-mono border-b border-slate-800">
-                <tr>
-                  <th className="py-3 px-4">Số Hóa Đơn</th>
-                  <th className="py-3 px-4">Kết Quả Kiểm Toán</th>
-                  <th className="py-3 px-4">Nội Dung Chi Tiết</th>
-                  <th className="py-3 px-4">Thời Gian</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-4 font-mono text-xs text-pink-400 font-semibold">
-                      {log.invoice_number}
-                    </td>
-                    <td className="py-3 px-4">
-                      {log.audit_status === 'AUDIT_PASSED' ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                          AUDIT_PASSED
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold">
-                          {log.audit_status}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-300 max-w-md">
-                      {log.notes}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-xs text-slate-500 whitespace-nowrap">
-                      {new Date(log.created_at).toLocaleString('vi-VN')}
-                    </td>
+            {auditLogs.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 text-sm">
+                Chưa có nhật ký kiểm toán nào trong hệ thống.
+              </div>
+            ) : (
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="bg-slate-950 text-xs text-slate-400 uppercase font-mono border-b border-slate-800">
+                  <tr>
+                    <th className="py-3 px-4">Số Hóa Đơn</th>
+                    <th className="py-3 px-4">Kết Quả Kiểm Toán</th>
+                    <th className="py-3 px-4">Nội Dung Chi Tiết</th>
+                    <th className="py-3 px-4">Thời Gian</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-4 font-mono text-xs text-pink-400 font-semibold">
+                        {log.invoice_number}
+                      </td>
+                      <td className="py-3 px-4">
+                        {log.audit_status === 'AUDIT_PASSED' ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            AUDIT_PASSED
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold">
+                            {log.audit_status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-300 max-w-md">
+                        {log.notes}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-slate-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString('vi-VN')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>

@@ -131,7 +131,7 @@ export class KnowledgeService {
     let n8nResumeTriggered = false;
     let n8nResumeMessage = '';
 
-    const action = targetStatus === 'MODIFIED' ? 'MODIFY' : 'APPROVE';
+    const action = targetStatus === 'MODIFIED' ? 'MODIFY' : (targetStatus === 'REJECTED' ? 'REJECT' : 'APPROVE');
     const resumePayload = {
       draft_id: id,
       action,
@@ -143,7 +143,13 @@ export class KnowledgeService {
     // 1. Try draft's specific approval_resume_url if present
     if (existing.approval_resume_url) {
       try {
-        const response = await fetch(existing.approval_resume_url, {
+        let resumeUrl = existing.approval_resume_url;
+        if (!resumeUrl.includes('email-reply-approval')) {
+          resumeUrl = resumeUrl.includes('?')
+            ? resumeUrl.replace('?', '/email-reply-approval?')
+            : `${resumeUrl}/email-reply-approval`;
+        }
+        const response = await fetch(resumeUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(resumePayload),

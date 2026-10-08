@@ -12,11 +12,12 @@
       "id": "node-1",
       "name": "1. Email Ingest Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         200,
         300
-      ]
+      ],
+      "webhookId": "real-incoming-email"
     },
     {
       "parameters": {
@@ -41,7 +42,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\nconst rawSender = payload.from ? payload.from : (payload.sender ? payload.sender : \"guest@enterprise.com\");\nconst senderMatch = rawSender.match(/<([^>]+)>/);\nconst cleanSender = senderMatch ? senderMatch[1] : rawSender;\nconst rawBody = payload.text ? payload.text : (payload.body ? payload.body : \"\");\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, \"\").replace(/\\r?\\n|\\r/g, \" \").trim();\nconst cleanSubject = String(payload.subject ? payload.subject : \"Yêu cầu hỗ trợ\").replace(/\\r?\\n|\\r/g, \" \").trim();\n\nreturn [{\n  json: {\n    sender_email: cleanSender.trim(),\n    subject: cleanSubject,\n    clean_body: cleanBody,\n    received_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\nconst rawSender = payload.from ? payload.from : (payload.sender ? payload.sender : (payload.sender_email ? payload.sender_email : \"guest@enterprise.com\"));\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = senderMatch ? senderMatch[1] : String(rawSender);\nconst rawBody = payload.text ? payload.text : (payload.body ? payload.body : (payload.clean_body ? payload.clean_body : (payload.content ? payload.content : \"\")));\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, \"\").replace(/\\r?\\n|\\r/g, \" \").trim();\nconst cleanSubject = String(payload.subject ? payload.subject : \"Yêu cầu hỗ trợ\").replace(/\\r?\\n|\\r/g, \" \").trim();\n\nconst fullText = (cleanSubject + \" \" + cleanBody + \" \" + cleanSender).toLowerCase();\nconst isSpam = cleanSender.includes('spammer') || cleanSender.includes('evil.com') || fullText.includes('lua-dao') || fullText.includes('trúng thưởng') || fullText.includes('claim-now') || fullText.includes('50,000 usd') || fullText.includes('quay số');\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: cleanSender.trim(),\n    sender_name: payload.sender_name || payload.name || cleanSender.split('@')[0],\n    subject: cleanSubject,\n    clean_body: cleanBody,\n    is_spam: isSpam,\n    received_at: new Date().toISOString()\n  }\n}];"
       },
       "id": "node-3",
       "name": "3. Cleanse & Normalize Email",
@@ -72,7 +73,7 @@
       "onError": "continueRegularOutput",
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -80,11 +81,10 @@
     {
       "parameters": {
         "conditions": {
-          "string": [
+          "boolean": [
             {
-              "value1": "={{ $json.status }}",
-              "operation": "equal",
-              "value2": "blacklist"
+              "value1": "={{ Boolean($json.status === 'blacklist' || $('3. Cleanse & Normalize Email').first().json.is_spam) }}",
+              "value2": true
             }
           ]
         }
@@ -111,6 +111,7 @@
         1300,
         360
       ],
+      "alwaysOutputData": true,
       "onError": "continueRegularOutput"
     },
     {
@@ -143,7 +144,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const emailData = $(\"3. Cleanse & Normalize Email\").first().json;\nlet aiResult = {};\n\ntry {\n  const rawText = $input.first().json.candidates[0].content.parts[0].text;\n  aiResult = JSON.parse(rawText);\n} catch (e) {\n  const text = (emailData.subject + \" \" + emailData.clean_body).toLowerCase();\n  if (text.indexOf(\"lỗi\") !== -1 || text.indexOf(\"sập\") !== -1 || text.indexOf(\"504\") !== -1 || text.indexOf(\"database\") !== -1 || text.indexOf(\"khẩn cấp\") !== -1) {\n    aiResult = { category: \"Technical\", priority: \"P1 - Critical\", sentiment: \"Khan cap\", urgency_reason: \"Sự cố hạ tầng nghiêm trọng\" };\n  } else if (text.indexOf(\"báo giá\") !== -1 || text.indexOf(\"hợp đồng\") !== -1 || text.indexOf(\"mua\") !== -1) {\n    aiResult = { category: \"Sales\", priority: \"P2 - High\", sentiment: \"Tich cuc\", urgency_reason: \"Cơ hội kinh doanh tiềm năng\" };\n  } else if (text.indexOf(\"hóa đơn\") !== -1 || text.indexOf(\"thanh toán\") !== -1 || text.indexOf(\"vat\") !== -1) {\n    aiResult = { category: \"Finance\", priority: \"P3 - Medium\", sentiment: \"Trung tinh\", urgency_reason: \"Yêu cầu chứng từ đối soát\" };\n  } else {\n    aiResult = { category: \"General\", priority: \"P4 - Low\", sentiment: \"Trung tinh\", urgency_reason: \"Hỗ trợ thông tin chung\" };\n  }\n}\n\nreturn [{\n  json: {\n    ...emailData,\n    category: aiResult.category ? aiResult.category : \"General\",\n    priority: aiResult.priority ? aiResult.priority : \"P4 - Low\",\n    sentiment: aiResult.sentiment ? aiResult.sentiment : \"Trung tinh\",\n    urgency_reason: aiResult.urgency_reason ? aiResult.urgency_reason : \"Đã phân loại tự động\"\n  }\n}];"
+        "jsCode": "const emailData = $(\"3. Cleanse & Normalize Email\").first().json;\nlet aiResult = {};\n\ntry {\n  const rawText = $input.first().json.candidates[0].content.parts[0].text;\n  aiResult = JSON.parse(rawText);\n} catch (e) {\n  const text = (String(emailData.subject || '') + ' ' + String(emailData.clean_body || '')).toLowerCase();\n\n  // Kiểm tra nhu cầu mua sắm / báo giá\n  const isProcurement = text.includes('báo giá') || text.includes('hợp đồng') || text.includes('bản quyền') || text.includes('mua gói') || text.includes('triển khai phần mềm') || text.includes('mua bản quyền');\n\n  // 1. Kỹ thuật P1 (Technical P1 - Khẩn cấp: Sập server, 504 timeout, DB sập, CPU 100%)\n  const isTechP1 = /(?:lỗi|mã|error)\\s*(?:500|502|503|504)|\b(?:504|500)\\s*(?:gateway|timeout|server|internal)\b/i.test(text)\n    || text.includes('sập')\n    || text.includes('database')\n    || text.includes('cơ sở dữ liệu')\n    || text.includes('quá tải cpu')\n    || text.includes('máy chủ')\n    || text.includes('không truy cập được')\n    || (text.includes('khẩn cấp') && (text.includes('sự cố') || text.includes('hạ tầng') || text.includes('server')));\n\n  // 2. Kỹ thuật P2 (Technical P2 - Nghiêm trọng: Lỗi OTP SMS, chập chờn, không gửi được, mất đồng bộ)\n  const isTechP2 = text.includes('otp')\n    || text.includes('sms')\n    || text.includes('mã xác thực')\n    || text.includes('chập chờn')\n    || text.includes('không gửi được mã')\n    || text.includes('không nhận được mã')\n    || text.includes('đồng bộ dữ liệu')\n    || (text.includes('kỹ thuật') && (text.includes('lỗi') || text.includes('sự cố') || text.includes('cổng kết nối') || text.includes('chập chờn')));\n\n  // 3. Kỹ thuật P3 (Technical P3 - Tiêu chuẩn: Cấp lại quyền, phân quyền quản trị)\n  const isTechP3 = text.includes('cấp lại quyền')\n    || text.includes('cấp quyền')\n    || text.includes('quyền truy cập')\n    || text.includes('trang quản trị')\n    || text.includes('phân quyền');\n\n  // 4. Tài chính / Hóa đơn (Finance)\n  const isFinance = text.includes('hóa đơn') || text.includes('vat') || text.includes('đối soát') || text.includes('sao kê') || text.includes('chứng từ') || emailData.filename || emailData.file_extension;\n\n  // 5. Kinh doanh (Sales)\n  const isSales = isProcurement || text.includes('bảng giá') || text.includes('chi phí') || text.includes('đặt mua') || text.includes('enterprise') || text.includes('ngân sách') || text.includes('đăng ký dùng thử');\n\n  // 6. Hỏi đáp chung (General)\n  const isGeneral = text.includes('thời gian làm việc') || text.includes('giờ làm việc') || text.includes('địa chỉ') || text.includes('chi nhánh') || text.includes('trung tâm') || text.includes('tư vấn trực tiếp') || text.includes('hỏi về') || text.includes('thắc mắc') || text.includes('quy định') || text.includes('chính sách') || text.includes('webhook');\n\n  if (isTechP1 && !isProcurement) {\n    aiResult = { category: 'Technical', priority: 'P1 - Critical', sentiment: 'Khan cap', urgency_reason: 'Sự cố hạ tầng nghiêm trọng P1' };\n  } else if (isTechP2 && !isProcurement) {\n    aiResult = { category: 'Technical', priority: 'P2 - High', sentiment: 'Khan cap', urgency_reason: 'Sự cố dịch vụ xác thực và giao diện P2' };\n  } else if (isTechP3 && !isProcurement) {\n    aiResult = { category: 'Technical', priority: 'P3 - Medium', sentiment: 'Trung tinh', urgency_reason: 'Yêu cầu quản trị phân quyền người dùng' };\n  } else if (isFinance) {\n    aiResult = { category: 'Finance', priority: 'P3 - Medium', sentiment: 'Trung tinh', urgency_reason: 'Yêu cầu chứng từ đối soát hóa đơn' };\n  } else if (isSales) {\n    aiResult = { category: 'Sales', priority: 'P2 - High', sentiment: 'Tich cuc', urgency_reason: 'Cơ hội hợp đồng kinh doanh tiềm năng' };\n  } else if (isGeneral) {\n    aiResult = { category: 'General', priority: 'P4 - Low', sentiment: 'Trung tinh', urgency_reason: 'Hỗ trợ thông tin chung về dịch vụ' };\n  } else {\n    aiResult = { category: 'General', priority: 'P4 - Low', sentiment: 'Trung tinh', urgency_reason: 'Hỗ trợ thông tin chung' };\n  }\n}\n\nreturn [{\n  json: {\n    ...emailData,\n    category: aiResult.category || 'General',\n    priority: aiResult.priority || 'P4 - Low',\n    sentiment: aiResult.sentiment || 'Trung tinh',\n    urgency_reason: aiResult.urgency_reason || 'Đã phân loại tự động'\n  }\n}];"
       },
       "id": "node-8",
       "name": "8. Output Schema Validator",
@@ -207,7 +208,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -230,7 +231,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -253,7 +254,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -276,7 +277,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -312,7 +313,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -322,7 +323,7 @@
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "tranglee12306@gmail.com",
         "subject": "=🚨 [ĐIỀU PHỐI NỘI BỘ - {{ $('14. Merge Branch Data').first().json.category }}] [{{ $('14. Merge Branch Data').first().json.priority }}] {{$('14. Merge Branch Data').first().json.subject }}",
-        "html": "=<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;\"><div style=\"background-color: #0f172a; color: #fff; padding: 14px 20px; border-radius: 8px 8px 0 0;\"><h3 style=\"margin: 0; font-size: 16px;\">📋 BÁO CÁO TIẾP NHẬN & ĐIỀU PHỐI YÊU CẦU NỘI BỘ</h3></div><div style=\"padding: 18px; border: 1px solid #cbd5e1; border-top: none; background-color: #ffffff;\"><p>Kính gửi <strong>Trưởng Bộ Phận / Điều phối viên</strong>,</p><p>Hệ thống AI Triage vừa tự động phân luồng một yêu cầu mới:</p><table style=\"border-collapse: collapse; width: 100%; font-size: 13px;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc; width: 35%;\"><strong>Khách hàng gửi:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\"><strong>{{ $('14. Merge Branch Data').first().json.sender_email }}</strong></td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Tiêu đề:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">{{ $('14. Merge Branch Data').first().json.subject }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Phòng ban tiếp nhận:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #0284c7; font-weight: bold;\">{{ $('14. Merge Branch Data').first().json.category }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Mức độ ưu tiên:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: bold;\">{{ $('14. Merge Branch Data').first().json.priority }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Lý do AI phân loại:</strong></td><td style=\"padding: 8px; border: 1px solid #ffe4e6;\">{{ $('14. Merge Branch Data').first().json.urgency_reason }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Nội dung khách gửi:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; font-style: italic;\">{{ $('14. Merge Branch Data').first().json.clean_body }}</td></tr></table><p style=\"margin-top: 15px; font-size: 12px; color: #64748b;\">Đề nghị phân công chuyên viên trực ban tiếp nhận xử lý trong hạn SLA 4 giờ.</p></div></div>",
+        "html": "=<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;\"><div style=\"background-color: #0f172a; color: #fff; padding: 14px 20px; border-radius: 8px 8px 0 0;\"><h3 style=\"margin: 0; font-size: 16px;\">📋 BÁO CÁO TIẾP NHẬN & ĐIỀU PHỐI YÊU CẦU NỘI BỘ</h3></div><div style=\"padding: 18px; border: 1px solid #cbd5e1; border-top: none; background-color: #ffffff;\"><p>Kính gửi <strong>Trưởng Bộ Phận / Điều phối viên</strong>,</p><p>Hệ thống AI Triage vừa tự động phân luồng một yêu cầu mới:</p><table style=\"border-collapse: collapse; width: 100%; font-size: 13px;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc; width: 35%;\"><strong>Khách hàng gửi:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\"><strong>{{ $('14. Merge Branch Data').first().json.sender_email }}</strong></td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Tiêu đề:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">{{ $('14. Merge Branch Data').first().json.subject }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Phòng ban tiếp nhận:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #0284c7; font-weight: bold;\">{{ $('14. Merge Branch Data').first().json.category }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Mức độ ưu tiên:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: bold;\">{{ $('14. Merge Branch Data').first().json.priority }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Lý do AI phân loại:</strong></td><td style=\"padding: 8px; border: 1px solid #ffe4e6;\">{{ $('14. Merge Branch Data').first().json.urgency_reason }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Nội dung khách gửi:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; font-style: italic;\">{{ $('14. Merge Branch Data').first().json.clean_body }}</td></tr></table><p style=\"margin-top: 15px; font-size: 12px; color: #64748b;\">Đề nghị phân công chuyên viên trực ban tiếp nhận xử lý theo hạn SLA cam kết.</p></div></div>",
         "options": {}
       },
       "id": "node-16",
@@ -332,14 +333,21 @@
       "position": [
         3000,
         360
-      ]
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO email_triage_logs (sender_email, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '4 hours', 'PENDING') RETURNING *;",
+        "query": "INSERT INTO email_triage_logs (sender_email, sender_name, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() + ($9 || ' hours')::interval, 'PENDING') RETURNING *;",
         "options": {
-          "queryReplacement": "={{ [$('14. Merge Branch Data').first().json.sender_email, $('14. Merge Branch Data').first().json.subject, $('14. Merge Branch Data').first().json.clean_body.substring(0, 250), $('14. Merge Branch Data').first().json.category, $('14. Merge Branch Data').first().json.priority, $('14. Merge Branch Data').first().json.sentiment, $('14. Merge Branch Data').first().json.urgency_reason] }}"
+          "queryReplacement": "={{ [$('14. Merge Branch Data').first().json.sender_email, $('14. Merge Branch Data').first().json.sender_name || 'Khách hàng', $('14. Merge Branch Data').first().json.subject, $('14. Merge Branch Data').first().json.clean_body.substring(0, 250), $('14. Merge Branch Data').first().json.category, $('14. Merge Branch Data').first().json.priority, $('14. Merge Branch Data').first().json.sentiment, $('14. Merge Branch Data').first().json.urgency_reason, String($('14. Merge Branch Data').first().json.priority.includes('P1') ? '2' : ($('14. Merge Branch Data').first().json.priority.includes('P2') ? '4' : ($('14. Merge Branch Data').first().json.priority.includes('P3') ? '8' : '24')))] }}"
         }
       },
       "id": "node-17",
@@ -352,7 +360,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -361,8 +369,8 @@
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "={{ $('14. Merge Branch Data').first().json.sender_email }}",
-        "subject": "=✅ [Xác Nhận Tiếp Nhận] {{ $('14. Merge Branch Data').first().json.subject }}",
-        "html": "=<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\"><h2 style=\"color: #0284c7;\">Cảm ơn bạn đã liên hệ với chúng tôi!</h2><p>Xin chào quý khách <strong>{{ $('14. Merge Branch Data').first().json.sender_email }}</strong>,</p><p>Hệ thống tự động đã tiếp nhận yêu cầu của bạn với các thông tin sau:</p><table style=\"border-collapse: collapse; width: 100%; max-width: 520px;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Tiêu đề:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">{{ $('14. Merge Branch Data').first().json.subject }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Bộ phận tiếp nhận:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #0369a1; font-weight: bold;\">{{ $('14. Merge Branch Data').first().json.category }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Thời hạn xử lý (SLA):</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #15803d; font-weight: bold;\">Trong vòng 4 giờ làm việc</td></tr></table><p style=\"margin-top: 15px;\">Chuyên viên phụ trách đang xem xét nội dung và sẽ phản hồi chi tiết tới bạn sớm nhất.</p><hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\"/><p style=\"font-size: 12px; color: #94a3b8;\">Đây là email xác nhận tự động, bạn không cần phải trả lời thư này.</p></div>",
+        "subject": "={{ $('14. Merge Branch Data').first().json.category === 'General' ? 'ℹ️ [Hướng dẫn Dịch vụ] Giờ làm việc & Địa chỉ Trung tâm Hỗ trợ Khách hàng' : '✅ [Xác Nhận Tiếp Nhận] ' + $('14. Merge Branch Data').first().json.subject }}",
+        "html": "={{ $('14. Merge Branch Data').first().json.category === 'General' ? `<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;\"><div style=\"background-color: #0284c7; color: #ffffff; padding: 18px 24px; border-radius: 8px 8px 0 0;\"><h3 style=\"margin: 0; font-size: 18px;\">🏢 THÔNG TIN HƯỚNG DẪN DỊCH VỤ & HỖ TRỢ KHÁCH HÀNG</h3></div><div style=\"padding: 24px; border: 1px solid #cbd5e1; border-top: none; background-color: #ffffff;\"><p>Xin chào quý khách <strong>${$('14. Merge Branch Data').first().json.sender_name || $('14. Merge Branch Data').first().json.sender_email}</strong>,</p><p>Cảm ơn Quý khách đã quan tâm và liên hệ. Trung tâm Hỗ trợ Khách hàng xin gửi thông tin hướng dẫn chi tiết theo câu hỏi của Quý khách:</p><div style=\"background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 14px 18px; margin: 16px 0; border-radius: 4px;\"><h4 style=\"margin: 0 0 10px 0; color: #0369a1;\">⏰ THỜI GIAN LÀM VIỆC CÁC CHI NHÁNH & TRUNG TÂM HỖ TRỢ:</h4><ul style=\"margin: 0; padding-left: 20px; font-size: 14px; color: #334155;\"><li><strong>Thứ Hai - Thứ Sáu:</strong> Buổi sáng 08:00 - 12:00, Buổi chiều 13:30 - 17:30</li><li><strong>Thứ Bảy:</strong> Buổi sáng 08:00 - 12:00 (Hỗ trợ tư vấn trực tiếp)</li><li><strong>Chủ Nhật & Ngày lễ:</strong> Nghỉ (Cổng portal tiếp nhận 24/7)</li></ul></div><div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 14px 18px; margin: 16px 0; border-radius: 4px;\"><h4 style=\"margin: 0 0 10px 0; color: #0f172a;\">📍 ĐỊA CHỈ TRUNG TÂM TƯ VẤN TRỰC TIẾP:</h4><p style=\"margin: 0 0 8px 0; font-size: 14px; color: #334155;\">🏢 <strong>Địa chỉ trụ sở:</strong> Tòa nhà Công nghệ VKU, 470 Đường Trần Đại Nghĩa, Khu Đô thị Đại học Đà Nẵng.</p><p style=\"margin: 0; font-size: 14px; color: #334155;\">🌐 <strong>Cổng hỗ trợ trực tuyến:</strong> <a href=\"http://localhost:3000/helpdesk\" style=\"color: #0284c7; font-weight: bold;\">http://localhost:3000/helpdesk</a></p></div><p style=\"font-size: 14px; color: #475569;\">Nếu Quý khách cần thêm thông tin, xin vui lòng phản hồi email này hoặc gọi hotline <strong>1900 8888</strong>.</p><hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\"/><p style=\"font-size: 12px; color: #94a3b8;\">Email hướng dẫn tự động từ Hệ thống Hỗ trợ Khách hàng Doanh nghiệp.</p></div></div>` : `<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\"><h2 style=\"color: #0284c7;\">Cảm ơn bạn đã liên hệ với chúng tôi!</h2><p>Xin chào quý khách <strong>${$('14. Merge Branch Data').first().json.sender_name || $('14. Merge Branch Data').first().json.sender_email}</strong>,</p><p>Hệ thống tự động đã tiếp nhận yêu cầu của bạn với các thông tin sau:</p><table style=\"border-collapse: collapse; width: 100%; max-width: 520px;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Tiêu đề:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">${$('14. Merge Branch Data').first().json.subject}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Bộ phận tiếp nhận:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #0369a1; font-weight: bold;\">${$('14. Merge Branch Data').first().json.category}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Thời hạn xử lý (SLA):</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #15803d; font-weight: bold;\">Trong vòng ${$('14. Merge Branch Data').first().json.priority.includes('P1') ? '2 giờ' : ($('14. Merge Branch Data').first().json.priority.includes('P2') ? '4 giờ' : ($('14. Merge Branch Data').first().json.priority.includes('P3') ? '8 giờ' : '24 giờ'))} làm việc</td></tr></table><p style=\"margin-top: 15px;\">Chuyên viên phụ trách đang xem xét nội dung và sẽ phản hồi chi tiết tới bạn sớm nhất.</p><hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\"/><p style=\"font-size: 12px; color: #94a3b8;\">Đây là email xác nhận tự động, bạn không cần phải trả lời thư này.</p></div>` }}",
         "options": {}
       },
       "id": "node-18",
@@ -372,11 +380,18 @@
       "position": [
         3460,
         360
-      ]
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const now = new Date();\nnow.setHours(now.getHours() + 4);\nreturn [{ json: { target_sla: now.toISOString(), status: \"SLA_ACTIVE\" } }];"
+        "jsCode": "const pri = String($('14. Merge Branch Data').first().json.priority || '');\nlet hours = 8;\nif (pri.includes('P1')) hours = 2;\nelse if (pri.includes('P2')) hours = 4;\nelse if (pri.includes('P3')) hours = 8;\nelse if (pri.includes('P4')) hours = 24;\n\nconst now = new Date();\nnow.setHours(now.getHours() + hours);\nreturn [{ json: { target_sla: now.toISOString(), status: \"SLA_ACTIVE\", sla_hours: hours } }];"
       },
       "id": "node-19",
       "name": "19. Compute SLA Target",
@@ -390,7 +405,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (event_type, payload) VALUES ($1, $2::jsonb);",
+        "query": "INSERT INTO system_audit_logs (event_type, payload) VALUES ($1, $2::jsonb) RETURNING id;",
         "options": {
           "queryReplacement": "={{ [\"SLA_TARGET_CONFIRMED\", JSON.stringify({ target_sla: $json.target_sla, status:$json.status })] }}"
         }
@@ -405,7 +420,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
@@ -413,9 +428,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (event_type, payload) VALUES ($1, $2::jsonb);",
+        "query": "INSERT INTO system_audit_logs (event_type, payload) VALUES ($1, $2::jsonb);\nINSERT INTO email_senders_reputation (email, status, notes) VALUES ($3, 'blacklist', 'Hệ thống tự động cách ly email lừa đảo / thư rác') ON CONFLICT (email) DO UPDATE SET status = 'blacklist';",
         "options": {
-          "queryReplacement": "={{ [\"SPAM_BLACKLIST_DROPPED\", JSON.stringify({ sender: $(\"3. Cleanse & Normalize Email\").first().json.sender_email, action: \"QUARANTINE_DISCARD\" })] }}"
+          "queryReplacement": "={{ [\"SPAM_BLACKLIST_DROPPED\", JSON.stringify({ sender: $(\"3. Cleanse & Normalize Email\").first().json.sender_email, subject: $(\"3. Cleanse & Normalize Email\").first().json.subject, action: \"QUARANTINE_DISCARD\" }), $(\"3. Cleanse & Normalize Email\").first().json.sender_email] }}"
         }
       },
       "id": "node-21",
@@ -428,10 +443,34 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "1",
+          "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranglee12306@gmail.com",
+        "subject": "=🚨 [CẢNH BÁO AN NINH] Đã cách ly email lừa đảo / thư rác từ {{ $('3. Cleanse & Normalize Email').first().json.sender_email }}",
+        "html": "=<div style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;\"><div style=\"background-color: #b91c1c; color: #fff; padding: 16px 20px; border-radius: 8px 8px 0 0;\"><h3 style=\"margin: 0; font-size: 16px;\">🚨 CẢNH BÁO AN NINH: CÁCH LY THƯ RÁC / LỪA ĐẢO THÀNH CÔNG</h3></div><div style=\"padding: 20px; border: 1px solid #cbd5e1; border-top: none; background-color: #ffffff;\"><p>Kính gửi <strong>Quản Trị Viên Hệ Thống</strong>,</p><p>Hệ thống AI Triage vừa tự động phát hiện và cách ly một email có dấu hiệu lừa đảo / spam nguy hại theo chính sách kiểm toán <code>SPAM_BLACKLIST_DROPPED</code>:</p><table style=\"border-collapse: collapse; width: 100%; font-size: 13px; margin: 15px 0;\"><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc; width: 35%;\"><strong>Người gửi:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: bold;\">{{ $('3. Cleanse & Normalize Email').first().json.sender_email }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Tiêu đề:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0;\">{{ $('3. Cleanse & Normalize Email').first().json.subject }}</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Trạng thái xử lý:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; color: #15803d; font-weight: bold;\">Cách ly an toàn, ghi nhận Blacklist, huỷ bỏ quy trình mở vé</td></tr><tr><td style=\"padding: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc;\"><strong>Nội dung:</strong></td><td style=\"padding: 8px; border: 1px solid #e2e8f0; font-style: italic; color: #64748b;\">{{ $('3. Cleanse & Normalize Email').first().json.clean_body }}</td></tr></table><p style=\"font-size: 12px; color: #64748b;\">Địa chỉ gửi đã được hệ thống thêm vào danh sách đen (Blacklist) để ngăn chặn truy cập vĩnh viễn.</p></div></div>",
+        "options": {}
+      },
+      "id": "node-21-alert",
+      "name": "21.1 Send Admin Spam Warning Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        160
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -448,7 +487,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('14. Merge Branch Data').first().json.sender_email,\n  subject: $('14. Merge Branch Data').first().json.subject,\n  clean_body: $('14. Merge Branch Data').first().json.clean_body,\n  category: $('14. Merge Branch Data').first().json.category,\n  priority: $('14. Merge Branch Data').first().json.priority\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('14. Merge Branch Data').first().json.sender_email,\n  sender_name: $('14. Merge Branch Data').first().json.sender_name || 'Khách hàng',\n  subject: $('14. Merge Branch Data').first().json.subject,\n  clean_body: $('14. Merge Branch Data').first().json.clean_body,\n  category: $('14. Merge Branch Data').first().json.category,\n  priority: $('14. Merge Branch Data').first().json.priority\n}) }}",
         "options": {}
       },
       "id": "node-trigger-luong-2",
@@ -456,8 +495,95 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
+        4380,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $('14. Merge Branch Data').first().json.category }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "Technical",
+              "output": 0
+            },
+            {
+              "value2": "Sales",
+              "output": 1
+            },
+            {
+              "value2": "Finance",
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": -1
+      },
+      "id": "node-dispatch-switch",
+      "name": "22. Dispatch Target Pipeline",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [
         4120,
         360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/crm-lead-intake",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  email: $('14. Merge Branch Data').first().json.sender_email,\n  sender_email: $('14. Merge Branch Data').first().json.sender_email,\n  sender_name: $('14. Merge Branch Data').first().json.sender_name || 'Khách hàng',\n  company: $('14. Merge Branch Data').first().json.company || 'Doanh nghiệp đối tác',\n  subject: $('14. Merge Branch Data').first().json.subject,\n  content: $('14. Merge Branch Data').first().json.clean_body\n}) }}",
+        "options": {}
+      },
+      "id": "node-trigger-luong-5",
+      "name": "Trigger Luong 5 CRM Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4380,
+        360
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/attachment-invoice-intake",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('14. Merge Branch Data').first().json.sender_email,\n  sender_name: $('14. Merge Branch Data').first().json.sender_name || 'Đơn vị phát hành',\n  filename: $('14. Merge Branch Data').first().json.filename || 'hoadon_vat_dien_tu.pdf',\n  file_extension: $('14. Merge Branch Data').first().json.file_extension || 'pdf',\n  subtotal: $('14. Merge Branch Data').first().json.subtotal || 85000000,\n  vat_amount: $('14. Merge Branch Data').first().json.vat_amount || 8500000,\n  total_amount: $('14. Merge Branch Data').first().json.total_amount || 93500000\n}) }}",
+        "options": {}
+      },
+      "id": "node-trigger-luong-6",
+      "name": "Trigger Luong 6 Invoice OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4380,
+        480
       ],
       "onError": "continueRegularOutput"
     }
@@ -704,7 +830,43 @@
       "main": [
         [
           {
+            "node": "22. Dispatch Target Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22. Dispatch Target Pipeline": {
+      "main": [
+        [
+          {
             "node": "Trigger Luong 2 Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Luong 5 CRM Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Luong 6 Invoice OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21. Global Blacklist Quarantine": {
+      "main": [
+        [
+          {
+            "node": "21.1 Send Admin Spam Warning Email",
             "type": "main",
             "index": 0
           }

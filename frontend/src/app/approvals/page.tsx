@@ -88,43 +88,7 @@ export default function ApprovalsPage() {
         setLoadingDrafts(false);
       })
       .catch(() => {
-        // Fallback default sample data
-        setDrafts([
-          {
-            id: 1,
-            ticket_code: 'TICK-2026-0001',
-            recipient_email: 'client-alpha@enterprise.vn',
-            sender_name: 'Nguyễn Văn Alpha',
-            original_subject: 'Sự cố lỗi mạng 504 khi truy xuất báo cáo',
-            original_body: 'Chào đội ngũ hỗ trợ, sáng nay hệ thống chúng tôi liên tục gặp lỗi 504 Gateway Timeout khi truy xuất báo cáo doanh thu.',
-            proposed_subject: 'Re: Thông báo tiếp nhận và xử lý sự cố kỹ thuật 504 (TICK-2026-0001)',
-            proposed_body:
-              'Kính gửi Quý khách,\n\nCảm ơn Quý khách đã gửi thông tin. Đội ngũ kỹ thuật đã xác định được nguyên nhân do sự cố nghẽn lưu lượng tạm thời tại cụm máy chủ và đang khẩn trương khắc phục. Theo cam kết SLA mức độ P1, sự cố dự kiến được xử lý dứt điểm trong vòng 2 giờ tới.\n\nTrân trọng,\nĐội ngũ Kỹ thuật Doanh nghiệp',
-            confidence_score: 94.5,
-            status: 'PENDING_APPROVAL',
-            knowledge_context: [
-              { id: 4, topic: 'Cam kết chất lượng dịch vụ SLA', content: 'Thời gian phản hồi P1 trong 2 giờ' },
-            ],
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 2,
-            ticket_code: 'TICK-2026-0002',
-            recipient_email: 'billing-partner@corp.vn',
-            sender_name: 'Trần Thị Beta',
-            original_subject: 'Hỏi về chính sách hoàn tiền hợp đồng dịch vụ',
-            original_body: 'Kính gửi công ty, chúng tôi muốn hỏi về điều kiện được hoàn tiền trong tháng đầu sử dụng nếu có trục trặc.',
-            proposed_subject: 'Re: Hướng dẫn chính sách hoàn tiền dịch vụ (TICK-2026-0002)',
-            proposed_body:
-              'Kính gửi Quý khách,\n\nTheo chính sách của chúng tôi, khách hàng được quyền yêu cầu hoàn tiền 100% trong vòng 14 ngày kể từ khi kích hoạt nếu hệ thống gặp sự cố không thể khắc phục. Bộ phận Chăm sóc Khách hàng sẽ liên hệ để hỗ trợ Quý khách chi tiết các bước tiếp theo.\n\nTrân trọng,\nBộ phận CSKH',
-            confidence_score: 88.0,
-            status: 'PENDING_APPROVAL',
-            knowledge_context: [
-              { id: 1, topic: 'Chính sách hoàn tiền', content: 'Hoàn tiền 100% trong vòng 14 ngày' },
-            ],
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        setDrafts([]);
         setLoadingDrafts(false);
       });
   };
@@ -193,11 +157,13 @@ export default function ApprovalsPage() {
         );
         setEditingDraftId(null);
         setActionMsg(
-          `✅ Đã phê duyệt bản thảo #${id}! ${
-            data.n8n_resumed
-              ? 'Webhook n8n đã được đánh thức, tiến trình gửi SMTP đang thực thi.'
-              : 'Trạng thái đã cập nhật trong PostgreSQL.'
-          }`
+          decision === 'REJECT'
+            ? `❌ Đã từ chối bản thảo #${id}! Hệ thống ghi nhận trạng thái REJECTED và không gửi email tới khách hàng.`
+            : `✅ Đã phê duyệt bản thảo #${id}! ${
+                data.n8n_resumed
+                  ? 'Webhook n8n đã được đánh thức, tiến trình gửi SMTP đang thực thi.'
+                  : 'Trạng thái đã cập nhật trong PostgreSQL.'
+              }`
         );
       } else {
         throw new Error('API update failed');
@@ -218,7 +184,11 @@ export default function ApprovalsPage() {
         )
       );
       setEditingDraftId(null);
-      setActionMsg(`⚡ Đã phê duyệt bản thảo #${id} (Chế độ mô phỏng Test Mode).`);
+      setActionMsg(
+        decision === 'REJECT'
+          ? `❌ Đã từ chối bản thảo #${id} (Chế độ mô phỏng Test Mode).`
+          : `⚡ Đã phê duyệt bản thảo #${id} (Chế độ mô phỏng Test Mode).`
+      );
     } finally {
       setActionLoading(null);
     }
