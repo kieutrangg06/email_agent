@@ -1,0 +1,324 @@
+{
+  "name": "Luồng 3 - AI-Driven Ticket Generation & SLA Dispatcher (12 Nodes)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow3-ticket",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      },
+      "id": "flow3-node-1",
+      "name": "1. Ticket Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "m1-flow3-ticket"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst sender = payload.sender_email || payload.from || \"guest@enterprise.com\";\nconst senderName = payload.sender_name || payload.name || sender.split('@')[0];\nconst title = payload.subject || payload.title || \"Yêu cầu hỗ trợ kỹ thuật\";\nconst description = payload.body || payload.text || payload.raw_description || \"Không có mô tả chi tiết\";\nconst category = payload.category || \"Technical\";\nconst priority = payload.priority || \"P1 - Critical\";\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: sender,\n    sender_name: senderName,\n    title: title,\n    description: description,\n    category: category,\n    priority: priority\n  }\n}];"
+      },
+      "id": "flow3-node-2",
+      "name": "2. Normalize Issue Payload Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const randomCode = Math.floor(1000 + Math.random() * 9000);\nconst ticketCode = `TICK-2026-${randomCode}`;\nconst current = $input.first().json;\n\nreturn [{\n  json: {\n    ...current,\n    ticket_code: ticketCode,\n    generated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "flow3-node-3",
+      "name": "3. Generate Ticket ID Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, email, active_tickets_count FROM support_agents WHERE category = $1 AND status = 'AVAILABLE' ORDER BY active_tickets_count ASC LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.category] }}"
+        }
+      },
+      "id": "flow3-node-4",
+      "name": "4. Query Available Agents Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [860, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('3. Generate Ticket ID Code').first().json;\nconst agentQuery = $input.first().json;\n\nconst assignedTo = agentQuery.name || \"Nguyễn Văn An\";\nconst agentEmail = agentQuery.email || \"tranglee12306@gmail.com\";\n\nlet slaHours = 8;\nif (base.priority.includes('P1')) slaHours = 2;\nelse if (base.priority.includes('P2')) slaHours = 4;\nelse if (base.priority.includes('P3')) slaHours = 8;\nelse if (base.priority.includes('P4')) slaHours = 24;\n\nconst slaDeadline = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();\nconst summary = base.description.length > 200 ? base.description.substring(0, 197) + '...' : base.description;\n\nreturn [{\n  json: {\n    ...base,\n    assigned_to: assignedTo,\n    agent_email: agentEmail,\n    first_response_sla: slaDeadline,\n    summary: summary,\n    sla_hours: slaHours\n  }\n}];"
+      },
+      "id": "flow3-node-5",
+      "name": "5. Assign Agent & SLA Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tickets (ticket_code, sender_email, title, description, summary, category, priority, assigned_to, agent_email, first_response_sla, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'OPEN') ON CONFLICT (ticket_code) DO NOTHING RETURNING *;",
+        "options": {
+          "queryReplacement": "={{ [$json.ticket_code, $json.sender_email, $json.title, $json.description, $json.summary, $json.category, $json.priority, $json.assigned_to, $json.agent_email, $json.first_response_sla] }}"
+        }
+      },
+      "id": "flow3-node-6",
+      "name": "6. Insert Ticket Master Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1300, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE support_agents SET active_tickets_count = active_tickets_count + 1 WHERE email = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('5. Assign Agent & SLA Code').first().json.agent_email] }}"
+        }
+      },
+      "id": "flow3-node-7",
+      "name": "7. Increment Agent Workload Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1520, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "helpdesk-dispatcher@enterprise.com",
+        "toEmail": "={{ $('5. Assign Agent & SLA Code').first().json.agent_email }}",
+        "subject": "=[TICKET ASSIGNED] {{ $('5. Assign Agent & SLA Code').first().json.ticket_code }} - {{ $('5. Assign Agent & SLA Code').first().json.title }} [{{ $('5. Assign Agent & SLA Code').first().json.priority }}]",
+        "text": "=Kính gửi Kỹ thuật viên {{ $('5. Assign Agent & SLA Code').first().json.assigned_to }},\n\nBạn vừa được hệ thống tự động gán phụ trách một vé hỗ trợ mới:\n- Mã vé: {{ $('5. Assign Agent & SLA Code').first().json.ticket_code }}\n- Tiêu đề: {{ $('5. Assign Agent & SLA Code').first().json.title }}\n- Mức độ ưu tiên: {{ $('5. Assign Agent & SLA Code').first().json.priority }}\n- Khách hàng: {{ $('5. Assign Agent & SLA Code').first().json.sender_email }}\n- Hạn SLA hoàn thành: {{ $('5. Assign Agent & SLA Code').first().json.first_response_sla }}\n\nNội dung sự cố tóm lược:\n{{ $('5. Assign Agent & SLA Code').first().json.summary }}\n\nVui lòng truy cập Web App (cổng 3000) mục Tickets để nhận và xử lý sự cố.",
+        "options": {}
+      },
+      "id": "flow3-node-8",
+      "name": "8. Notify Assigned Agent Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1740, 300],
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow3', 'TICKET_DISPATCHED_TO_AGENT', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('5. Assign Agent & SLA Code').first().json)] }}"
+        }
+      },
+      "id": "flow3-node-9",
+      "name": "9. Initial System Audit Comment Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1960, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/triage/in-app-alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event: 'TICKET_ASSIGNED', ticket_code: $('5. Assign Agent & SLA Code').first().json.ticket_code, priority: $('5. Assign Agent & SLA Code').first().json.priority, assigned_to: $('5. Assign Agent & SLA Code').first().json.assigned_to }) }}",
+        "options": {}
+      },
+      "id": "flow3-node-10",
+      "name": "10. Push Real-time In-App Alert HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2180, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const finalData = $('5. Assign Agent & SLA Code').first().json;\nreturn [{\n  json: {\n    status: 'SUCCESS',\n    ticket_code: finalData.ticket_code,\n    assigned_to: finalData.assigned_to,\n    agent_email: finalData.agent_email,\n    first_response_sla: finalData.first_response_sla,\n    priority: finalData.priority,\n    created_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "flow3-node-11",
+      "name": "11. Format Final Response Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow3', 'FLOW3_TICKET_PIPELINE_COMPLETED', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "id": "flow3-node-12",
+      "name": "12. Commit Ticket Audit Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2620, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Ticket Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Normalize Issue Payload Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Normalize Issue Payload Code": {
+      "main": [
+        [
+          {
+            "node": "3. Generate Ticket ID Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Generate Ticket ID Code": {
+      "main": [
+        [
+          {
+            "node": "4. Query Available Agents Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Query Available Agents Postgres": {
+      "main": [
+        [
+          {
+            "node": "5. Assign Agent & SLA Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Assign Agent & SLA Code": {
+      "main": [
+        [
+          {
+            "node": "6. Insert Ticket Master Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Insert Ticket Master Postgres": {
+      "main": [
+        [
+          {
+            "node": "7. Increment Agent Workload Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Increment Agent Workload Postgres": {
+      "main": [
+        [
+          {
+            "node": "8. Notify Assigned Agent Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Notify Assigned Agent Email": {
+      "main": [
+        [
+          {
+            "node": "9. Initial System Audit Comment Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Initial System Audit Comment Postgres": {
+      "main": [
+        [
+          {
+            "node": "10. Push Real-time In-App Alert HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Push Real-time In-App Alert HTTP": {
+      "main": [
+        [
+          {
+            "node": "11. Format Final Response Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Format Final Response Code": {
+      "main": [
+        [
+          {
+            "node": "12. Commit Ticket Audit Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

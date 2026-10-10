@@ -1,5 +1,5 @@
 -- ====================================================================
--- DATABASE SCRIPT 00: CORE SCHEMA & REPUTATION (OWNER: TEAM LEAD)
+-- MEMBER 1 DATABASE: CORE SCHEMA & REPUTATION
 -- ====================================================================
 
 -- 1. Departments table
@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS departments (
 );
 
 INSERT INTO departments (name, description, head_email) VALUES
-('Technical', 'Khắc phục sự cố API, hạ tầng cơ sở dữ liệu, lỗi phân quyền hệ thống', 'tech-lead@vku.udn.vn'),
-('Sales', 'Tiếp nhận yêu cầu báo giá, tư vấn bản quyền phần mềm, hợp đồng triển khai', 'sales@vku.udn.vn'),
-('Finance', 'Tiếp nhận đối soát sao kê, xuất hóa đơn điện tử VAT, thanh toán đối tác', 'accounting@vku.udn.vn'),
-('General', 'Hỗ trợ giải đáp chung, điều phối lịch làm việc & hỗ trợ khách hàng', 'cskh@vku.udn.vn')
+('Technical', 'Khắc phục sự cố API, hạ tầng cơ sở dữ liệu, lỗi phân quyền hệ thống', 'tranglee12306@gmail.com'),
+('Sales', 'Tiếp nhận yêu cầu báo giá, tư vấn bản quyền phần mềm, hợp đồng triển khai', 'tranglee12306@gmail.com'),
+('Finance', 'Tiếp nhận đối soát sao kê, xuất hóa đơn điện tử VAT, thanh toán đối tác', 'tranglee12306@gmail.com'),
+('General', 'Hỗ trợ giải đáp chung, điều phối lịch làm việc & hỗ trợ khách hàng', 'tranglee12306@gmail.com')
 ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, head_email = EXCLUDED.head_email;
 
 -- 2. Sender Reputation (Whitelist / Blacklist)
@@ -29,13 +29,14 @@ CREATE TABLE IF NOT EXISTS email_senders_reputation (
 
 INSERT INTO email_senders_reputation (email, status, notes) VALUES
 ('spammer@evil.com', 'blacklist', 'Máy chủ phát tán mã độc lừa đảo tiền số'),
+('phishing@malicious-bank.xyz', 'blacklist', 'Chiến dịch phishing giả mạo cổng thanh toán'),
 ('no-reply-marketing@bulkmailer.biz', 'blacklist', 'Hệ thống gửi email rác hàng loạt')
 ON CONFLICT (email) DO NOTHING;
 
 -- 3. System Global Audit Logs
 CREATE TABLE IF NOT EXISTS system_audit_logs (
     id SERIAL PRIMARY KEY,
-    source VARCHAR(50) DEFAULT 'n8n-system',
+    source VARCHAR(50) DEFAULT 'm1-system',
     event_type VARCHAR(50) NOT NULL,
     payload JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

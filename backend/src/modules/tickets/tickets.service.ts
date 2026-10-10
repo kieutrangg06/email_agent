@@ -11,10 +11,10 @@ export class TicketsService {
     const res = await this.db.query('SELECT id, name, description, head_email FROM departments ORDER BY id ASC;');
     if (!res.rows || res.rows.length === 0) {
       return [
-        { id: 1, name: 'Technical', description: 'Khắc phục sự cố kỹ thuật', head_email: 'tranglee12306@gmail.com' },
-        { id: 2, name: 'Sales', description: 'Tư vấn kinh doanh & báo giá', head_email: 'tranglee12306@gmail.com' },
+        { id: 1, name: 'Technical', description: 'Khắc phục sự cố API, hạ tầng kỹ thuật', head_email: 'tranglee12306@gmail.com' },
+        { id: 2, name: 'Sales', description: 'Tư vấn kinh doanh & báo giá giải pháp', head_email: 'tranglee12306@gmail.com' },
         { id: 3, name: 'Finance', description: 'Đối soát hóa đơn & thanh toán', head_email: 'tranglee12306@gmail.com' },
-        { id: 4, name: 'General', description: 'Hỗ trợ chung & thông tin', head_email: 'tranglee12306@gmail.com' },
+        { id: 4, name: 'General', description: 'Hỗ trợ giải đáp chung & thông tin', head_email: 'tranglee12306@gmail.com' },
       ];
     }
     return res.rows;
@@ -69,7 +69,7 @@ export class TicketsService {
     const assignedTo = data.assigned_to || 'Nguyễn Văn An';
     const agentEmail = data.agent_email || 'tranglee12306@gmail.com';
     const senderEmail = data.sender_email || 'guest@enterprise.com';
-    const title = data.title || 'Yêu cầu hỗ trợ';
+    const title = data.title || 'Yêu cầu hỗ trợ kỹ thuật';
     const description = data.description || '';
     const summary = data.summary || description.substring(0, 200);
 
@@ -96,7 +96,6 @@ export class TicketsService {
       [code, senderEmail, title, description, summary, category, priority, assignedTo, agentEmail]
     );
 
-    // Cập nhật tăng số lượng ticket của agent
     if (agentEmail) {
       await this.db.query(
         'UPDATE support_agents SET active_tickets_count = active_tickets_count + 1 WHERE email = $1;',

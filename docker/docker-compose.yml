@@ -1,21 +1,21 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: enterprise_db
+    container_name: m1_enterprise_db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-SecretPassword123!}
-      POSTGRES_DB: ${POSTGRES_DB:-email_automation_db}
+      POSTGRES_DB: ${POSTGRES_DB:-email_automation_m1_db}
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - m1_postgres_data:/var/lib/postgresql/data
       - ../database:/docker-entrypoint-initdb.d:ro
 
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
-    container_name: enterprise_n8n
+    container_name: m1_enterprise_n8n
     restart: always
     network_mode: host
     environment:
@@ -28,13 +28,13 @@ services:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=127.0.0.1
       - DB_POSTGRESDB_PORT=5432
-      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-email_automation_db}
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-email_automation_m1_db}
       - DB_POSTGRESDB_USER=${POSTGRES_USER:-admin}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-SecretPassword123!}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
-      - n8n_data:/home/node/.n8n
+      - m1_n8n_data:/home/node/.n8n
 
 volumes:
-  postgres_data:
-  n8n_data:
+  m1_postgres_data:
+  m1_n8n_data:

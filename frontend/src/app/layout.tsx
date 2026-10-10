@@ -3,8 +3,8 @@ import './globals.css';
 import { Navbar } from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'Intelligent Enterprise Email Automation & Helpdesk CRM',
-  description: 'Enterprise AI Agent Monorepo with n8n, Next.js, NestJS, and PostgreSQL',
+  title: 'Member 1: AI Email Triage & Helpdesk SLA Dispatcher',
+  description: 'Enterprise Email Automation - Member 1 Standalone Project (3 Flows x 12 Nodes)',
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-slate-800 text-center py-4 text-xs text-slate-500">
-          Intelligent Enterprise Email Automation &copy; 2026 VKU Engineering
+          Member 1: AI Email Triage &amp; Helpdesk SLA Dispatcher &copy; 2026 VKU Engineering
         </footer>
       </body>
     </html>

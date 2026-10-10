@@ -1,0 +1,358 @@
+{
+  "name": "Luồng 2 - AI Multi-Department Triage & Acknowledgment (12 Nodes)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow2-triage",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      },
+      "id": "flow2-node-1",
+      "name": "1. Flow 2 Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "m1-flow2-triage"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:4000/api/v1/triage/departments",
+        "options": {}
+      },
+      "id": "flow2-node-2",
+      "name": "2. Fetch Depts HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [420, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('1. Flow 2 Webhook Trigger').first().json;\nconst payload = prev.body ? prev.body : prev;\n\nconst subject = (payload.subject || \"\").toLowerCase();\nconst body = (payload.body || \"\").toLowerCase();\nconst text = subject + \" \" + body;\n\nlet category = \"General\";\nlet priority = \"P3 - Medium\";\nlet sentiment = \"Trung tinh\";\nlet urgencyReason = \"Thư tiếp nhận thông thường\";\n\nif (text.includes(\"sập\") || text.includes(\"504\") || text.includes(\"500\") || text.includes(\"không truy cập\") || text.includes(\"khẩn cấp\") || text.includes(\"down\") || text.includes(\"outage\")) {\n  category = \"Technical\";\n  priority = \"P1 - Critical\";\n  sentiment = \"Khan cap\";\n  urgencyReason = \"Hệ thống ghi nhận sự cố gián đoạn dịch vụ diện rộng cần xử lý khẩn\";\n} else if (text.includes(\"lỗi\") || text.includes(\"api\") || text.includes(\"bug\") || text.includes(\"database\") || text.includes(\"không đăng nhập\") || text.includes(\"mật khẩu\")) {\n  category = \"Technical\";\n  priority = \"P2 - High\";\n  sentiment = \"Tieu cuc\";\n  urgencyReason = \"Yêu cầu hỗ trợ khắc phục sự cố kỹ thuật chức năng\";\n} else if (text.includes(\"báo giá\") || text.includes(\"mua hàng\") || text.includes(\"hợp đồng\") || text.includes(\"bản quyền\") || text.includes(\"tư vấn\")) {\n  category = \"Sales\";\n  priority = \"P2 - High\";\n  sentiment = \"Tich cuc\";\n  urgencyReason = \"Yêu cầu tư vấn cơ hội kinh doanh và báo giá giải pháp\";\n} else if (text.includes(\"hóa đơn\") || text.includes(\"vat\") || text.includes(\"công nợ\") || text.includes(\"thanh toán\") || text.includes(\"chứng từ\")) {\n  category = \"Finance\";\n  priority = \"P3 - Medium\";\n  sentiment = \"Trung tinh\";\n  urgencyReason = \"Yêu cầu đối soát chứng từ và phát hành hóa đơn kế toán\";\n}\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: payload.sender_email || payload.from || \"guest@enterprise.com\",\n    sender_name: payload.sender_name || payload.name || \"Khách Hàng\",\n    subject: payload.subject || \"Yêu cầu tiếp nhận\",\n    body: payload.body || payload.text || \"\",\n    category: category,\n    priority: priority,\n    sentiment: sentiment,\n    urgency_reason: urgencyReason\n  }\n}];"
+      },
+      "id": "flow2-node-3",
+      "name": "3. AI Department Classifier Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $input.first().json;\n\nlet slaHours = 8;\nif (current.priority.includes('P1')) slaHours = 2;\nelse if (current.priority.includes('P2')) slaHours = 4;\nelse if (current.priority.includes('P3')) slaHours = 8;\nelse if (current.priority.includes('P4')) slaHours = 24;\n\nconst slaDeadline = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();\n\nreturn [{\n  json: {\n    ...current,\n    sla_deadline: slaDeadline,\n    sla_hours: slaHours\n  }\n}];"
+      },
+      "id": "flow2-node-4",
+      "name": "4. Schema Guard & SLA Calc Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO email_triage_logs (sender_email, sender_name, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING') RETURNING id, status;",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_email, $json.sender_name || 'Khách Hàng', $json.subject, ($json.body || '').substring(0, 500), $json.category, $json.priority, $json.sentiment, $json.urgency_reason, $json.sla_deadline] }}"
+        }
+      },
+      "id": "flow2-node-5",
+      "name": "5. Store Triage Log Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1080, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $('4. Schema Guard & SLA Calc Code').first().json.category }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "Technical"
+            },
+            {
+              "value2": "Sales"
+            },
+            {
+              "value2": "Finance"
+            },
+            {
+              "value2": "General"
+            }
+          ]
+        }
+      },
+      "id": "flow2-node-6",
+      "name": "6. Switch Department Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "id": "flow2-node-7",
+      "name": "7. Merge Route Branches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('4. Schema Guard & SLA Calc Code').first().json.priority }}",
+              "operation": "contains",
+              "value2": "P1"
+            }
+          ]
+        }
+      },
+      "id": "flow2-node-8",
+      "name": "8. IF Critical Priority P1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1740, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow2', 'HIGH_SEVERITY_INCIDENT_FLAGGED', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('4. Schema Guard & SLA Calc Code').first().json)] }}"
+        }
+      },
+      "id": "flow2-node-9",
+      "name": "9. Escalation Incident Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1960, 200],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "support-acknowledgment@enterprise.com",
+        "toEmail": "={{ $('4. Schema Guard & SLA Calc Code').first().json.sender_email }}",
+        "subject": "=Xác nhận đã tiếp nhận thư: {{ $('4. Schema Guard & SLA Calc Code').first().json.subject }} [SLA: {{ $('4. Schema Guard & SLA Calc Code').first().json.sla_hours }}h]",
+        "text": "=Kính gửi Quý Khách Hàng,\n\nHệ thống AI Triage tự động đã tiếp nhận yêu cầu của Quý Khách:\n- Tiêu đề: {{ $('4. Schema Guard & SLA Calc Code').first().json.subject }}\n- Phòng ban phụ trách: {{ $('4. Schema Guard & SLA Calc Code').first().json.category }}\n- Mức độ ưu tiên: {{ $('4. Schema Guard & SLA Calc Code').first().json.priority }}\n- Cam kết thời hạn SLA: Trong vòng {{ $('4. Schema Guard & SLA Calc Code').first().json.sla_hours }} giờ\n\nChuyên viên của chúng tôi sẽ sớm liên hệ xử lý.\n\nTrân trọng,\nĐội ngũ Hỗ trợ Doanh nghiệp Enterprise Automation",
+        "options": {}
+      },
+      "id": "flow2-node-10",
+      "name": "10. Send SLA Confirmation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2180, 300],
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/m1-flow3-ticket",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('4. Schema Guard & SLA Calc Code').first().json) }}",
+        "options": {}
+      },
+      "id": "flow2-node-11",
+      "name": "11. Dispatch to Ticket Flow 3 HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow2', 'FLOW2_TRIAGE_COMPLETED', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify({ status: 'SUCCESS', category: $('4. Schema Guard & SLA Calc Code').first().json.category, completed_at: new Date().toISOString() })] }}"
+        }
+      },
+      "id": "flow2-node-12",
+      "name": "12. Triage Audit Trail Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2620, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Flow 2 Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Fetch Depts HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Fetch Depts HTTP": {
+      "main": [
+        [
+          {
+            "node": "3. AI Department Classifier Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. AI Department Classifier Code": {
+      "main": [
+        [
+          {
+            "node": "4. Schema Guard & SLA Calc Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Schema Guard & SLA Calc Code": {
+      "main": [
+        [
+          {
+            "node": "5. Store Triage Log Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Store Triage Log Postgres": {
+      "main": [
+        [
+          {
+            "node": "6. Switch Department Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Switch Department Route": {
+      "main": [
+        [
+          {
+            "node": "7. Merge Route Branches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "7. Merge Route Branches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "7. Merge Route Branches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "7. Merge Route Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Merge Route Branches": {
+      "main": [
+        [
+          {
+            "node": "8. IF Critical Priority P1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. IF Critical Priority P1": {
+      "main": [
+        [
+          {
+            "node": "9. Escalation Incident Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10. Send SLA Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Escalation Incident Postgres": {
+      "main": [
+        [
+          {
+            "node": "10. Send SLA Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Send SLA Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "11. Dispatch to Ticket Flow 3 HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Dispatch to Ticket Flow 3 HTTP": {
+      "main": [
+        [
+          {
+            "node": "12. Triage Audit Trail Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

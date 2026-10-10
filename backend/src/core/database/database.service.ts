@@ -11,7 +11,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       port: parseInt(process.env.DB_PORT || '5432', 10),
       user: process.env.DB_USER || 'admin',
       password: process.env.DB_PASSWORD || 'SecretPassword123!',
-      database: process.env.DB_DATABASE || 'email_automation_db',
+      database: process.env.DB_DATABASE || 'email_automation_m1_db',
       max: 20,
       idleTimeoutMillis: 30000,
     });

@@ -1,0 +1,347 @@
+{
+  "name": "Luồng 1 - Ingest, Anti-Spam & Blacklist Quarantine (12 Nodes)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow1-ingest",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      },
+      "id": "flow1-node-1",
+      "name": "1. Email Ingest Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "m1-flow1-ingest"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst rawSender = payload.from || payload.sender || payload.sender_email || \"guest@enterprise.com\";\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = (senderMatch ? senderMatch[1] : String(rawSender)).trim().toLowerCase();\nconst senderName = payload.name || (senderMatch ? rawSender.split('<')[0].trim() : cleanSender.split('@')[0]);\n\nconst rawBody = payload.text || payload.body || payload.content || \"\";\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, '').trim();\nconst subject = String(payload.subject || \"No Subject\").trim();\n\nreturn [{\n  json: {\n    sender_email: cleanSender,\n    sender_name: senderName,\n    subject: subject,\n    body: cleanBody,\n    received_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "flow1-node-2",
+      "name": "2. Payload Normalization Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.sender_email }}",
+              "operation": "notContains",
+              "value2": "no-reply"
+            },
+            {
+              "value1": "={{ $json.sender_email }}",
+              "operation": "notContains",
+              "value2": "mailer-daemon"
+            }
+          ]
+        }
+      },
+      "id": "flow1-node-3",
+      "name": "3. Filter System Bounces IF",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT email, status, notes FROM email_senders_reputation WHERE email = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_email] }}"
+        }
+      },
+      "id": "flow1-node-4",
+      "name": "4. Check Sender Reputation Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [860, 200],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status || 'neutral' }}",
+              "operation": "equal",
+              "value2": "blacklist"
+            }
+          ]
+        }
+      },
+      "id": "flow1-node-5",
+      "name": "5. IF Blacklisted Sender",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1080, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow1', 'SENDER_BLACKLIST_QUARANTINE', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('2. Payload Normalization Code').first().json)] }}"
+        }
+      },
+      "id": "flow1-node-6",
+      "name": "6. Quarantine Vault Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1300, 100],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "security-alert@enterprise.com",
+        "toEmail": "tranglee12306@gmail.com",
+        "subject": "=[SECURITY ALERT] Phát hiện & Cách ly Email Blacklist từ {{ $('2. Payload Normalization Code').first().json.sender_email }}",
+        "text": "=CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP\n\nHệ thống vừa phát hiện và đưa vào vùng cách ly bức thư sau:\n- Người gửi: {{ $('2. Payload Normalization Code').first().json.sender_email }}\n- Tiêu đề: {{ $('2. Payload Normalization Code').first().json.subject }}\n- Thời điểm: {{ $('2. Payload Normalization Code').first().json.received_at }}\n- Trạng thái: ĐÃ CÁCH LY THÀNH CÔNG (QUARANTINED)\n\nVui lòng kiểm tra nhật ký an ninh tại bảng system_audit_logs.",
+        "options": {}
+      },
+      "id": "flow1-node-7",
+      "name": "7. Security Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1520, 100],
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE email_senders_reputation SET notes = COALESCE(notes, '') || ' [Quarantine strike at ' || NOW() || ']' WHERE email = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('2. Payload Normalization Code').first().json.sender_email] }}"
+        }
+      },
+      "id": "flow1-node-8",
+      "name": "8. Record Reputation Strike Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1740, 100],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('2. Payload Normalization Code').first().json;\nreturn [{\n  json: {\n    ...original,\n    is_clean: true,\n    validated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "flow1-node-9",
+      "name": "9. Package Clean Email Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow1', 'INBOUND_CLEAN_EMAIL_ACCEPTED', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "id": "flow1-node-10",
+      "name": "10. Audit Log Clean Ingest Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1520, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/m1-flow2-triage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('9. Package Clean Email Code').first().json) }}",
+        "options": {}
+      },
+      "id": "flow1-node-11",
+      "name": "11. Dispatch to Flow 2 HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1740, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow1', 'FLOW1_PIPELINE_COMPLETED', $1);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify({ status: 'SUCCESS', sender: $('2. Payload Normalization Code').first().json.sender_email, dispatched_at: new Date().toISOString() })] }}"
+        }
+      },
+      "id": "flow1-node-12",
+      "name": "12. Ingest Complete Audit Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1960, 300],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Email Ingest Webhook": {
+      "main": [
+        [
+          {
+            "node": "2. Payload Normalization Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Payload Normalization Code": {
+      "main": [
+        [
+          {
+            "node": "3. Filter System Bounces IF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Filter System Bounces IF": {
+      "main": [
+        [
+          {
+            "node": "4. Check Sender Reputation Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "6. Quarantine Vault Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Check Sender Reputation Postgres": {
+      "main": [
+        [
+          {
+            "node": "5. IF Blacklisted Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. IF Blacklisted Sender": {
+      "main": [
+        [
+          {
+            "node": "6. Quarantine Vault Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "9. Package Clean Email Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Quarantine Vault Postgres": {
+      "main": [
+        [
+          {
+            "node": "7. Security Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Security Alert Email": {
+      "main": [
+        [
+          {
+            "node": "8. Record Reputation Strike Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Package Clean Email Code": {
+      "main": [
+        [
+          {
+            "node": "10. Audit Log Clean Ingest Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Audit Log Clean Ingest Postgres": {
+      "main": [
+        [
+          {
+            "node": "11. Dispatch to Flow 2 HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Dispatch to Flow 2 HTTP": {
+      "main": [
+        [
+          {
+            "node": "12. Ingest Complete Audit Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

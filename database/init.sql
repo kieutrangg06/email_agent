@@ -1,17 +1,102 @@
 -- ====================================================================
--- MASTER DATABASE INITIALIZATION SCRIPT (init.sql)
--- Intelligent Enterprise Email Automation & Helpdesk CRM
--- (PostgreSQL 16 Enterprise DB)
+-- COMBINED INIT SQL FOR MEMBER 1: EMAIL TRIAGE & HELPDESK SLA
 -- ====================================================================
 
--- 1. CORE SCHEMA (Shared infrastructure)
-\ir 00_core_schema.sql
+-- 1. Departments table
+CREATE TABLE IF NOT EXISTS departments (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    head_email VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- 2. MEMBER 1: Triage & Tickets
-\ir 01_member1_tickets.sql
+INSERT INTO departments (name, description, head_email) VALUES
+('Technical', 'Khắc phục sự cố API, hạ tầng cơ sở dữ liệu, lỗi phân quyền hệ thống', 'tranglee12306@gmail.com'),
+('Sales', 'Tiếp nhận yêu cầu báo giá, tư vấn bản quyền phần mềm, hợp đồng triển khai', 'tranglee12306@gmail.com'),
+('Finance', 'Tiếp nhận đối soát sao kê, xuất hóa đơn điện tử VAT, thanh toán đối tác', 'tranglee12306@gmail.com'),
+('General', 'Hỗ trợ giải đáp chung, điều phối lịch làm việc & hỗ trợ khách hàng', 'tranglee12306@gmail.com')
+ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, head_email = EXCLUDED.head_email;
 
--- 3. MEMBER 2: Knowledge Base, Email Drafts & Daily Summaries
-\ir 02_member2_knowledge_drafts.sql
+-- 2. Sender Reputation (Whitelist / Blacklist)
+CREATE TABLE IF NOT EXISTS email_senders_reputation (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    status VARCHAR(20) DEFAULT 'neutral',
+    notes TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- 4. MEMBER 3: CRM Leads & Finance Invoices
-\ir 03_member3_crm_invoices.sql
+INSERT INTO email_senders_reputation (email, status, notes) VALUES
+('spammer@evil.com', 'blacklist', 'Máy chủ phát tán mã độc lừa đảo tiền số'),
+('phishing@malicious-bank.xyz', 'blacklist', 'Chiến dịch phishing giả mạo cổng thanh toán'),
+('no-reply-marketing@bulkmailer.biz', 'blacklist', 'Hệ thống gửi email rác hàng loạt')
+ON CONFLICT (email) DO NOTHING;
+
+-- 3. System Global Audit Logs
+CREATE TABLE IF NOT EXISTS system_audit_logs (
+    id SERIAL PRIMARY KEY,
+    source VARCHAR(50) DEFAULT 'm1-system',
+    event_type VARCHAR(50) NOT NULL,
+    payload JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Bảng lưu trữ Triage Logs
+CREATE TABLE IF NOT EXISTS email_triage_logs (
+    id SERIAL PRIMARY KEY,
+    sender_email VARCHAR(255) NOT NULL,
+    sender_name VARCHAR(100),
+    subject TEXT NOT NULL,
+    body_snippet TEXT,
+    category VARCHAR(50) NOT NULL,
+    priority VARCHAR(20) NOT NULL,
+    sentiment VARCHAR(50) NOT NULL,
+    urgency_reason TEXT,
+    sla_deadline TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(30) DEFAULT 'PENDING',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Bảng Chuyên viên Hỗ trợ
+CREATE TABLE IF NOT EXISTS support_agents (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'AVAILABLE',
+    active_tickets_count INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO support_agents (name, email, category, status, active_tickets_count) VALUES
+('Nguyễn Văn An', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', 0),
+('Trần Hoàng Bách', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', 0),
+('Lê Thị Mai', 'tranglee12306@gmail.com', 'Sales', 'AVAILABLE', 0),
+('Phạm Đức Trọng', 'tranglee12306@gmail.com', 'Finance', 'AVAILABLE', 0),
+('Đỗ Thúy Vy', 'tranglee12306@gmail.com', 'General', 'AVAILABLE', 0)
+ON CONFLICT DO NOTHING;
+
+-- 6. Bảng Tickets & SLA
+CREATE TABLE IF NOT EXISTS tickets (
+    id SERIAL PRIMARY KEY,
+    ticket_code VARCHAR(50) UNIQUE NOT NULL,
+    sender_email VARCHAR(255) NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    summary TEXT,
+    category VARCHAR(50) NOT NULL,
+    priority VARCHAR(20) NOT NULL DEFAULT 'P3 - Medium',
+    assigned_to VARCHAR(100) NOT NULL,
+    agent_email VARCHAR(255),
+    first_response_sla TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(30) DEFAULT 'OPEN',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_triage_status ON email_triage_logs(status);
+CREATE INDEX IF NOT EXISTS idx_triage_category ON email_triage_logs(category);
+CREATE INDEX IF NOT EXISTS idx_tickets_code ON tickets(ticket_code);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);

@@ -14,7 +14,7 @@ import { TicketsService } from './tickets.service';
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
-  // 1. Triage Endpoints (Luồng 1 & Triage Page)
+  // 1. Triage Endpoints (Luồng 1 & 2)
   @Get('triage/departments')
   async getDepartments() {
     return this.ticketsService.getDepartments();
@@ -51,18 +51,9 @@ export class TicketsController {
     return { status: 'acknowledged', received: body };
   }
 
-  // 2. Ticket Endpoints (Luồng 2 & Tickets Page)
+  // 2. Ticket Endpoints (Luồng 3 & Tickets Page)
   @Get('tickets')
   async getAllTickets(
-    @Query('status') status?: string,
-    @Query('priority') priority?: string,
-  ) {
-    return this.ticketsService.getAllTickets(status, priority);
-  }
-
-  // Alias for compatibility with older frontend calls
-  @Get('triage/tickets')
-  async getAllTicketsAlias(
     @Query('status') status?: string,
     @Query('priority') priority?: string,
   ) {
@@ -89,11 +80,6 @@ export class TicketsController {
     return this.ticketsService.createTicket(body);
   }
 
-  @Post('triage/tickets')
-  async createTicketAlias(@Body() body: any) {
-    return this.ticketsService.createTicket(body);
-  }
-
   @Patch('tickets/:code/status')
   async updateStatus(
     @Param('code') code: string,
@@ -104,11 +90,6 @@ export class TicketsController {
 
   @Patch('tickets/:code/resolve')
   async resolveTicket(@Param('code') code: string) {
-    return this.ticketsService.resolveTicket(code);
-  }
-
-  @Patch('triage/tickets/:code/resolve')
-  async resolveTicketAlias(@Param('code') code: string) {
     return this.ticketsService.resolveTicket(code);
   }
 }

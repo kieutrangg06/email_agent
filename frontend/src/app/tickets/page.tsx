@@ -52,7 +52,7 @@ interface Ticket {
 export default function TicketsPage() {
   const [activeTab, setActiveTab] = useState<'triage' | 'tickets'>('triage');
 
-  // Luồng 1: Triage State
+  // Luồng 1 & 2: Triage State
   const [triageLogs, setTriageLogs] = useState<TriageLog[]>([]);
   const [triageStats, setTriageStats] = useState({
     total: 0,
@@ -66,7 +66,7 @@ export default function TicketsPage() {
   const [triagePriority, setTriagePriority] = useState('All');
   const [selectedMail, setSelectedMail] = useState<TriageLog | null>(null);
 
-  // Luồng 2: Tickets State
+  // Luồng 3: Tickets State
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketSearch, setTicketSearch] = useState('');
   const [ticketStatus, setTicketStatus] = useState('All');
@@ -221,7 +221,7 @@ export default function TicketsPage() {
             </h1>
           </div>
           <p className="text-slate-400 text-sm mt-1">
-            Luồng 1 (Phân loại &amp; Định tuyến AI - 21 nodes) &bull; Luồng 2 (Khởi tạo Ticket &amp; Theo dõi SLA - 20 nodes)
+            Quy trình chuẩn 3 Luồng &bull; Luồng 1 (Anti-Spam 12 nodes) &bull; Luồng 2 (AI Triage 12 nodes) &bull; Luồng 3 (Ticket SLA 12 nodes)
           </p>
         </div>
 
@@ -235,7 +235,7 @@ export default function TicketsPage() {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Luồng 1: AI Triage Logs ({triageLogs.length})
+              Luồng 1 &amp; 2: AI Triage Logs ({triageLogs.length})
             </button>
             <button
               onClick={() => setActiveTab('tickets')}
@@ -245,7 +245,7 @@ export default function TicketsPage() {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Luồng 2: Tickets &amp; SLA ({tickets.length})
+              Luồng 3: Tickets &amp; SLA ({tickets.length})
             </button>
           </div>
 
@@ -296,7 +296,7 @@ export default function TicketsPage() {
       </div>
 
       {/* ============================================================ */}
-      {/* TAB 1: LUỒNG 1 - AI TRIAGE LOGS */}
+      {/* TAB 1: LUỒNG 1 & 2 - AI TRIAGE LOGS */}
       {/* ============================================================ */}
       {activeTab === 'triage' && (
         <div className="space-y-4">
@@ -436,7 +436,7 @@ export default function TicketsPage() {
       )}
 
       {/* ============================================================ */}
-      {/* TAB 2: LUỒNG 2 - HELPDESK TICKETS & SLA */}
+      {/* TAB 2: LUỒNG 3 - HELPDESK TICKETS & SLA */}
       {/* ============================================================ */}
       {activeTab === 'tickets' && (
         <div className="space-y-4">
