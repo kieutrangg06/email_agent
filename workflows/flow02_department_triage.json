@@ -1,80 +1,89 @@
 {
+  "id": "XO1y6C2GPfRboapc",
   "name": "Luồng 2 - AI Multi-Department Triage & Acknowledgment (12 Nodes)",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "m1-flow2-triage",
-        "responseMode": "onReceived",
-        "responseData": "OK",
-        "options": {}
-      },
-      "id": "flow2-node-1",
-      "name": "1. Flow 2 Webhook Trigger",
+      "id": "f2-node-01",
+      "name": "1. Sub-Workflow Ingest Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         200,
         300
       ],
-      "webhookId": "m1-flow2-triage"
+      "webhookId": "m1-flow2-triage",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow2-triage",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "method": "GET",
-        "url": "http://localhost:4000/api/v1/triage/departments",
-        "options": {}
-      },
-      "id": "flow2-node-2",
-      "name": "2. Fetch Depts HTTP",
+      "id": "f2-node-02",
+      "name": "2. Fetch Department Directory HTTP",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        420,
+        440,
         300
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:4000/api/v1/departments",
+        "options": {}
+      }
     },
     {
+      "id": "f2-node-03",
+      "name": "3. AI Semantic Classifier Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        300
+      ],
+      "onError": "continueRegularOutput",
       "parameters": {
-        "jsCode": "const prev = $('1. Flow 2 Webhook Trigger').first().json;\nconst payload = prev.body ? prev.body : prev;\n\nconst subject = (payload.subject || \"\").toLowerCase();\nconst body = (payload.body || \"\").toLowerCase();\nconst text = subject + \" \" + body;\n\nlet category = \"General\";\nlet priority = \"P4 - Low\";\nlet sentiment = \"Trung tinh\";\nlet urgencyReason = \"Yêu cầu thông tin và hỗ trợ chung tiêu chuẩn\";\n\nif (text.includes(\"sập\") || text.includes(\"504\") || text.includes(\"500\") || text.includes(\"không truy cập\") || text.includes(\"khẩn cấp\") || text.includes(\"down\") || text.includes(\"outage\")) {\n  category = \"Technical\";\n  priority = \"P1 - Critical\";\n  sentiment = \"Khan cap\";\n  urgencyReason = \"Hệ thống ghi nhận sự cố gián đoạn dịch vụ diện rộng cần xử lý khẩn\";\n} else if (text.includes(\"lỗi\") || text.includes(\"api\") || text.includes(\"bug\") || text.includes(\"database\") || text.includes(\"không đăng nhập\") || text.includes(\"mật khẩu\")) {\n  category = \"Technical\";\n  priority = \"P2 - High\";\n  sentiment = \"Tieu cuc\";\n  urgencyReason = \"Yêu cầu hỗ trợ khắc phục sự cố kỹ thuật chức năng\";\n} else if (text.includes(\"báo giá\") || text.includes(\"mua hàng\") || text.includes(\"hợp đồng\") || text.includes(\"bản quyền\") || text.includes(\"tư vấn\")) {\n  category = \"Sales\";\n  priority = \"P2 - High\";\n  sentiment = \"Tich cuc\";\n  urgencyReason = \"Yêu cầu tư vấn cơ hội kinh doanh và báo giá giải pháp\";\n} else if (text.includes(\"hóa đơn\") || text.includes(\"vat\") || text.includes(\"công nợ\") || text.includes(\"thanh toán\") || text.includes(\"chứng từ\")) {\n  category = \"Finance\";\n  priority = \"P3 - Medium\";\n  sentiment = \"Trung tinh\";\n  urgencyReason = \"Yêu cầu đối soát chứng từ và phát hành hóa đơn kế toán\";\n}\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: payload.sender_email || payload.from || \"guest@enterprise.com\",\n    sender_name: payload.sender_name || payload.name || \"Khách Hàng\",\n    subject: payload.subject || \"Yêu cầu tiếp nhận\",\n    body: payload.body || payload.text || \"\",\n    category: category,\n    priority: priority,\n    sentiment: sentiment,\n    urgency_reason: urgencyReason\n  }\n}];\n"
-      },
-      "id": "flow2-node-3",
-      "name": "3. AI Department Classifier Code",
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Bạn là AI Email Triage Agent (Agent 1) trong hệ thống tiếp nhận email doanh nghiệp. Hãy đọc email sau:\n- Người gửi: ${$('1. Sub-Workflow Ingest Trigger').first().json.sender_email}\n- Tiêu đề: ${$('1. Sub-Workflow Ingest Trigger').first().json.subject}\n- Nội dung: ${$('1. Sub-Workflow Ingest Trigger').first().json.clean_body || $('1. Sub-Workflow Ingest Trigger').first().json.body || ''}\n\nNhiệm vụ:\n1. Phân loại phòng ban: Technical, Sales, Finance, General.\n2. Gán độ ưu tiên:\n   - 'P1 - Critical': Hệ thống ngừng hoạt động diện rộng, sập server, downtime, mất kết nối cơ sở dữ liệu.\n   - 'P2 - High': Lỗi chức năng quan trọng (OTP, thanh toán, hợp đồng lớn).\n   - 'P3 - Medium': Lỗi tiêu chuẩn, phân quyền, hóa đơn VAT thường.\n   - 'P4 - Low': Hỏi đáp thông tin chung, quy định, góp ý.\n3. Sắc thái: 'Khan cap' | 'Tich cuc' | 'Tieu cuc' | 'Trung tinh'.\n4. Tính điểm tin cậy: confidence_score (0.0 đến 1.0).\n5. Lý do khẩn cấp: urgency_reason (tiếng Việt).\n\nTrả về đúng JSON:\n{\n  \"department_code\": \"TECH\" | \"SALES\" | \"FINANCE\" | \"GENERAL\",\n  \"category\": \"Technical\" | \"Sales\" | \"Finance\" | \"General\",\n  \"priority\": \"P1 - Critical\" | \"P2 - High\" | \"P3 - Medium\" | \"P4 - Low\",\n  \"sentiment\": \"Khan cap\" | \"Tich cuc\" | \"Tieu cuc\" | \"Trung tinh\",\n  \"confidence_score\": number,\n  \"urgency_reason\": \"string\"\n}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f2-node-04",
+      "name": "4. Output Schema Guard Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        640,
+        920,
         300
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const prev = $('1. Sub-Workflow Ingest Trigger').first().json;\nconst payload = prev.body ? prev.body : prev;\nconst aiResp = $input.first().json;\n\nlet aiResult = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    aiResult = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch(e) {}\n}\n\n// Heuristic fallback nếu AI key chưa cấu hình hoặc mạng lỗi\nif (!aiResult.category || !aiResult.priority) {\n  const subject = (payload.subject || \"\").toLowerCase();\n  const body = (payload.clean_body || payload.body || \"\").toLowerCase();\n  const text = subject + \" \" + body;\n\n  if (text.includes(\"sập\") || text.includes(\"504\") || text.includes(\"500\") || text.includes(\"outage\") || text.includes(\"down\") || text.includes(\"khẩn cấp\")) {\n    aiResult = { department_code: \"TECH\", category: \"Technical\", priority: \"P1 - Critical\", sentiment: \"Khan cap\", urgency_reason: \"Sự cố gián đoạn hạ tầng khẩn cấp\", confidence_score: 0.98 };\n  } else if (text.includes(\"lỗi\") || text.includes(\"api\") || text.includes(\"bug\") || text.includes(\"database\")) {\n    aiResult = { department_code: \"TECH\", category: \"Technical\", priority: \"P2 - High\", sentiment: \"Tieu cuc\", urgency_reason: \"Lỗi chức năng kỹ thuật\", confidence_score: 0.92 };\n  } else if (text.includes(\"báo giá\") || text.includes(\"hợp đồng\") || text.includes(\"bản quyền\") || text.includes(\"tư vấn\")) {\n    aiResult = { department_code: \"SALES\", category: \"Sales\", priority: \"P2 - High\", sentiment: \"Tich cuc\", urgency_reason: \"Yêu cầu kinh doanh & báo giá\", confidence_score: 0.95 };\n  } else if (text.includes(\"hóa đơn\") || text.includes(\"vat\") || text.includes(\"thanh toán\") || text.includes(\"chứng từ\")) {\n    aiResult = { department_code: \"FINANCE\", category: \"Finance\", priority: \"P3 - Medium\", sentiment: \"Trung tinh\", urgency_reason: \"Yêu cầu tài chính & hóa đơn\", confidence_score: 0.94 };\n  } else {\n    aiResult = { department_code: \"GENERAL\", category: \"General\", priority: \"P4 - Low\", sentiment: \"Trung tinh\", urgency_reason: \"Hỗ trợ chung tiêu chuẩn\", confidence_score: 0.88 };\n  }\n}\n\nreturn [{\n  json: {\n    ...payload,\n    department_code: aiResult.department_code || \"GENERAL\",\n    category: aiResult.category || \"General\",\n    priority: aiResult.priority || \"P3 - Medium\",\n    sentiment: aiResult.sentiment || \"Trung tinh\",\n    confidence_score: aiResult.confidence_score || 0.95,\n    urgency_reason: aiResult.urgency_reason || \"Đã phân loại tự động bởi AI Agent 1\"\n  }\n}];"
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const current = $input.first().json;\n\nlet slaHours = 24;\nif (current.priority.includes('P1')) slaHours = 2;\nelse if (current.priority.includes('P2')) slaHours = 4;\nelse if (current.priority.includes('P3')) slaHours = 8;\nelse if (current.priority.includes('P4')) slaHours = 24;\n\nconst slaDeadlineDate = new Date(Date.now() + slaHours * 3600 * 1000);\nconst slaDeadlineStr = slaDeadlineDate.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\nconst category = current.category || 'General';\nconst subject = current.subject || 'Không có tiêu đề';\nconst sender = current.sender_email || 'Quý Khách';\nconst senderName = current.sender_name || 'Quý Khách Hàng';\n\nlet emailSubject = '';\nlet emailHtml = '';\nlet emailText = '';\n\nif (category === 'Technical') {\n  emailSubject = `🛠️ [VKU HELPDESK] TIẾP NHẬN SỰ CỐ KỸ THUẬT: ${subject} | Cam kết SLA: ${slaHours} Giờ`;\n  emailText = `[TRUNG TÂM HỖ TRỢ KỸ THUẬT DOANH NGHIỆP - VKU HELPDESK]\nKính gửi ${senderName} (${sender}),\n\nHệ thống AI Triage tự động đã tiếp nhận và phân loại yêu cầu của Quý Khách vào danh mục: HỖ TRỢ KỸ THUẬT & HẠ TẦNG.\n- Tiêu đề yêu cầu: ${subject}\n- Mức độ ưu tiên: ${current.priority}\n- Cam kết thời hạn xử lý SLA: Trong vòng ${slaHours} giờ (Trước ${slaDeadlineStr})\n- Trạng thái: Đang kích hoạt điều phối kỹ sư chuyên trách\n\nHướng dẫn sơ bộ: Nếu gặp lỗi gián đoạn dịch vụ, Quý Khách có thể chụp ảnh màn hình hoặc đính kèm log lỗi gửi phản hồi trực tiếp vào thư này.\nHotline Kỹ thuật trực 24/7: 1900 8888 (Nhánh 1).\nCổng tra cứu: http://localhost:3000/tickets\n\nTrân trọng,\nĐội ngũ Kỹ sư Hạ tầng & Tự động hóa Doanh nghiệp VKU`;\n\n  emailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Xác Nhận Hỗ Trợ Kỹ Thuật</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0f172a;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%);padding:36px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;\">\n              🛠️ TRUNG TÂM HỖ TRỢ KỸ THUẬT &bull; 24/7 HELPDESK\n            </div>\n            <h1 style=\"margin:0;font-size:23px;font-weight:900;text-transform:uppercase;line-height:1.3;\">\n              XÁC NHẬN TIẾP NHẬN SỰ CỐ KỸ THUẬT\n            </h1>\n            <p style=\"margin:10px 0 0;font-size:13px;color:#dbeafe;\">\n              Cam kết chất lượng dịch vụ SLA &bull; Điều phối chuyên viên tự động\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>${senderName}</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;\">\n              Hệ thống Điều phối Tự động đã phân loại thành công yêu cầu của Quý Khách vào danh mục <strong>Hỗ trợ Kỹ thuật &amp; Hạ tầng</strong>.\n            </p>\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;overflow:hidden;margin-bottom:24px;\">\n              <tr>\n                <td style=\"background:#dbeafe;padding:12px 20px;border-bottom:1px solid #bfdbfe;font-size:13px;font-weight:800;color:#1e40af;text-transform:uppercase;\">\n                  📌 THÔNG TIN TIẾP NHẬN YÊU CẦU\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr><td width=\"36%\" style=\"font-size:13px;color:#1e40af;font-weight:600;\">Tiêu đề sự cố:</td><td style=\"font-size:13px;font-weight:800;color:#0f172a;\">${subject}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#1e40af;font-weight:600;\">Phòng ban xử lý:</td><td><span style=\"background:#2563eb;color:#ffffff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;\">Hỗ trợ Kỹ thuật (Technical)</span></td></tr>\n                    <tr><td style=\"font-size:13px;color:#1e40af;font-weight:600;\">Mức độ khẩn cấp:</td><td><strong style=\"color:#dc2626;font-size:13px;\">${current.priority}</strong></td></tr>\n                    <tr><td style=\"font-size:13px;color:#1e40af;font-weight:600;\">Thời hạn cam kết SLA:</td><td><strong style=\"color:#059669;font-size:13px;\">⏰ Trong vòng ${slaHours} giờ (Trước ${slaDeadlineStr})</strong></td></tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(37,99,235,0.35);\">\n                    👉 THEO DÕI TIẾN ĐỘ TẠI CỔNG HELPDESK CRM\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 4px;font-size:12px;font-weight:800;color:#334155;\">VKU ENTERPRISE HELPDESK &bull; TRUNG TÂM HỖ TRỢ KỸ THUẬT</p>\n            <p style=\"margin:0;font-size:11px;color:#64748b;\">Hotline Khẩn cấp: 1900 8888 (Nhánh 1)</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n\n} else if (category === 'Sales') {\n  emailSubject = `💼 [VKU SOLUTIONS] TIẾP NHẬN YÊU CẦU TƯ VẤN & BÁO GIÁ: ${subject}`;\n  emailText = `[BAN PHÁT TRIỂN DOANH NGHIỆP & ĐỐI TÁC - VKU SOLUTIONS]\nKính gửi ${senderName} (${sender}),\n\nChúng tôi đã tiếp nhận yêu cầu tư vấn giải pháp của Quý Khách:\n- Nhu cầu tiếp nhận: ${subject}\n- Bộ phận phụ trách: Ban Phát Triển Kinh Doanh (Sales)\n- Cam kết liên hệ: Trong vòng ${slaHours} giờ làm việc (Trước ${slaDeadlineStr})\n\nChuyên viên Tư vấn Doanh nghiệp sẽ liên hệ trực tiếp trong thời gian sớm nhất.\nEmail: sales@enterprise-automation.vn | Hotline: 1900 8888 (Nhánh 2).\n\nTrân trọng,\nBan Phát Triển Doanh Nghiệp VKU Solutions`;\n\n  emailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Tư Vấn Giải Pháp</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0f172a;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #065f46 0%, #059669 60%, #10b981 100%);padding:36px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;\">\n              💼 BAN PHÁT TRIỂN DOANH NGHIỆP & ĐỐI TÁC\n            </div>\n            <h1 style=\"margin:0;font-size:23px;font-weight:900;text-transform:uppercase;line-height:1.3;\">\n              CHÀO MỪNG QUÝ ĐỐI TÁC DOANH NGHIỆP\n            </h1>\n            <p style=\"margin:10px 0 0;font-size:13px;color:#d1fae5;\">\n              Hệ thống Giải pháp Tự động hóa Quy trình Nghiệp vụ Toàn diện\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>${senderName}</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;\">\n              Yêu cầu tư vấn của Quý Khách đã được chuyển tiếp tới Ban Phát Triển Kinh Doanh để chuẩn bị Hồ sơ Năng lực và Báo giá:\n            </p>\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ecfdf5;border:1px solid #a7f3d0;border-radius:14px;overflow:hidden;margin-bottom:24px;\">\n              <tr>\n                <td style=\"background:#d1fae5;padding:12px 20px;border-bottom:1px solid #a7f3d0;font-size:13px;font-weight:800;color:#065f46;text-transform:uppercase;\">\n                  📋 THÔNG TIN YÊU CẦU TƯ VẤN\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr><td width=\"36%\" style=\"font-size:13px;color:#065f46;font-weight:600;\">Nhu cầu giải pháp:</td><td style=\"font-size:13px;font-weight:800;color:#0f172a;\">${subject}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#065f46;font-weight:600;\">Bộ phận phụ trách:</td><td><span style=\"background:#059669;color:#ffffff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;\">Tư vấn Doanh nghiệp (Sales)</span></td></tr>\n                    <tr><td style=\"font-size:13px;color:#065f46;font-weight:600;\">Cam kết liên hệ lại:</td><td><strong style=\"color:#059669;font-size:13px;\">Trong vòng ${slaHours} giờ làm việc (Trước ${slaDeadlineStr})</strong></td></tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #065f46 0%, #059669 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(5,150,105,0.35);\">\n                    👉 XEM CHI TIẾT TẠI CỔNG THÔNG TIN DOANH NGHIỆP\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 4px;font-size:12px;font-weight:800;color:#334155;\">VKU ENTERPRISE SOLUTIONS &bull; BAN PHÁT TRIỂN THỊ TRƯỜNG</p>\n            <p style=\"margin:0;font-size:11px;color:#64748b;\">Hotline: 1900 8888 (Nhánh 2)</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n\n} else if (category === 'Finance') {\n  emailSubject = `📑 [VKU FINANCE] XÁC NHẬN TIẾP NHẬN CHỨNG TỪ & HÓA ĐƠN VAT: ${subject}`;\n  emailText = `[PHÒNG TÀI CHÍNH - KẾ TOÁN DOANH NGHIỆP - VKU FINANCE]\nKính gửi ${senderName} (${sender}),\n\nHệ thống đã tiếp nhận hồ sơ chứng từ của Quý Khách:\n- Nội dung chứng từ: ${subject}\n- Bộ phận xử lý: Phòng Kế toán & Đối soát Công nợ (Finance)\n- Thời hạn đối soát: Trong vòng ${slaHours} giờ làm việc (Trước ${slaDeadlineStr})\n\nKế toán viên phụ trách đang tiến hành đối chiếu số học và kiểm tra hóa đơn điện tử hợp lệ.\nEmail: ke-toan@enterprise-automation.vn | Hotline: 1900 8888 (Nhánh 3).\n\nTrân trọng,\nPhòng Tài Chính & Kế Toán VKU Enterprise`;\n\n  emailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Xác Nhận Hồ Sơ Tài Chính</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0f172a;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%);padding:36px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;\">\n              📑 PHÒNG KẾ TOÁN & TÀI CHÍNH DOANH NGHIỆP\n            </div>\n            <h1 style=\"margin:0;font-size:23px;font-weight:900;text-transform:uppercase;line-height:1.3;\">\n              TIẾP NHẬN HỒ SƠ HÓA ĐƠN &amp; ĐỐI SOÁT\n            </h1>\n            <p style=\"margin:10px 0 0;font-size:13px;color:#ccfbf1;\">\n              Kiểm toán Chứng từ, Hóa đơn VAT Điện tử &amp; Đối soát Công nợ\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>${senderName}</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;\">\n              Hệ thống đã tiếp nhận hồ sơ chứng từ tài chính / hóa đơn thanh toán của Quý Khách.\n            </p>\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f0fdfa;border:1px solid #99f6e4;border-radius:14px;overflow:hidden;margin-bottom:24px;\">\n              <tr>\n                <td style=\"background:#ccfbf1;padding:12px 20px;border-bottom:1px solid #99f6e4;font-size:13px;font-weight:800;color:#0f766e;text-transform:uppercase;\">\n                  📋 THÔNG TIN HỒ SƠ TIẾP NHẬN\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr><td width=\"36%\" style=\"font-size:13px;color:#0f766e;font-weight:600;\">Nội dung chứng từ:</td><td style=\"font-size:13px;font-weight:800;color:#0f172a;\">${subject}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#0f766e;font-weight:600;\">Bộ phận xử lý:</td><td><span style=\"background:#0d9488;color:#ffffff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;\">Tài chính - Kế toán (Finance)</span></td></tr>\n                    <tr><td style=\"font-size:13px;color:#0f766e;font-weight:600;\">Thời hạn đối soát:</td><td><strong style=\"color:#0f766e;font-size:13px;\">Trong vòng ${slaHours} giờ làm việc (Trước ${slaDeadlineStr})</strong></td></tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #0f766e 0%, #0d9488 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(13,148,136,0.35);\">\n                    👉 THEO DÕI HỒ SƠ TẠI CỔNG QUẢN TRỊ CRM\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 4px;font-size:12px;font-weight:800;color:#334155;\">VKU ENTERPRISE FINANCE &bull; PHÒNG TÀI CHÍNH KẾ TOÁN</p>\n            <p style=\"margin:0;font-size:11px;color:#64748b;\">Hotline: 1900 8888 (Nhánh 3)</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n\n} else {\n  // General Inquiry -> P4 - LOW (SLA 24 GIỜ)\n  emailSubject = `🌸 [VKU CUSTOMER CARE] TIẾP NHẬN YÊU CẦU HỖ TRỢ: ${subject} | Cam kết SLA: 24 Giờ`;\n  emailText = `[TRUNG TÂM CHĂM SÓC KHÁCH HÀNG & DỊCH VỤ - VKU CARE]\nKính gửi ${senderName} (${sender}),\n\nCảm ơn Quý Khách đã gửi thư liên hệ tới Hệ sinh thái Doanh nghiệp VKU.\n- Chủ đề thư: ${subject}\n- Phân loại: Hỏi đáp Chung & Dịch vụ Khách hàng (General Inquiries)\n- Mức độ ưu tiên: P4 - Low (Tiêu chuẩn)\n- Thời hạn cam kết SLA: Trong vòng 24 giờ (Trước ${slaDeadlineStr})\n\nThông tin Văn phòng & Giờ làm việc chi nhánh:\n- Địa chỉ: 470 Đường Trần Đại Nghĩa, Q. Ngũ Hành Sơn, TP. Đà Nẵng\n- Giờ mở cửa: Thứ Hai - Thứ Sáu (08:00 - 17:30) | Thứ Bảy (08:00 - 12:00)\n- Tổng đài CSKH: 1900 8888 (Miễn phí cước gọi)\nCổng tra cứu trực tuyến: http://localhost:3000/tickets\n\nTrân trọng phục vụ,\nBan Chăm Sóc Khách Hàng VKU Care`;\n\n  emailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Chăm Sóc Khách Hàng</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0f172a;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #be185d 0%, #db2777 60%, #ec4899 100%);padding:36px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;\">\n              🌸 TRUNG TÂM CHĂM SÓC KHÁCH HÀNG & DỊCH VỤ\n            </div>\n            <h1 style=\"margin:0;font-size:23px;font-weight:900;text-transform:uppercase;line-height:1.3;\">\n              CẢM ƠN QUÝ KHÁCH ĐÃ LIÊN HỆ\n            </h1>\n            <p style=\"margin:10px 0 0;font-size:13px;color:#fce7f3;\">\n              Hướng dẫn dịch vụ, thông tin chi nhánh và lịch làm việc\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>${senderName}</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;\">\n              Chúng tôi đã nhận được thư của Quý Khách về chủ đề <strong>\"${subject}\"</strong>. Đội ngũ Chăm sóc Khách hàng đã ghi nhận yêu cầu:\n            </p>\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#fdf2f8;border:1px solid #fbcfe8;border-radius:14px;overflow:hidden;margin-bottom:24px;\">\n              <tr>\n                <td style=\"background:#fce7f3;padding:12px 20px;border-bottom:1px solid #fbcfe8;font-size:13px;font-weight:800;color:#be185d;text-transform:uppercase;\">\n                  📋 THÔNG TIN TIẾP NHẬN YÊU CẦU\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr><td width=\"36%\" style=\"font-size:13px;color:#be185d;font-weight:600;\">Chủ đề thư:</td><td style=\"font-size:13px;font-weight:800;color:#0f172a;\">${subject}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#be185d;font-weight:600;\">Phân loại phòng ban:</td><td><span style=\"background:#db2777;color:#ffffff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;\">Hỏi đáp Chung (General)</span></td></tr>\n                    <tr><td style=\"font-size:13px;color:#be185d;font-weight:600;\">Mức độ ưu tiên:</td><td><strong style=\"color:#0f766e;font-size:13px;\">P4 - Low (Tiêu chuẩn)</strong></td></tr>\n                    <tr><td style=\"font-size:13px;color:#be185d;font-weight:600;\">Cam kết thời hạn SLA:</td><td><strong style=\"color:#be185d;font-size:13px;\">⏰ Trong vòng 24 giờ (Trước ${slaDeadlineStr})</strong></td></tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <div style=\"background:#f8fafc;border:1px solid #e2e8f0;padding:16px 20px;border-radius:10px;margin-bottom:28px;\">\n              <div style=\"font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px;\">🏢 THÔNG TIN VĂN PHÒNG &amp; GIỜ LÀM VIỆC CHI NHÁNH:</div>\n              <ul style=\"margin:0;padding-left:18px;font-size:12px;color:#64748b;line-height:1.7;\">\n                <li><strong>Địa chỉ:</strong> 470 Đường Trần Đại Nghĩa, Q. Ngũ Hành Sơn, TP. Đà Nẵng</li>\n                <li><strong>Giờ làm việc:</strong> Thứ Hai – Thứ Sáu (08:00 – 17:30) | Thứ Bảy (08:00 – 12:00)</li>\n                <li><strong>Tổng đài hỗ trợ:</strong> 1900 8888 (Miễn phí cước gọi)</li>\n              </ul>\n            </div>\n\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #be185d 0%, #db2777 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(219,39,119,0.35);\">\n                    👉 TRUY CẬP CỔNG DỊCH VỤ KHÁCH HÀNG CRM\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 4px;font-size:12px;font-weight:800;color:#334155;\">VKU ENTERPRISE CARE &bull; BAN CHĂM SÓC KHÁCH HÀNG</p>\n            <p style=\"margin:0;font-size:11px;color:#64748b;\">Hotline: 1900 8888</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n}\n\nreturn [{\n  json: {\n    ...current,\n    sla_deadline: slaDeadlineDate.toISOString(),\n    sla_hours: slaHours,\n    email_subject: emailSubject,\n    email_html: emailHtml,\n    email_text: emailText\n  }\n}];\n"
-      },
-      "id": "flow2-node-4",
-      "name": "4. Schema Guard & SLA Calc Code",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        860,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO email_triage_logs (sender_email, sender_name, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING') RETURNING id, status;",
-        "options": {
-          "queryReplacement": "={{ [$json.sender_email, $json.sender_name || 'Khách Hàng', $json.subject, ($json.body || '').substring(0, 500), $json.category, $json.priority, $json.sentiment, $json.urgency_reason, $json.sla_deadline] }}"
-        }
-      },
-      "id": "flow2-node-5",
-      "name": "5. Store Triage Log Postgres",
+      "id": "f2-node-05",
+      "name": "5. Save Email Triage Log Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1080,
+        1160,
         300
       ],
       "credentials": {
@@ -82,113 +91,80 @@
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO email_triage_logs (inbound_email, sender_email, sender_name, subject, body_snippet, classified_department, category, priority, sentiment, confidence_score, urgency_reason, sla_deadline, status) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW() + INTERVAL '24 hours', 'PENDING') RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('4. Output Schema Guard Code').first().json.sender_email, $('4. Output Schema Guard Code').first().json.sender_name || 'Khách hàng', $('4. Output Schema Guard Code').first().json.subject, ($('4. Output Schema Guard Code').first().json.clean_body || '').substring(0, 250), $('4. Output Schema Guard Code').first().json.department_code, $('4. Output Schema Guard Code').first().json.category, $('4. Output Schema Guard Code').first().json.priority, $('4. Output Schema Guard Code').first().json.sentiment, $('4. Output Schema Guard Code').first().json.confidence_score, $('4. Output Schema Guard Code').first().json.urgency_reason] }}"
+        }
       }
     },
     {
-      "parameters": {
-        "dataType": "string",
-        "value1": "={{ $('4. Schema Guard & SLA Calc Code').first().json.category }}",
-        "rules": {
-          "rules": [
-            {
-              "value2": "Technical"
-            },
-            {
-              "value2": "Sales"
-            },
-            {
-              "value2": "Finance"
-            },
-            {
-              "value2": "General"
-            }
-          ]
-        }
-      },
-      "id": "flow2-node-6",
-      "name": "6. Switch Department Route",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 1,
-      "position": [
-        1300,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all();"
-      },
-      "id": "flow2-node-7",
-      "name": "7. Merge Route Branches",
+      "id": "f2-node-06",
+      "name": "6. Compute Dynamic SLA Window Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
+        1400,
         300
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const current = $('4. Output Schema Guard Code').first().json;\n\nlet slaHours = 24;\nif (current.priority.includes('P1')) slaHours = 2;\nelse if (current.priority.includes('P2')) slaHours = 4;\nelse if (current.priority.includes('P3')) slaHours = 8;\nelse if (current.priority.includes('P4')) slaHours = 24;\n\nconst now = new Date();\nconst deadline = new Date(now.getTime() + slaHours * 60 * 60 * 1000);\nconst formattedDeadline = deadline.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\nconst formattedNow = now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\n\nconst customerSubject = `[Xác Nhận Hỗ Trợ] Tiếp nhận yêu cầu: ${current.subject} (Cam kết SLA: ${slaHours} giờ)`;\nconst customerHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Xác Nhận Tiếp Nhận Yêu Cầu</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.3);max-width:600px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);padding:30px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;\">HỆ THỐNG HELPDESK DOANH NGHIỆP</div>\n            <h1 style=\"margin:0;font-size:20px;font-weight:bold;\">TIẾP NHẬN YÊU CẦU THÀNH CÔNG</h1>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:30px 40px;\">\n            <p>Kính gửi <strong>${current.sender_name || 'Quý khách'}</strong>,</p>\n            <p>Hệ thống tự động đã phân loại yêu cầu của bạn đến phòng ban <strong>${current.category}</strong> với mức độ ưu tiên <strong>${current.priority}</strong>.</p>\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"10\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;margin:20px 0;\">\n              <tr><td width=\"35%\" style=\"color:#64748b;font-weight:bold;\">Phòng ban:</td><td>${current.category}</td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Độ ưu tiên:</td><td><strong style=\"color:#2563eb;\">${current.priority}</strong></td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Cam kết phản hồi:</td><td>Trong vòng <strong>${slaHours} giờ</strong> (trước ${formattedDeadline})</td></tr>\n            </table>\n            <p style=\"font-size:13px;color:#64748b;\">Trân trọng,<br>Đội ngũ Hỗ trợ Khách hàng Doanh nghiệp</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nconst escalationSubject = `🚨 [CẢNH BÁO ĐỎ P1] SỰ CỐ KHẨN CẤP: ${current.subject}`;\nconst escalationHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Báo Động Sự Cố Khẩn Cấp P1</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.5);max-width:600px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);padding:30px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;\">🚨 BAN CHỈ ĐẠO ỨNG CỨU SỰ CỐ &bull; P1 CRITICAL</div>\n            <h1 style=\"margin:0;font-size:22px;font-weight:900;\">BÁO ĐỘNG KHẨN CẤP CẤP ĐỘ 1</h1>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:30px 40px;\">\n            <p style=\"font-size:15px;color:#b91c1c;font-weight:bold;\">Hệ thống AI Triage Agent 1 phát hiện sự cố nghiêm trọng diện rộng:</p>\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"10\" style=\"background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;\">\n              <tr><td width=\"30%\" style=\"font-weight:bold;color:#991b1b;\">Khách hàng:</td><td>${current.sender_email}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#991b1b;\">Tiêu đề:</td><td>${current.subject}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#991b1b;\">Lý do khẩn cấp:</td><td>${current.urgency_reason}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#991b1b;\">Hạn cam kết:</td><td><strong>2 GIỜ (trước ${formattedDeadline})</strong></td></tr>\n            </table>\n            <div style=\"margin-top:24px;text-align:center;\">\n              <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;display:inline-block;\">Vào Trực Ban Tiếp Nhận Sự Cố</a>\n            </div>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    ...current,\n    sla_hours: slaHours,\n    sla_deadline: deadline.toISOString(),\n    customer_email_subject: customerSubject,\n    customer_email_html: customerHtml,\n    escalation_email_subject: escalationSubject,\n    escalation_email_html: escalationHtml\n  }\n}];"
+      }
     },
     {
+      "id": "f2-node-07",
+      "name": "7. IF Critical Priority P1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        300
+      ],
       "parameters": {
         "conditions": {
           "string": [
             {
-              "value1": "={{ $('4. Schema Guard & SLA Calc Code').first().json.priority }}",
+              "value1": "={{ $('6. Compute Dynamic SLA Window Code').first().json.priority }}",
               "operation": "contains",
               "value2": "P1"
             }
           ]
         }
-      },
-      "id": "flow2-node-8",
-      "name": "8. IF Critical Priority P1",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        1740,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow2', 'HIGH_SEVERITY_INCIDENT_FLAGGED', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($('4. Schema Guard & SLA Calc Code').first().json)] }}"
-        }
-      },
-      "id": "flow2-node-9",
-      "name": "9. Escalation Incident Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [
-        1960,
-        200
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
       }
     },
     {
-      "parameters": {
-        "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "={{ $('4. Schema Guard & SLA Calc Code').first().json.sender_email }}",
-        "subject": "={{ $('4. Schema Guard & SLA Calc Code').first().json.email_subject }}",
-        "options": {
-          "appendAttribution": false
-        },
-        "html": "={{ $('4. Schema Guard & SLA Calc Code').first().json.email_html }}",
-        "emailFormat": "both",
-        "text": "={{ $('4. Schema Guard & SLA Calc Code').first().json.email_text }}"
-      },
-      "id": "flow2-node-10",
-      "name": "10. Send SLA Confirmation Email",
+      "id": "f2-node-08",
+      "name": "8. Escalate Emergency Alert Email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        2180,
+        1880,
+        180
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranglee12306@gmail.com",
+        "subject": "={{ $('6. Compute Dynamic SLA Window Code').first().json.escalation_email_subject }}",
+        "html": "={{ $('6. Compute Dynamic SLA Window Code').first().json.escalation_email_html }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f2-node-09",
+      "name": "9. Send Customer Confirmation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2120,
         300
       ],
       "credentials": {
@@ -197,40 +173,22 @@
           "name": "SMTP account"
         }
       },
-      "continueOnFail": true
-    },
-    {
+      "onError": "continueRegularOutput",
       "parameters": {
-        "method": "POST",
-        "url": "http://localhost:5678/webhook/m1-flow3-ticket",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('4. Schema Guard & SLA Calc Code').first().json) }}",
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "={{ $('6. Compute Dynamic SLA Window Code').first().json.sender_email }}",
+        "subject": "={{ $('6. Compute Dynamic SLA Window Code').first().json.customer_email_subject }}",
+        "html": "={{ $('6. Compute Dynamic SLA Window Code').first().json.customer_email_html }}",
         "options": {}
-      },
-      "id": "flow2-node-11",
-      "name": "11. Dispatch to Ticket Flow 3 HTTP",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        2400,
-        300
-      ]
+      }
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow2', 'FLOW2_TRIAGE_COMPLETED', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify({ status: 'SUCCESS', category: $('4. Schema Guard & SLA Calc Code').first().json.category, completed_at: new Date().toISOString() })] }}"
-        }
-      },
-      "id": "flow2-node-12",
-      "name": "12. Triage Audit Trail Postgres",
+      "id": "f2-node-10",
+      "name": "10. Audit Triage Success Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2620,
+        2360,
         300
       ],
       "credentials": {
@@ -238,153 +196,165 @@
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('m1-flow2', 'EMAIL_TRIAGED_SUCCESSFULLY', 'flow02_department_triage', 'AI Agent 1 đã phân loại phòng ban và cam kết hạn SLA', $1::jsonb, $1::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('6. Compute Dynamic SLA Window Code').first().json)] }}"
+        }
+      }
+    },
+    {
+      "id": "f2-node-11",
+      "name": "11. Format Routing Packet Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const current = $('6. Compute Dynamic SLA Window Code').first().json;\nreturn [{\n  json: {\n    sender_email: current.sender_email,\n    sender_name: current.sender_name,\n    subject: current.subject,\n    title: current.subject,\n    body: current.clean_body || current.body,\n    category: current.category,\n    department_code: current.department_code,\n    priority: current.priority,\n    sentiment: current.sentiment,\n    urgency_reason: current.urgency_reason,\n    sla_deadline: current.sla_deadline,\n    confidence_score: current.confidence_score\n  }\n}];"
+      }
+    },
+    {
+      "id": "f2-node-12",
+      "name": "12. Route to Downstream Workflows Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const packet = $input.first().json;\nconst category = packet.category || \"Technical\";\n\n// Bàn giao sang Luồng 3 nếu là sự cố kỹ thuật\nif (category === \"Technical\" || packet.department_code === \"TECH\") {\n  try {\n    if (typeof this.helpers?.httpRequest === 'function') {\n      await this.helpers.httpRequest({\n        method: 'POST',\n        url: 'http://127.0.0.1:5678/webhook/m1-flow3-ticket',\n        body: packet,\n        json: true\n      });\n    } else {\n      await fetch('http://127.0.0.1:5678/webhook/m1-flow3-ticket', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify(packet)\n      });\n    }\n  } catch(e) {\n    // Luồng vẫn tiếp tục nếu web service đang bận\n  }\n}\n\nreturn [{\n  json: {\n    status: \"DISPATCHED\",\n    routed_department: category,\n    department_code: packet.department_code,\n    priority: packet.priority,\n    downstream_handler: category === \"Technical\" ? \"Flow 3 (Technical Ticket & SLA)\" : \n                        category === \"Sales\" ? \"Flow 7 (CRM Lead Qualification - Chờ TV3 triển khai)\" :\n                        category === \"Finance\" ? \"Flow 9 (Invoice OCR - Chờ TV3 triển khai)\" : \"General Support Queue\",\n    payload: packet,\n    completed_at: new Date().toISOString()\n  }\n}];"
       }
     }
   ],
   "connections": {
-    "1. Flow 2 Webhook Trigger": {
+    "1. Sub-Workflow Ingest Trigger": {
       "main": [
         [
           {
-            "node": "2. Fetch Depts HTTP",
+            "node": "2. Fetch Department Directory HTTP",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "2. Fetch Depts HTTP": {
+    "2. Fetch Department Directory HTTP": {
       "main": [
         [
           {
-            "node": "3. AI Department Classifier Code",
+            "node": "3. AI Semantic Classifier Gemini",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "3. AI Department Classifier Code": {
+    "3. AI Semantic Classifier Gemini": {
       "main": [
         [
           {
-            "node": "4. Schema Guard & SLA Calc Code",
+            "node": "4. Output Schema Guard Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "4. Schema Guard & SLA Calc Code": {
+    "4. Output Schema Guard Code": {
       "main": [
         [
           {
-            "node": "5. Store Triage Log Postgres",
+            "node": "5. Save Email Triage Log Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "5. Store Triage Log Postgres": {
+    "5. Save Email Triage Log Postgres": {
       "main": [
         [
           {
-            "node": "6. Switch Department Route",
+            "node": "6. Compute Dynamic SLA Window Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "6. Switch Department Route": {
+    "6. Compute Dynamic SLA Window Code": {
       "main": [
         [
           {
-            "node": "7. Merge Route Branches",
+            "node": "7. IF Critical Priority P1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. IF Critical Priority P1": {
+      "main": [
+        [
+          {
+            "node": "8. Escalate Emergency Alert Email",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "7. Merge Route Branches",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "7. Merge Route Branches",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "7. Merge Route Branches",
+            "node": "9. Send Customer Confirmation Email",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "7. Merge Route Branches": {
+    "8. Escalate Emergency Alert Email": {
       "main": [
         [
           {
-            "node": "8. IF Critical Priority P1",
+            "node": "9. Send Customer Confirmation Email",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "8. IF Critical Priority P1": {
+    "9. Send Customer Confirmation Email": {
       "main": [
         [
           {
-            "node": "9. Escalation Incident Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "10. Send SLA Confirmation Email",
+            "node": "10. Audit Triage Success Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "9. Escalation Incident Postgres": {
+    "10. Audit Triage Success Postgres": {
       "main": [
         [
           {
-            "node": "10. Send SLA Confirmation Email",
+            "node": "11. Format Routing Packet Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "10. Send SLA Confirmation Email": {
+    "11. Format Routing Packet Code": {
       "main": [
         [
           {
-            "node": "11. Dispatch to Ticket Flow 3 HTTP",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "11. Dispatch to Ticket Flow 3 HTTP": {
-      "main": [
-        [
-          {
-            "node": "12. Triage Audit Trail Postgres",
+            "node": "12. Route to Downstream Workflows Code",
             "type": "main",
             "index": 0
           }
@@ -394,7 +364,7 @@
   },
   "active": true,
   "settings": {
+    "timezone": "Asia/Ho_Chi_Minh",
     "executionOrder": "v1"
-  },
-  "id": "XO1y6C2GPfRboapc"
+  }
 }

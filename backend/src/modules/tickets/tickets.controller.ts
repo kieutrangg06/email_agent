@@ -85,6 +85,16 @@ export class TicketsController {
     return this.ticketsService.createTicket(body);
   }
 
+  @Post('tickets/comments')
+  async addComment(@Body() body: any) {
+    return this.ticketsService.addTicketComment(body);
+  }
+
+  @Get('tickets/:code/comments')
+  async getComments(@Param('code') code: string) {
+    return this.ticketsService.getTicketComments(code);
+  }
+
   @Patch('tickets/:code/status')
   async updateStatus(
     @Param('code') code: string,
@@ -98,3 +108,4 @@ export class TicketsController {
     return this.ticketsService.resolveTicket(code);
   }
 }
+

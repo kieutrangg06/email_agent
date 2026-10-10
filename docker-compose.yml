@@ -11,7 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - m1_postgres_data:/var/lib/postgresql/data
-      - ../database:/docker-entrypoint-initdb.d:ro
+      - ./database:/docker-entrypoint-initdb.d:ro
 
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
@@ -41,3 +41,4 @@ services:
 volumes:
   m1_postgres_data:
   m1_n8n_data:
+

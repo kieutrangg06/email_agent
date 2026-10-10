@@ -1,15 +1,9 @@
 {
+  "id": "96BvBRGhR7jcUjTf",
   "name": "Luồng 1 - Ingest, Anti-Spam & Blacklist Quarantine (12 Nodes)",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "m1-flow1-ingest",
-        "responseMode": "onReceived",
-        "responseData": "OK",
-        "options": {}
-      },
-      "id": "flow1-node-1",
+      "id": "f1-node-01",
       "name": "1. Email Ingest Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -17,134 +11,145 @@
         200,
         300
       ],
-      "webhookId": "m1-flow1-ingest"
+      "webhookId": "m1-flow1-ingest",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow1-ingest",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst rawSender = payload.from || payload.sender || payload.sender_email || \"guest@enterprise.com\";\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = (senderMatch ? senderMatch[1] : String(rawSender)).trim().toLowerCase();\nconst senderName = payload.name || (senderMatch ? rawSender.split('<')[0].trim() : cleanSender.split('@')[0]);\n\nconst rawBody = payload.text || payload.body || payload.content || \"\";\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, '').trim();\nconst subject = String(payload.subject || \"Không có tiêu đề\").trim();\nconst receivedAt = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\n\nconst securityEmailSubject = `🚨 [SECURITY SOC] CẢNH BÁO AN NINH: Phát hiện & Đưa vào Vùng Cách Ly Thư từ ${cleanSender}`;\n\nconst securityEmailText = `[CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP - ENTERPRISE SOC]\nKính gửi Quản trị viên An ninh Hệ thống,\n\nHệ thống lọc thư tự động vừa phát hiện và chặn đứng một bức thư gửi từ nguồn nguy hiểm:\n- Địa chỉ người gửi: ${cleanSender}\n- Tiêu đề thư: ${subject}\n- Thời điểm tiếp nhận: ${receivedAt}\n- Trạng thái xử lý: ĐÃ CÁCH LY THÀNH CÔNG (QUARANTINED) vào bảng quarantine_vault.\n- Sự kiện kiểm toán: SENDER_BLACKLIST_QUARANTINE ghi nhận trong system_audit_logs.\n\nHành động khuyến nghị:\n1. Kiểm tra chi tiết tại Cổng Quản Trị Helpdesk CRM: http://localhost:3000/tickets\n2. Không mở bất kỳ tệp đính kèm nào từ người gửi này.\n\nTrân trọng,\nBộ phận An ninh Hạ tầng Enterprise SOC`;\n\nconst securityEmailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Cảnh Báo An Ninh</title></head>\n<body style=\"margin:0;padding:0;background-color:#0b0f19;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0b0f19;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #7f1d1d 0%, #b91c1c 50%, #dc2626 100%);padding:36px 40px;text-align:center;color:#ffffff;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;\">\n              🛡️ CYBER SECURITY &bull; SOC INCIDENT DEFENSE\n            </div>\n            <h1 style=\"margin:0;font-size:24px;font-weight:900;text-transform:uppercase;line-height:1.3;\">\n              CẢNH BÁO: PHÁT HIỆN &amp; CÁCH LY THƯ ĐỘC HẠI\n            </h1>\n            <p style=\"margin:10px 0 0;font-size:13px;color:#fee2e2;\">\n              Hệ thống Phòng vệ Email Doanh nghiệp &bull; Cửa ngõ Tiếp nhận Tự động\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#fef2f2;border-bottom:1px solid #fee2e2;padding:16px 40px;\">\n            <span style=\"font-size:13px;color:#991b1b;font-weight:700;\">\n              🚨 MỨC ĐỘ NGUY HIỂM: CẤP ĐỘ CAO (CRITICAL) &bull; Thư đã được niêm phong vào Phân vùng Cách ly (Quarantine Vault).\n            </span>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>Quản trị viên An ninh Thông tin (SOC Administrator)</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;\">\n              Hệ thống vừa ngăn chặn bức thư từ nguồn nằm trong Danh sách Đen (Blacklist). Thư có dấu hiệu bất thường và người gửi có điểm tín nhiệm thấp:\n            </p>\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:28px;\">\n              <tr>\n                <td style=\"background:#f1f5f9;padding:12px 20px;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:800;color:#334155;text-transform:uppercase;\">\n                  📋 BẢN GHI SỰ CỐ AN NINH (INCIDENT LOG)\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr><td width=\"36%\" style=\"font-size:13px;color:#64748b;font-weight:600;\">Địa chỉ người gửi:</td><td style=\"font-size:13px;color:#b91c1c;font-weight:800;font-family:monospace;\">${cleanSender}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Tiêu đề email:</td><td style=\"font-size:13px;color:#0f172a;font-weight:700;\">${subject}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Thời điểm tiếp nhận:</td><td style=\"font-size:13px;color:#334155;\">${receivedAt}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Trạng thái xử lý:</td><td><span style=\"background:#dc2626;color:#ffffff;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:800;\">ĐÃ CÁCH LY THÀNH CÔNG (QUARANTINED)</span></td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Phân vùng lưu trữ:</td><td style=\"font-size:12px;color:#475569;font-family:monospace;\">PostgreSQL / table: <strong>quarantine_vault</strong></td></tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <div style=\"background:#fffbeb;border:1px solid #fde68a;border-left:5px solid #f59e0b;padding:16px 20px;border-radius:8px;margin-bottom:28px;\">\n              <h4 style=\"margin:0 0 8px;font-size:13px;color:#92400e;font-weight:800;\">QUY TRÌNH XỬ LÝ KHUYẾN NGHỊ:</h4>\n              <ul style=\"margin:0;padding-left:18px;font-size:12px;color:#78350f;line-height:1.7;\">\n                <li>Kiểm tra nhật ký kiểm toán tại bảng <code>system_audit_logs</code> (Event: <code>SENDER_BLACKLIST_QUARANTINE</code>).</li>\n                <li><strong>Cảnh báo an toàn:</strong> Không mở các liên kết web hoặc tải về tệp tin đính kèm từ địa chỉ này.</li>\n              </ul>\n            </div>\n\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(185,28,28,0.35);\">\n                    👉 MỞ CỔNG QUẢN TRỊ XEM NHẬT KÝ AN NINH (PORTAL)\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 4px;font-size:12px;font-weight:800;color:#334155;\">HỆ THỐNG AN NINH &amp; PHÒNG VỆ EMAIL DOANH NGHIỆP</p>\n            <p style=\"margin:0;font-size:10px;color:#94a3b8;\">Hotline Hỗ Trợ Kỹ Thuật: 1900 8888</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn [{\n  json: {\n    sender_email: cleanSender,\n    sender_name: senderName,\n    subject: subject,\n    body: cleanBody,\n    received_at: new Date().toISOString(),\n    security_email_subject: securityEmailSubject,\n    security_email_html: securityEmailHtml,\n    security_email_text: securityEmailText\n  }\n}];\n"
-      },
-      "id": "flow1-node-2",
+      "id": "f1-node-02",
       "name": "2. Payload Normalization Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        420,
+        440,
         300
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst rawSender = payload.from || payload.sender || payload.sender_email || \"guest@enterprise.com\";\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = (senderMatch ? senderMatch[1] : String(rawSender)).trim().toLowerCase();\nconst senderName = payload.name || (senderMatch ? rawSender.split('<')[0].trim() : cleanSender.split('@')[0]);\n\nconst rawBody = payload.text || payload.body || payload.content || \"\";\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, '').trim();\nconst subject = String(payload.subject || \"Không có tiêu đề\").trim();\nconst receivedAt = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\n\nconst securityEmailSubject = `🚨 [SECURITY SOC] CẢNH BÁO AN NINH: Phát hiện & Cách ly Thư từ ${cleanSender}`;\n\nconst securityEmailText = `[CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP - ENTERPRISE SOC]\nKính gửi Quản trị viên An ninh Hệ thống,\n\nHệ thống lọc thư tự động vừa phát hiện và chặn đứng một bức thư gửi từ nguồn nguy hiểm:\n- Địa chỉ người gửi: ${cleanSender}\n- Tiêu đề thư: ${subject}\n- Thời điểm tiếp nhận: ${receivedAt}\n- Trạng thái xử lý: ĐÃ CÁCH LY THÀNH CÔNG vào bảng email_quarantine_vault.\n\nHành động khuyến nghị:\n1. Kiểm tra chi tiết tại Cổng Quản Trị Helpdesk CRM: http://localhost:3000/tickets\n2. Không mở bất kỳ tệp đính kèm nào từ người gửi này.\n\nTrân trọng,\nBộ phận An ninh Hạ tầng Enterprise SOC`;\n\nconst securityEmailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo An Ninh</title></head>\n<body style=\"margin:0;padding:0;background-color:#0b0f19;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.4);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #991b1b 0%, #dc2626 100%);padding:30px 40px;text-align:center;color:#ffffff;\">\n            <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;\">🛡️ CYBER SECURITY &bull; ENTERPRISE SOC</div>\n            <h1 style=\"margin:0;font-size:22px;font-weight:900;\">CẢNH BÁO AN NINH HỆ THỐNG</h1>\n            <p style=\"margin:8px 0 0 0;font-size:14px;opacity:0.9;\">Phát hiện thư rác/phishing độc hại được đưa vào vùng cách ly</p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:30px 40px;\">\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"8\" style=\"font-size:14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;\">\n              <tr><td width=\"30%\" style=\"font-weight:bold;color:#64748b;\">Người gửi vi phạm:</td><td style=\"color:#b91c1c;font-weight:bold;\">${cleanSender}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#64748b;\">Tiêu đề thư:</td><td style=\"color:#0f172a;\">${subject}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#64748b;\">Thời điểm chặn:</td><td style=\"color:#0f172a;\">${receivedAt}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#64748b;\">Khu vực cách ly:</td><td style=\"color:#059669;font-weight:bold;\">email_quarantine_vault</td></tr>\n            </table>\n            <div style=\"margin-top:24px;text-align:center;\">\n              <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:14px;display:inline-block;\">Kiểm Tra Bảng Điều Khiển An Ninh</a>\n            </div>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: cleanSender,\n    sender_name: senderName,\n    subject: subject,\n    clean_body: cleanBody,\n    received_at: receivedAt,\n    security_email_subject: securityEmailSubject,\n    security_email_text: securityEmailText,\n    security_email_html: securityEmailHtml\n  }\n}];"
+      }
     },
     {
-      "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{ $json.sender_email }}",
-              "operation": "notContains",
-              "value2": "no-reply"
-            },
-            {
-              "value1": "={{ $json.sender_email }}",
-              "operation": "notContains",
-              "value2": "mailer-daemon"
-            }
-          ]
-        }
-      },
-      "id": "flow1-node-3",
-      "name": "3. Filter System Bounces IF",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "id": "f1-node-03",
+      "name": "3. Filter System Bounces Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        640,
+        680,
         300
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst email = (item.sender_email || \"\").toLowerCase();\nconst subject = (item.subject || \"\").toLowerCase();\n\nconst isSystem = email.includes(\"no-reply\") || \n                 email.includes(\"noreply\") || \n                 email.includes(\"mailer-daemon\") || \n                 email.includes(\"postmaster\") || \n                 email.includes(\"bounce\") ||\n                 subject.includes(\"delivery status notification\") ||\n                 subject.includes(\"undelivered mail\");\n\nreturn [{\n  json: {\n    ...item,\n    is_system_bounce: isSystem,\n    system_bounce_reason: isSystem ? \"Email hệ thống tự sinh / Bounce Mailer-Daemon\" : null\n  }\n}];"
+      }
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT email, status, notes FROM email_senders_reputation WHERE email = $1 LIMIT 1;",
-        "options": {
-          "queryReplacement": "={{ [$json.sender_email] }}"
-        }
-      },
-      "id": "flow1-node-4",
+      "id": "f1-node-04",
       "name": "4. Check Sender Reputation Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        860,
-        200
+        920,
+        300
       ],
-      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(sender_email, email, $1) as sender_email, COALESCE(reputation_score, 100) as reputation_score, COALESCE(failed_attempts, 0) as failed_attempts, COALESCE(is_blocked, false) as is_blocked, COALESCE(status, 'neutral') as status, notes FROM email_senders_reputation WHERE sender_email = $1 OR email = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$('2. Payload Normalization Code').first().json.sender_email] }}"
+        }
       }
     },
     {
+      "id": "f1-node-05",
+      "name": "5. AI Spam & Phishing Classifier Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1160,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Bạn là AI Cyber Security & Email Deliverability Monitor (AI Agent 9 & 8) trong hệ thống tiếp nhận email doanh nghiệp.\nHãy đọc email sau:\n- Người gửi: ${$('2. Payload Normalization Code').first().json.sender_email}\n- Tiêu đề: ${$('2. Payload Normalization Code').first().json.subject}\n- Nội dung: ${$('2. Payload Normalization Code').first().json.clean_body}\n\nHãy phân tích và trả về đúng JSON theo định dạng:\n{\n  \"is_spam\": boolean,\n  \"threat_type\": \"CLEAN\" | \"SPAM\" | \"PHISHING\" | \"MALWARE\",\n  \"confidence_score\": number,\n  \"quarantine_reason\": \"Lý do ngắn gọn nếu vi phạm hoặc 'Hợp lệ'\"\n}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-06",
+      "name": "6. IF Clean & High Reputation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        300
+      ],
       "parameters": {
         "conditions": {
           "string": [
             {
-              "value1": "={{ $json.status || 'neutral' }}",
+              "value1": "={{ (function() {\n  const norm = $('2. Payload Normalization Code').first().json;\n  const bounce = $('3. Filter System Bounces Code').first().json;\n  const rep = $('4. Check Sender Reputation Postgres').first().json;\n  const aiResp = $json;\n\n  let isSpam = false;\n  let reason = '';\n  \n  if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n    try {\n      const parsed = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n      isSpam = parsed.is_spam === true || parsed.threat_type !== 'CLEAN';\n      reason = parsed.quarantine_reason || parsed.threat_type;\n    } catch(e) {}\n  } else {\n    const text = (norm.subject + ' ' + norm.clean_body).toLowerCase();\n    isSpam = text.includes('crypto') || text.includes('trúng thưởng') || text.includes('tiền số') || text.includes('phishing');\n    if (isSpam) reason = 'Phát hiện từ khóa lừa đảo / spam';\n  }\n\n  const isBounce = bounce.is_system_bounce === true;\n  const repScore = rep.reputation_score !== undefined ? Number(rep.reputation_score) : 100;\n  const isBlacklist = rep.status === 'blacklist' || rep.is_blocked === true || repScore < 20;\n\n  if (isBounce) return 'QUARANTINE_BOUNCE';\n  if (isBlacklist) return 'QUARANTINE_BLACKLIST';\n  if (isSpam) return 'QUARANTINE_AI_SPAM';\n  return 'CLEAN';\n})() }}",
               "operation": "equal",
-              "value2": "blacklist"
+              "value2": "CLEAN"
             }
           ]
         }
-      },
-      "id": "flow1-node-5",
-      "name": "5. IF Blacklisted Sender",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        1080,
-        200
-      ]
+      }
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow1', 'SENDER_BLACKLIST_QUARANTINE', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($('2. Payload Normalization Code').first().json)] }}"
-        }
-      },
-      "id": "flow1-node-6",
-      "name": "6. Quarantine Vault Postgres",
+      "id": "f1-node-07",
+      "name": "7. Quarantine Vault Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1300,
-        100
+        1640,
+        480
       ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO email_quarantine_vault (sender_email, subject, raw_payload, quarantine_reason) VALUES ($1, $2, $3::jsonb, $4) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('2. Payload Normalization Code').first().json.sender_email, $('2. Payload Normalization Code').first().json.subject, JSON.stringify($('2. Payload Normalization Code').first().json), $('3. Filter System Bounces Code').first().json.is_system_bounce ? 'Email hệ thống tự sinh bounce' : 'AI Agent 9 & SOC phát hiện vi phạm bảo mật / blacklist'] }}"
+        }
       }
     },
     {
-      "parameters": {
-        "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "tranglee12306@gmail.com",
-        "subject": "={{ $('2. Payload Normalization Code').first().json.security_email_subject }}",
-        "options": {
-          "appendAttribution": false
-        },
-        "html": "={{ $('2. Payload Normalization Code').first().json.security_email_html }}",
-        "emailFormat": "both",
-        "text": "={{ $('2. Payload Normalization Code').first().json.security_email_text }}"
-      },
-      "id": "flow1-node-7",
-      "name": "7. Security Alert Email",
+      "id": "f1-node-08",
+      "name": "8. Security Alert Mailer",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1520,
-        100
+        1880,
+        480
       ],
       "credentials": {
         "smtp": {
@@ -152,106 +157,101 @@
           "name": "SMTP account"
         }
       },
-      "continueOnFail": true
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranglee12306@gmail.com",
+        "subject": "={{ $('2. Payload Normalization Code').first().json.security_email_subject }}",
+        "html": "={{ $('2. Payload Normalization Code').first().json.security_email_html }}",
+        "text": "={{ $('2. Payload Normalization Code').first().json.security_email_text }}",
+        "options": {}
+      }
     },
     {
+      "id": "f1-node-09",
+      "name": "9. Update Sender Strike Score Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2120,
+        480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE email_senders_reputation SET notes = COALESCE(notes, '') || ' [Quarantine strike at ' || NOW() || ']' WHERE email = $1;",
+        "query": "INSERT INTO email_senders_reputation (sender_email, email, reputation_score, failed_attempts, is_blocked, status, notes)\nVALUES ($1, $1, 70, 1, false, 'suspicious', 'Vi phạm cách ly bởi AI Agent 9')\nON CONFLICT (email) DO UPDATE SET\n  failed_attempts = email_senders_reputation.failed_attempts + 1,\n  reputation_score = GREATEST(email_senders_reputation.reputation_score - 30, 0),\n  is_blocked = CASE WHEN (email_senders_reputation.reputation_score - 30) < 20 THEN true ELSE false END,\n  status = CASE WHEN (email_senders_reputation.reputation_score - 30) < 20 THEN 'blacklist' ELSE 'suspicious' END,\n  notes = COALESCE(email_senders_reputation.notes, '') || ' [Quarantine strike lúc ' || NOW() || ']',\n  last_seen_at = NOW();",
         "options": {
           "queryReplacement": "={{ [$('2. Payload Normalization Code').first().json.sender_email] }}"
         }
-      },
-      "id": "flow1-node-8",
-      "name": "8. Record Reputation Strike Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [
-        1740,
-        100
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
       }
     },
     {
-      "parameters": {
-        "jsCode": "const original = $('2. Payload Normalization Code').first().json;\nreturn [{\n  json: {\n    ...original,\n    is_clean: true,\n    validated_at: new Date().toISOString()\n  }\n}];"
-      },
-      "id": "flow1-node-9",
-      "name": "9. Package Clean Email Code",
+      "id": "f1-node-10",
+      "name": "10. Format Clean Verified Payload Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1300,
-        300
-      ]
+        1640,
+        180
+      ],
+      "parameters": {
+        "jsCode": "const original = $('2. Payload Normalization Code').first().json;\nreturn [{\n  json: {\n    ...original,\n    is_clean: true,\n    IS_CLEAN_VERIFIED: true,\n    reputation_score: $('4. Check Sender Reputation Postgres').first().json.reputation_score || 100,\n    validated_at: new Date().toISOString()\n  }\n}];"
+      }
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow1', 'INBOUND_CLEAN_EMAIL_ACCEPTED', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($json)] }}"
-        }
-      },
-      "id": "flow1-node-10",
-      "name": "10. Audit Log Clean Ingest Postgres",
+      "id": "f1-node-11",
+      "name": "11. Audit Ingest Pass Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1520,
-        300
+        1880,
+        180
       ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('m1-flow1', 'INBOUND_CLEAN_EMAIL_ACCEPTED', 'flow01_ingest_antispam', 'Email hợp lệ đã vượt qua kiểm tra an ninh và AI Agent 9', $1::jsonb, $1::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('10. Format Clean Verified Payload Code').first().json)] }}"
         }
       }
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "http://localhost:5678/webhook/m1-flow2-triage",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('9. Package Clean Email Code').first().json) }}",
-        "options": {}
-      },
-      "id": "flow1-node-11",
-      "name": "11. Dispatch to Flow 2 HTTP",
+      "id": "f1-node-12",
+      "name": "12. Trigger Workflow 2 Sub-workflow",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1740,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow1', 'FLOW1_PIPELINE_COMPLETED', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify({ status: 'SUCCESS', sender: $('2. Payload Normalization Code').first().json.sender_email, dispatched_at: new Date().toISOString() })] }}"
-        }
-      },
-      "id": "flow1-node-12",
-      "name": "12. Ingest Complete Audit Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [
-        1960,
-        300
+        2120,
+        180
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/m1-flow2-triage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('10. Format Clean Verified Payload Code').first().json) }}",
+        "options": {}
       }
     }
   ],
@@ -271,25 +271,18 @@
       "main": [
         [
           {
-            "node": "3. Filter System Bounces IF",
+            "node": "3. Filter System Bounces Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "3. Filter System Bounces IF": {
+    "3. Filter System Bounces Code": {
       "main": [
         [
           {
             "node": "4. Check Sender Reputation Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "6. Quarantine Vault Postgres",
             "type": "main",
             "index": 0
           }
@@ -300,80 +293,80 @@
       "main": [
         [
           {
-            "node": "5. IF Blacklisted Sender",
+            "node": "5. AI Spam & Phishing Classifier Gemini",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "5. IF Blacklisted Sender": {
+    "5. AI Spam & Phishing Classifier Gemini": {
       "main": [
         [
           {
-            "node": "6. Quarantine Vault Postgres",
+            "node": "6. IF Clean & High Reputation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. IF Clean & High Reputation": {
+      "main": [
+        [
+          {
+            "node": "10. Format Clean Verified Payload Code",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "9. Package Clean Email Code",
+            "node": "7. Quarantine Vault Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "6. Quarantine Vault Postgres": {
+    "7. Quarantine Vault Postgres": {
       "main": [
         [
           {
-            "node": "7. Security Alert Email",
+            "node": "8. Security Alert Mailer",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "7. Security Alert Email": {
+    "8. Security Alert Mailer": {
       "main": [
         [
           {
-            "node": "8. Record Reputation Strike Postgres",
+            "node": "9. Update Sender Strike Score Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "9. Package Clean Email Code": {
+    "10. Format Clean Verified Payload Code": {
       "main": [
         [
           {
-            "node": "10. Audit Log Clean Ingest Postgres",
+            "node": "11. Audit Ingest Pass Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "10. Audit Log Clean Ingest Postgres": {
+    "11. Audit Ingest Pass Postgres": {
       "main": [
         [
           {
-            "node": "11. Dispatch to Flow 2 HTTP",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "11. Dispatch to Flow 2 HTTP": {
-      "main": [
-        [
-          {
-            "node": "12. Ingest Complete Audit Postgres",
+            "node": "12. Trigger Workflow 2 Sub-workflow",
             "type": "main",
             "index": 0
           }
@@ -383,7 +376,7 @@
   },
   "active": true,
   "settings": {
+    "timezone": "Asia/Ho_Chi_Minh",
     "executionOrder": "v1"
-  },
-  "id": "96BvBRGhR7jcUjTf"
+  }
 }

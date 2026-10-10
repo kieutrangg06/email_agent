@@ -1,151 +1,187 @@
 {
+  "id": "mmOveqCSfFPnXQ06",
   "name": "Luồng 3 - AI-Driven Ticket Generation & SLA Dispatcher (12 Nodes)",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "m1-flow3-ticket",
-        "responseMode": "onReceived",
-        "responseData": "OK",
-        "options": {}
-      },
-      "id": "flow3-node-1",
-      "name": "1. Ticket Webhook Trigger",
+      "id": "f3-node-01",
+      "name": "1. Receive Tech Intent Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         200,
         300
       ],
-      "webhookId": "m1-flow3-ticket"
+      "webhookId": "m1-flow3-ticket",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow3-ticket",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
     },
     {
+      "id": "f3-node-02",
+      "name": "2. AI Ticket Extractor Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        440,
+        300
+      ],
+      "onError": "continueRegularOutput",
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst sender = payload.sender_email || payload.from || \"guest@enterprise.com\";\nconst senderName = payload.sender_name || payload.name || sender.split('@')[0];\nconst title = payload.subject || payload.title || \"Yêu cầu hỗ trợ kỹ thuật\";\nconst description = payload.body || payload.text || payload.raw_description || \"Không có mô tả chi tiết\";\nconst category = payload.category || \"Technical\";\nconst priority = payload.priority || \"P1 - Critical\";\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: sender,\n    sender_name: senderName,\n    title: title,\n    description: description,\n    category: category,\n    priority: priority\n  }\n}];"
-      },
-      "id": "flow3-node-2",
-      "name": "2. Normalize Issue Payload Code",
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Bạn là AI Email-to-Ticket Agent (Agent 3) trong hệ thống Helpdesk kỹ thuật doanh nghiệp.\nĐọc nội dung sự cố sau:\nTiêu đề: ${$('1. Receive Tech Intent Trigger').first().json.subject || $('1. Receive Tech Intent Trigger').first().json.title}\nNội dung: ${$('1. Receive Tech Intent Trigger').first().json.body || $('1. Receive Tech Intent Trigger').first().json.text || $('1. Receive Tech Intent Trigger').first().json.description}\n\nHãy bóc tách chi tiết kỹ thuật và cấu trúc hóa thành vé sự cố tiêu chuẩn:\n1. cleaned_title: Tiêu đề kỹ thuật chuẩn, ngắn gọn\n2. affected_module: Phân loại module/dịch vụ bị ảnh hưởng (vd: API Gateway, Database Postgres, Authentication/OAuth, Frontend UI, Thanh toán, Network Infrastructure)\n3. reproduce_steps: Mảng danh sách các bước tái hiện sự cố (Step 1, Step 2...)\n4. error_symptoms: Các triệu chứng quan sát được (mã lỗi HTTP, thông báo lỗi)\n5. technical_summary: Bản tóm tắt kỹ thuật 2-3 câu cho kỹ sư hỗ trợ\n\nTrả về đúng định dạng JSON:\n{\n  \"cleaned_title\": \"string\",\n  \"affected_module\": \"string\",\n  \"reproduce_steps\": [\"string\"],\n  \"error_symptoms\": \"string\",\n  \"technical_summary\": \"string\"\n}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f3-node-03",
+      "name": "3. Generate Ticket Code ID Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        420,
+        680,
         300
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const item = $('1. Receive Tech Intent Trigger').first().json;\nconst payload = item.body ? item.body : item;\nconst aiResp = $input.first().json;\n\nlet aiData = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    aiData = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch(e) {}\n}\n\nconst sender = payload.sender_email || payload.customer_email || payload.from || \"guest@enterprise.com\";\nconst senderName = payload.sender_name || payload.name || sender.split('@')[0];\nconst title = aiData.cleaned_title || payload.title || payload.subject || \"Yêu cầu hỗ trợ sự cố kỹ thuật\";\nconst description = payload.body || payload.text || payload.description || \"Không có mô tả chi tiết\";\nconst affectedModule = aiData.affected_module || \"Hạ tầng Dịch vụ & API\";\nconst reproduceSteps = aiData.reproduce_steps || [\n  \"1. Khách hàng gửi yêu cầu hỗ trợ qua email\",\n  \"2. Hệ thống ghi nhận lỗi gián đoạn dịch vụ\",\n  \"3. Kỹ thuật viên kiểm tra nhật ký log server\"\n];\nconst reproduceStepsText = Array.isArray(reproduceSteps) ? reproduceSteps.join('\\n') : String(reproduceSteps);\nconst symptoms = aiData.error_symptoms || \"Gián đoạn phản hồi dịch vụ\";\nconst summary = aiData.technical_summary || description.substring(0, 200);\n\n// Sinh mã vé chuẩn định dạng doanh nghiệp: TK-YYYYMMDD-XXXX\nconst now = new Date();\nconst dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');\nconst randomNum = Math.floor(1000 + Math.random() * 9000);\nconst ticketCode = `TK-${dateStr}-${randomNum}`;\n\nreturn [{\n  json: {\n    ticket_code: ticketCode,\n    sender_email: sender,\n    customer_email: sender,\n    sender_name: senderName,\n    title: title,\n    description: description,\n    summary: summary,\n    category: payload.category || \"Technical\",\n    priority: payload.priority || \"P1 - Critical\",\n    affected_module: affectedModule,\n    reproduce_steps: reproduceSteps,\n    reproduce_steps_text: reproduceStepsText,\n    error_symptoms: symptoms,\n    technical_summary: summary,\n    generated_at: now.toISOString()\n  }\n}];"
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const randomCode = Math.floor(1000 + Math.random() * 9000);\nconst ticketCode = `TICK-2026-${randomCode}`;\nconst current = $input.first().json;\n\nreturn [{\n  json: {\n    ...current,\n    ticket_code: ticketCode,\n    generated_at: new Date().toISOString()\n  }\n}];"
-      },
-      "id": "flow3-node-3",
-      "name": "3. Generate Ticket ID Code",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        640,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT name, email, active_tickets_count FROM support_agents WHERE category = $1 AND status = 'AVAILABLE' ORDER BY active_tickets_count ASC LIMIT 1;",
-        "options": {
-          "queryReplacement": "={{ [$json.category] }}"
-        }
-      },
-      "id": "flow3-node-4",
+      "id": "f3-node-04",
       "name": "4. Query Available Agents Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        860,
+        920,
         300
       ],
-      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
         }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, full_name, name, email, active_tickets_count FROM support_agents WHERE (status = 'AVAILABLE' OR is_active = true) AND (category = 'Technical' OR category IS NULL) ORDER BY active_tickets_count ASC;",
+        "options": {}
       }
     },
     {
-      "parameters": {
-        "jsCode": "const base = $('3. Generate Ticket ID Code').first().json;\nconst agentQuery = $input.first().json;\n\nconst assignedTo = agentQuery.name || \"Lê Thị Kiều Trang\";\nconst agentEmail = agentQuery.email || \"tranglee12306@gmail.com\";\n\nlet slaHours = 8;\nif (base.priority.includes('P1')) slaHours = 2;\nelse if (base.priority.includes('P2')) slaHours = 4;\nelse if (base.priority.includes('P3')) slaHours = 8;\nelse if (base.priority.includes('P4')) slaHours = 24;\n\nconst slaDeadlineDate = new Date(Date.now() + slaHours * 3600 * 1000);\nconst slaDeadlineStr = slaDeadlineDate.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\nconst summary = base.description.length > 250 ? base.description.substring(0, 247) + '...' : base.description;\nconst ticketCode = base.ticket_code;\n\nconst emailSubject = `🎫 [LỆNH ĐIỀU PHỐI TICKET] ${ticketCode} | Kỹ sư: ${assignedTo} Phụ trách [Ưu tiên: ${base.priority}]`;\n\nconst emailText = `[LỆNH ĐIỀU PHỐI VÉ HỖ TRỢ CHÍNH THỨC - VKU HELPDESK CRM]\nKính gửi Quý Khách Hàng (${base.sender_email}) và Kỹ sư phụ trách (${assignedTo}),\n\nHệ thống Điều phối Thông minh đã cấp mã phiếu và gán quyền xử lý sự cố như sau:\n- Mã định danh Ticket: ${ticketCode}\n- Tiêu đề sự cố: ${base.title}\n- Mức độ ưu tiên: ${base.priority}\n- Kỹ sư phụ trách: ${assignedTo} (${agentEmail})\n- Khách hàng yêu cầu: ${base.sender_email}\n- Hạn chót cam kết giải quyết (SLA): ${slaDeadlineStr} (Thời hạn cam kết: ${slaHours} giờ)\n- Tóm tắt nội dung: ${summary}\n\nKỹ sư vui lòng truy cập ngay Cổng Quản Trị CRM để nhận vé và tiến hành xử lý:\nURL: http://localhost:3000/tickets\n\nTrân trọng,\nHệ Thống Phân Phối Tải & Cấp Vé Tự Động VKU Enterprise`;\n\nconst emailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Lệnh Điều Phối Ticket</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0f172a;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <!-- Header -->\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #3730a3 0%, #4f46e5 50%, #7c3aed 100%);padding:36px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.3);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;color:#ffffff;\">\n              🎫 LỆNH ĐIỀU PHỐI VÉ HỖ TRỢ CHÍNH THỨC\n            </div>\n            <h1 style=\"margin:0 0 14px;font-size:24px;font-weight:900;letter-spacing:-0.5px;line-height:1.2;text-transform:uppercase;\">\n              ĐÃ CẤP MÃ PHIẾU HỖ TRỢ CRM\n            </h1>\n            <div style=\"display:inline-block;background:#ffffff;color:#4338ca;font-size:20px;font-weight:900;padding:10px 28px;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,0.15);letter-spacing:1.5px;font-family:monospace;\">\n              ${ticketCode}\n            </div>\n          </td>\n        </tr>\n        \n        <!-- Content -->\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>Quý Khách Hàng</strong> và <strong>Kỹ sư ${assignedTo}</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;line-height:1.6;color:#475569;\">\n              Hệ thống Cân bằng tải Tự động thông minh đã khởi tạo thành công phiếu hỗ trợ kỹ thuật trên nền tảng CRM và phân bổ trực tiếp cho chuyên viên có hiệu suất tối ưu nhất.\n            </p>\n\n            <!-- Ticket Info Card -->\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:28px;\">\n              <tr>\n                <td style=\"background:#f1f5f9;padding:12px 20px;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:800;color:#334155;text-transform:uppercase;\">\n                  📋 CHI TIẾT LỆNH ĐIỀU PHỐI (DISPATCH SPECIFICATION)\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr>\n                      <td width=\"36%\" style=\"font-size:13px;color:#64748b;font-weight:600;\">Mã định danh Ticket:</td>\n                      <td style=\"font-size:14px;font-weight:900;color:#4338ca;font-family:monospace;\">${ticketCode}</td>\n                    </tr>\n                    <tr>\n                      <td style=\"font-size:13px;color:#64748b;font-weight:600;\">Tiêu đề sự cố:</td>\n                      <td style=\"font-size:13px;font-weight:800;color:#0f172a;\">${base.title}</td>\n                    </tr>\n                    <tr>\n                      <td style=\"font-size:13px;color:#64748b;font-weight:600;\">Mức độ khẩn cấp:</td>\n                      <td>\n                        <span style=\"display:inline-block;background:${base.priority.includes('P1') ? '#fee2e2;color:#dc2626;border:1px solid #fecaca;' : '#dbeafe;color:#2563eb;border:1px solid #bfdbfe;'}padding:4px 12px;border-radius:6px;font-size:12px;font-weight:800;\">\n                          ${base.priority} ${base.priority.includes('P1') ? ' (KHẨN CẤP)' : ''}\n                        </span>\n                      </td>\n                    </tr>\n                    <tr>\n                      <td style=\"font-size:13px;color:#64748b;font-weight:600;\">Kỹ sư chịu trách nhiệm:</td>\n                      <td style=\"font-size:13px;font-weight:800;color:#0f172a;\">\n                        ${assignedTo} <span style=\"font-size:12px;color:#64748b;font-weight:500;\">(${agentEmail})</span>\n                      </td>\n                    </tr>\n                    <tr>\n                      <td style=\"font-size:13px;color:#64748b;font-weight:600;\">Khách hàng yêu cầu:</td>\n                      <td style=\"font-size:13px;color:#334155;font-weight:600;\">${base.sender_email}</td>\n                    </tr>\n                    <tr>\n                      <td style=\"font-size:13px;color:#64748b;font-weight:600;\">Hạn chót giải quyết (SLA):</td>\n                      <td style=\"font-size:13px;font-weight:800;color:#059669;\">\n                        ⏰ ${slaDeadlineStr} (Cam kết ${slaHours} giờ)\n                      </td>\n                    </tr>\n                    <tr>\n                      <td style=\"font-size:13px;color:#64748b;font-weight:600;vertical-align:top;\">Tóm tắt nội dung:</td>\n                      <td style=\"font-size:12px;color:#334155;line-height:1.6;background:#ffffff;padding:10px;border-radius:8px;border:1px solid #e2e8f0;\">${summary}</td>\n                    </tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <!-- CTA Button -->\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #3730a3 0%, #4f46e5 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(79,70,229,0.35);\">\n                    👉 TRUY CẬP CỔNG CRM XỬ LÝ & GIẢI QUYẾT VÉ\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        \n        <!-- Footer -->\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 6px;font-size:12px;font-weight:800;color:#334155;\">\n              ENTERPRISE AUTOMATION & HELPDESK CRM &bull; TRUNG TÂM ĐIỀU PHỐI DỊCH VỤ CÔNG NGHỆ THÔNG TIN\n            </p>\n            <p style=\"margin:0;font-size:11px;color:#64748b;\">\n              Quy trình Quản lý Dịch vụ Công nghệ Thông tin Chuẩn mực ISO 20000 &bull; Trụ sở: 470 Trần Đại Nghĩa, Đà Nẵng\n            </p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn [{\n  json: {\n    ...base,\n    assigned_to: assignedTo,\n    agent_email: agentEmail,\n    first_response_sla: slaDeadlineDate.toISOString(),\n    summary: summary,\n    sla_hours: slaHours,\n    email_subject: emailSubject,\n    email_html: emailHtml,\n    email_text: emailText\n  }\n}];\n"
-      },
-      "id": "flow3-node-5",
-      "name": "5. Assign Agent & SLA Code",
+      "id": "f3-node-05",
+      "name": "5. Least-Busy Load Balancer Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1080,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO tickets (ticket_code, sender_email, title, description, summary, category, priority, assigned_to, agent_email, first_response_sla, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'OPEN') ON CONFLICT (ticket_code) DO NOTHING RETURNING *;",
-        "options": {
-          "queryReplacement": "={{ [$json.ticket_code, $json.sender_email, $json.title, $json.description, $json.summary, $json.category, $json.priority, $json.assigned_to, $json.agent_email, $json.first_response_sla] }}"
-        }
-      },
-      "id": "flow3-node-6",
-      "name": "6. Insert Ticket Master Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [
-        1300,
+        1160,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
+      "parameters": {
+        "jsCode": "const base = $('3. Generate Ticket Code ID Code').first().json;\nconst agentCandidates = $input.all().map(a => a.json);\n\nlet chosenAgent = null;\nif (agentCandidates && agentCandidates.length > 0 && agentCandidates[0].email) {\n  // Chọn KTV có active_tickets_count nhỏ nhất\n  chosenAgent = agentCandidates[0];\n}\n\nconst assignedTo = chosenAgent ? (chosenAgent.full_name || chosenAgent.name) : \"Nguyễn Văn An\";\nconst agentEmail = chosenAgent ? chosenAgent.email : \"tranglee12306@gmail.com\";\nconst agentId = chosenAgent ? chosenAgent.id : 1;\n\nlet slaHours = 8;\nif (base.priority.includes('P1')) slaHours = 2;\nelse if (base.priority.includes('P2')) slaHours = 4;\nelse if (base.priority.includes('P3')) slaHours = 8;\nelse if (base.priority.includes('P4')) slaHours = 24;\n\nconst deadline = new Date(Date.now() + slaHours * 60 * 60 * 1000);\nconst formattedDeadline = deadline.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\n\nconst agentSubject = `📌 [GÁN VÉ ${base.ticket_code}] ${base.priority} - ${base.title}`;\nconst agentHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Điều Phối Vé Hỗ Trợ</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.3);max-width:600px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);padding:25px 35px;color:#ffffff;\">\n            <div style=\"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;\">HELPDESK SLA DISPATCHER &bull; THUẬT TOÁN LEAST-BUSY</div>\n            <h1 style=\"margin:8px 0 0 0;font-size:20px;font-weight:900;\">ĐIỀU PHỐI VÉ SỰ CỐ MỚI</h1>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:30px 35px;\">\n            <p>Chào <strong>${assignedTo}</strong>,</p>\n            <p>Hệ thống tự động đã gán vé sự cố kỹ thuật này cho bạn xử lý:</p>\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"10\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;margin:15px 0;\">\n              <tr><td width=\"35%\" style=\"color:#64748b;font-weight:bold;\">Mã vé:</td><td><strong style=\"color:#2563eb;\">${base.ticket_code}</strong></td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Mức độ:</td><td><strong>${base.priority}</strong></td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Module ảnh hưởng:</td><td>${base.affected_module}</td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Hạn SLA phản hồi:</td><td><strong style=\"color:#dc2626;\">${formattedDeadline} (${slaHours}h)</strong></td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Khách hàng:</td><td>${base.customer_email}</td></tr>\n            </table>\n            <div style=\"background:#eff6ff;padding:15px;border-radius:8px;border-left:4px solid #3b82f6;margin:15px 0;font-size:13px;\">\n              <strong>Bóc tách từ AI Ticket Extractor (Agent 3):</strong><br>\n              ${base.technical_summary}\n            </div>\n            <div style=\"margin-top:24px;text-align:center;\">\n              <a href=\"http://localhost:3000/tickets\" style=\"background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;\">Xử Lý Vé Trên Hệ Thống</a>\n            </div>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    ...base,\n    assigned_to: assignedTo,\n    agent_email: agentEmail,\n    assigned_agent_id: agentId,\n    sla_hours: slaHours,\n    sla_deadline: deadline.toISOString(),\n    agent_email_subject: agentSubject,\n    agent_email_html: agentHtml\n  }\n}];"
       }
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE support_agents SET active_tickets_count = active_tickets_count + 1 WHERE email = $1;",
-        "options": {
-          "queryReplacement": "={{ [$('5. Assign Agent & SLA Code').first().json.agent_email] }}"
-        }
-      },
-      "id": "flow3-node-7",
-      "name": "7. Increment Agent Workload Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "id": "f3-node-06",
+      "name": "6. Create Ticket Master HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
-        1520,
+        1400,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
+      "onError": "continueRegularOutput",
       "parameters": {
-        "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "={{ $('5. Assign Agent & SLA Code').first().json.agent_email }}, {{ $('5. Assign Agent & SLA Code').first().json.sender_email }}",
-        "subject": "={{ $('5. Assign Agent & SLA Code').first().json.email_subject }}",
-        "options": {
-          "appendAttribution": false
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/tickets",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
-        "html": "={{ $('5. Assign Agent & SLA Code').first().json.email_html }}",
-        "emailFormat": "both",
-        "text": "={{ $('5. Assign Agent & SLA Code').first().json.email_text }}"
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ticket_code: $json.ticket_code,\n  customer_email: $json.customer_email,\n  sender_email: $json.sender_email,\n  subject: $json.title,\n  title: $json.title,\n  description: $json.description,\n  summary: $json.technical_summary,\n  category: $json.category,\n  priority: $json.priority,\n  status: \"PENDING\",\n  assigned_to: $json.assigned_to,\n  agent_email: $json.agent_email,\n  assigned_agent_id: $json.assigned_agent_id,\n  affected_module: $json.affected_module,\n  reproduce_steps: $json.reproduce_steps\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f3-node-07",
+      "name": "7. Update Agent Workload Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1640,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
       },
-      "id": "flow3-node-8",
-      "name": "8. Notify Assigned Agent Email",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE support_agents SET active_tickets_count = active_tickets_count + 1 WHERE email = $1 OR id = $2;",
+        "options": {
+          "queryReplacement": "={{ [$('5. Least-Busy Load Balancer Code').first().json.agent_email, $('5. Least-Busy Load Balancer Code').first().json.assigned_agent_id] }}"
+        }
+      }
+    },
+    {
+      "id": "f3-node-08",
+      "name": "8. Initial System Comment HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1880,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/tickets/comments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ticket_code: $('5. Least-Busy Load Balancer Code').first().json.ticket_code,\n  author_type: \"AI_AGENT\",\n  content: `🤖 [AI Ticket Extractor Agent 3 - Phân tích sự cố ban đầu]\n- Module ảnh hưởng: ${$('5. Least-Busy Load Balancer Code').first().json.affected_module}\n- Triệu chứng lỗi: ${$('5. Least-Busy Load Balancer Code').first().json.error_symptoms}\n- Các bước tái hiện sự cố:\n${$('5. Least-Busy Load Balancer Code').first().json.reproduce_steps_text}\n- Tóm tắt kỹ thuật: ${$('5. Least-Busy Load Balancer Code').first().json.technical_summary}`\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f3-node-09",
+      "name": "9. Notify Support Agent Email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1740,
+        2120,
         300
       ],
       "credentials": {
@@ -154,112 +190,89 @@
           "name": "SMTP account"
         }
       },
-      "continueOnFail": true
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "={{ $('5. Least-Busy Load Balancer Code').first().json.agent_email }}",
+        "subject": "={{ $('5. Least-Busy Load Balancer Code').first().json.agent_email_subject }}",
+        "html": "={{ $('5. Least-Busy Load Balancer Code').first().json.agent_email_html }}",
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow3', 'TICKET_DISPATCHED_TO_AGENT', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($('5. Assign Agent & SLA Code').first().json)] }}"
-        }
-      },
-      "id": "flow3-node-9",
-      "name": "9. Initial System Audit Comment Postgres",
+      "id": "f3-node-10",
+      "name": "10. Audit SLA Dispatch Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1960,
+        2360,
         300
       ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
           "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('m1-flow3', 'TICKET_DISPATCHED_TO_AGENT', 'flow03_ticket_sla_dispatch', 'Vé sự cố kỹ thuật đã được phân phối tự động cho KTV và kích hoạt SLA', $1::jsonb, $1::jsonb);",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('5. Least-Busy Load Balancer Code').first().json)] }}"
         }
       }
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "http://localhost:4000/api/v1/triage/in-app-alert",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ event: 'TICKET_ASSIGNED', ticket_code: $('5. Assign Agent & SLA Code').first().json.ticket_code, priority: $('5. Assign Agent & SLA Code').first().json.priority, assigned_to: $('5. Assign Agent & SLA Code').first().json.assigned_to }) }}",
-        "options": {}
-      },
-      "id": "flow3-node-10",
-      "name": "10. Push Real-time In-App Alert HTTP",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        2180,
-        300
-      ],
-      "onError": "continueRegularOutput",
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "jsCode": "const finalData = $('5. Assign Agent & SLA Code').first().json;\nreturn [{\n  json: {\n    status: 'SUCCESS',\n    ticket_code: finalData.ticket_code,\n    assigned_to: finalData.assigned_to,\n    agent_email: finalData.agent_email,\n    first_response_sla: finalData.first_response_sla,\n    priority: finalData.priority,\n    created_at: new Date().toISOString()\n  }\n}];"
-      },
-      "id": "flow3-node-11",
-      "name": "11. Format Final Response Code",
+      "id": "f3-node-11",
+      "name": "11. Format Ticket Packet Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2400,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, payload) VALUES ('m1-flow3', 'FLOW3_TICKET_PIPELINE_COMPLETED', $1);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($json)] }}"
-        }
-      },
-      "id": "flow3-node-12",
-      "name": "12. Commit Ticket Audit Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [
-        2620,
+        2600,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
+      "parameters": {
+        "jsCode": "const finalData = $('5. Least-Busy Load Balancer Code').first().json;\nreturn [{\n  json: {\n    status: 'SUCCESS',\n    ticket_code: finalData.ticket_code,\n    title: finalData.title,\n    assigned_to: finalData.assigned_to,\n    agent_email: finalData.agent_email,\n    priority: finalData.priority,\n    sla_deadline: finalData.sla_deadline,\n    affected_module: finalData.affected_module,\n    reproduce_steps: finalData.reproduce_steps,\n    technical_summary: finalData.technical_summary,\n    search_query: `${finalData.affected_module} ${finalData.title}`\n  }\n}];"
+      }
+    },
+    {
+      "id": "f3-node-12",
+      "name": "12. Trigger Luong 4 Sub-Workflow Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const current = $input.first().json;\n\n// Chuẩn bị Bridge Packet cho Luồng 4 (Thành viên 2 - RAG Knowledge Base & Thư nháp)\nconst bridgePayload = {\n  ticket_code: current.ticket_code,\n  search_query: current.search_query,\n  technical_summary: current.technical_summary,\n  customer_email: $('3. Generate Ticket Code ID Code').first().json.customer_email,\n  ready_for_member2: true,\n  status: \"QUEUED_FOR_TV2_RAG\"\n};\n\nreturn [{\n  json: {\n    status: \"COMPLETED\",\n    message: \"Quy trình tạo vé và điều phối SLA của Thành viên 1 hoàn tất thành công\",\n    ticket_code: current.ticket_code,\n    assigned_agent: current.assigned_to,\n    priority: current.priority,\n    sla_deadline: current.sla_deadline,\n    downstream_bridge: bridgePayload,\n    dispatched_at: new Date().toISOString()\n  }\n}];"
       }
     }
   ],
   "connections": {
-    "1. Ticket Webhook Trigger": {
+    "1. Receive Tech Intent Trigger": {
       "main": [
         [
           {
-            "node": "2. Normalize Issue Payload Code",
+            "node": "2. AI Ticket Extractor Gemini",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "2. Normalize Issue Payload Code": {
+    "2. AI Ticket Extractor Gemini": {
       "main": [
         [
           {
-            "node": "3. Generate Ticket ID Code",
+            "node": "3. Generate Ticket Code ID Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "3. Generate Ticket ID Code": {
+    "3. Generate Ticket Code ID Code": {
       "main": [
         [
           {
@@ -274,84 +287,84 @@
       "main": [
         [
           {
-            "node": "5. Assign Agent & SLA Code",
+            "node": "5. Least-Busy Load Balancer Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "5. Assign Agent & SLA Code": {
+    "5. Least-Busy Load Balancer Code": {
       "main": [
         [
           {
-            "node": "6. Insert Ticket Master Postgres",
+            "node": "6. Create Ticket Master HTTP",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "6. Insert Ticket Master Postgres": {
+    "6. Create Ticket Master HTTP": {
       "main": [
         [
           {
-            "node": "7. Increment Agent Workload Postgres",
+            "node": "7. Update Agent Workload Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "7. Increment Agent Workload Postgres": {
+    "7. Update Agent Workload Postgres": {
       "main": [
         [
           {
-            "node": "8. Notify Assigned Agent Email",
+            "node": "8. Initial System Comment HTTP",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "8. Notify Assigned Agent Email": {
+    "8. Initial System Comment HTTP": {
       "main": [
         [
           {
-            "node": "9. Initial System Audit Comment Postgres",
+            "node": "9. Notify Support Agent Email",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "9. Initial System Audit Comment Postgres": {
+    "9. Notify Support Agent Email": {
       "main": [
         [
           {
-            "node": "10. Push Real-time In-App Alert HTTP",
+            "node": "10. Audit SLA Dispatch Postgres",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "10. Push Real-time In-App Alert HTTP": {
+    "10. Audit SLA Dispatch Postgres": {
       "main": [
         [
           {
-            "node": "11. Format Final Response Code",
+            "node": "11. Format Ticket Packet Code",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "11. Format Final Response Code": {
+    "11. Format Ticket Packet Code": {
       "main": [
         [
           {
-            "node": "12. Commit Ticket Audit Postgres",
+            "node": "12. Trigger Luong 4 Sub-Workflow Code",
             "type": "main",
             "index": 0
           }
@@ -361,7 +374,7 @@
   },
   "active": true,
   "settings": {
+    "timezone": "Asia/Ho_Chi_Minh",
     "executionOrder": "v1"
-  },
-  "id": "mmOveqCSfFPnXQ06"
+  }
 }
