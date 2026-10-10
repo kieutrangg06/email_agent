@@ -172,4 +172,11 @@ export class TicketsService {
     `);
     return res.rows[0];
   }
+
+  async getQuarantineLogs() {
+    const res = await this.db.query(
+      "SELECT id, source, event_type, payload, created_at FROM system_audit_logs WHERE event_type LIKE '%QUARANTINE%' OR event_type LIKE '%BLACKLIST%' OR event_type LIKE '%SPAM%' ORDER BY id DESC LIMIT 50;"
+    );
+    return res.rows;
+  }
 }

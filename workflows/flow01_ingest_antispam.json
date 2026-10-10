@@ -13,18 +13,24 @@
       "name": "1. Email Ingest Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 300],
+      "position": [
+        200,
+        300
+      ],
       "webhookId": "m1-flow1-ingest"
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst rawSender = payload.from || payload.sender || payload.sender_email || \"guest@enterprise.com\";\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = (senderMatch ? senderMatch[1] : String(rawSender)).trim().toLowerCase();\nconst senderName = payload.name || (senderMatch ? rawSender.split('<')[0].trim() : cleanSender.split('@')[0]);\n\nconst rawBody = payload.text || payload.body || payload.content || \"\";\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, '').trim();\nconst subject = String(payload.subject || \"No Subject\").trim();\n\nreturn [{\n  json: {\n    sender_email: cleanSender,\n    sender_name: senderName,\n    subject: subject,\n    body: cleanBody,\n    received_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\nconst rawSender = payload.from || payload.sender || payload.sender_email || \"guest@enterprise.com\";\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = (senderMatch ? senderMatch[1] : String(rawSender)).trim().toLowerCase();\nconst senderName = payload.name || (senderMatch ? rawSender.split('<')[0].trim() : cleanSender.split('@')[0]);\n\nconst rawBody = payload.text || payload.body || payload.content || \"\";\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, '').trim();\nconst subject = String(payload.subject || \"Không có tiêu đề\").trim();\nconst receivedAt = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\n\nconst securityEmailSubject = `🚨 [SECURITY SOC] CẢNH BÁO AN NINH: Phát hiện & Đưa vào Vùng Cách Ly Thư từ ${cleanSender}`;\n\nconst securityEmailText = `[CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP - ENTERPRISE SOC]\nKính gửi Quản trị viên An ninh Hệ thống,\n\nHệ thống lọc thư tự động vừa phát hiện và chặn đứng một bức thư gửi từ nguồn nguy hiểm:\n- Địa chỉ người gửi: ${cleanSender}\n- Tiêu đề thư: ${subject}\n- Thời điểm tiếp nhận: ${receivedAt}\n- Trạng thái xử lý: ĐÃ CÁCH LY THÀNH CÔNG (QUARANTINED) vào bảng quarantine_vault.\n- Sự kiện kiểm toán: SENDER_BLACKLIST_QUARANTINE ghi nhận trong system_audit_logs.\n\nHành động khuyến nghị:\n1. Kiểm tra chi tiết tại Cổng Quản Trị Helpdesk CRM: http://localhost:3000/tickets\n2. Không mở bất kỳ tệp đính kèm nào từ người gửi này.\n\nTrân trọng,\nBộ phận An ninh Hạ tầng Enterprise SOC`;\n\nconst securityEmailHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Cảnh Báo An Ninh</title></head>\n<body style=\"margin:0;padding:0;background-color:#0b0f19;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#0b0f19;padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);max-width:640px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #7f1d1d 0%, #b91c1c 50%, #dc2626 100%);padding:36px 40px;text-align:center;color:#ffffff;\">\n            <div style=\"display:inline-block;background:rgba(255,255,255,0.15);padding:6px 18px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;\">\n              🛡️ CYBER SECURITY &bull; SOC INCIDENT DEFENSE\n            </div>\n            <h1 style=\"margin:0;font-size:24px;font-weight:900;text-transform:uppercase;line-height:1.3;\">\n              CẢNH BÁO: PHÁT HIỆN &amp; CÁCH LY THƯ ĐỘC HẠI\n            </h1>\n            <p style=\"margin:10px 0 0;font-size:13px;color:#fee2e2;\">\n              Hệ thống Phòng vệ Email Doanh nghiệp &bull; Cửa ngõ Tiếp nhận Tự động\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#fef2f2;border-bottom:1px solid #fee2e2;padding:16px 40px;\">\n            <span style=\"font-size:13px;color:#991b1b;font-weight:700;\">\n              🚨 MỨC ĐỘ NGUY HIỂM: CẤP ĐỘ CAO (CRITICAL) &bull; Thư đã được niêm phong vào Phân vùng Cách ly (Quarantine Vault).\n            </span>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:36px 40px 28px;\">\n            <p style=\"margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.6;\">\n              Kính gửi <strong>Quản trị viên An ninh Thông tin (SOC Administrator)</strong>,\n            </p>\n            <p style=\"margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;\">\n              Hệ thống vừa ngăn chặn bức thư từ nguồn nằm trong Danh sách Đen (Blacklist). Thư có dấu hiệu bất thường và người gửi có điểm tín nhiệm thấp:\n            </p>\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:28px;\">\n              <tr>\n                <td style=\"background:#f1f5f9;padding:12px 20px;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:800;color:#334155;text-transform:uppercase;\">\n                  📋 BẢN GHI SỰ CỐ AN NINH (INCIDENT LOG)\n                </td>\n              </tr>\n              <tr>\n                <td style=\"padding:20px;\">\n                  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">\n                    <tr><td width=\"36%\" style=\"font-size:13px;color:#64748b;font-weight:600;\">Địa chỉ người gửi:</td><td style=\"font-size:13px;color:#b91c1c;font-weight:800;font-family:monospace;\">${cleanSender}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Tiêu đề email:</td><td style=\"font-size:13px;color:#0f172a;font-weight:700;\">${subject}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Thời điểm tiếp nhận:</td><td style=\"font-size:13px;color:#334155;\">${receivedAt}</td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Trạng thái xử lý:</td><td><span style=\"background:#dc2626;color:#ffffff;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:800;\">ĐÃ CÁCH LY THÀNH CÔNG (QUARANTINED)</span></td></tr>\n                    <tr><td style=\"font-size:13px;color:#64748b;font-weight:600;\">Phân vùng lưu trữ:</td><td style=\"font-size:12px;color:#475569;font-family:monospace;\">PostgreSQL / table: <strong>quarantine_vault</strong></td></tr>\n                  </table>\n                </td>\n              </tr>\n            </table>\n\n            <div style=\"background:#fffbeb;border:1px solid #fde68a;border-left:5px solid #f59e0b;padding:16px 20px;border-radius:8px;margin-bottom:28px;\">\n              <h4 style=\"margin:0 0 8px;font-size:13px;color:#92400e;font-weight:800;\">QUY TRÌNH XỬ LÝ KHUYẾN NGHỊ:</h4>\n              <ul style=\"margin:0;padding-left:18px;font-size:12px;color:#78350f;line-height:1.7;\">\n                <li>Kiểm tra nhật ký kiểm toán tại bảng <code>system_audit_logs</code> (Event: <code>SENDER_BLACKLIST_QUARANTINE</code>).</li>\n                <li><strong>Cảnh báo an toàn:</strong> Không mở các liên kết web hoặc tải về tệp tin đính kèm từ địa chỉ này.</li>\n              </ul>\n            </div>\n\n            <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">\n              <tr>\n                <td align=\"center\">\n                  <a href=\"http://localhost:3000/tickets\" target=\"_blank\" style=\"display:inline-block;background:linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:14px 32px;border-radius:10px;box-shadow:0 6px 18px rgba(185,28,28,0.35);\">\n                    👉 MỞ CỔNG QUẢN TRỊ XEM NHẬT KÝ AN NINH (PORTAL)\n                  </a>\n                </td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;\">\n            <p style=\"margin:0 0 4px;font-size:12px;font-weight:800;color:#334155;\">HỆ THỐNG AN NINH &amp; PHÒNG VỆ EMAIL DOANH NGHIỆP</p>\n            <p style=\"margin:0;font-size:10px;color:#94a3b8;\">Hotline Hỗ Trợ Kỹ Thuật: 1900 8888</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn [{\n  json: {\n    sender_email: cleanSender,\n    sender_name: senderName,\n    subject: subject,\n    body: cleanBody,\n    received_at: new Date().toISOString(),\n    security_email_subject: securityEmailSubject,\n    security_email_html: securityEmailHtml,\n    security_email_text: securityEmailText\n  }\n}];\n"
       },
       "id": "flow1-node-2",
       "name": "2. Payload Normalization Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        420,
+        300
+      ]
     },
     {
       "parameters": {
@@ -47,7 +53,10 @@
       "name": "3. Filter System Bounces IF",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [640, 300]
+      "position": [
+        640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -61,7 +70,10 @@
       "name": "4. Check Sender Reputation Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [860, 200],
+      "position": [
+        860,
+        200
+      ],
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
@@ -86,7 +98,10 @@
       "name": "5. IF Blacklisted Sender",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [1080, 200]
+      "position": [
+        1080,
+        200
+      ]
     },
     {
       "parameters": {
@@ -100,7 +115,10 @@
       "name": "6. Quarantine Vault Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [1300, 100],
+      "position": [
+        1300,
+        100
+      ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
@@ -110,23 +128,31 @@
     },
     {
       "parameters": {
-        "fromEmail": "security-alert@enterprise.com",
+        "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "tranglee12306@gmail.com",
-        "subject": "=[SECURITY ALERT] Phát hiện & Cách ly Email Blacklist từ {{ $('2. Payload Normalization Code').first().json.sender_email }}",
-        "text": "=CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP\n\nHệ thống vừa phát hiện và đưa vào vùng cách ly bức thư sau:\n- Người gửi: {{ $('2. Payload Normalization Code').first().json.sender_email }}\n- Tiêu đề: {{ $('2. Payload Normalization Code').first().json.subject }}\n- Thời điểm: {{ $('2. Payload Normalization Code').first().json.received_at }}\n- Trạng thái: ĐÃ CÁCH LY THÀNH CÔNG (QUARANTINED)\n\nVui lòng kiểm tra nhật ký an ninh tại bảng system_audit_logs.",
-        "options": {}
+        "subject": "={{ $('2. Payload Normalization Code').first().json.security_email_subject }}",
+        "options": {
+          "appendAttribution": false
+        },
+        "html": "={{ $('2. Payload Normalization Code').first().json.security_email_html }}",
+        "emailFormat": "both",
+        "text": "={{ $('2. Payload Normalization Code').first().json.security_email_text }}"
       },
       "id": "flow1-node-7",
       "name": "7. Security Alert Email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1520, 100],
+      "position": [
+        1520,
+        100
+      ],
       "credentials": {
         "smtp": {
           "id": "Jtq10Z7c0pkw5YhZ",
           "name": "SMTP account"
         }
-      }
+      },
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -140,7 +166,10 @@
       "name": "8. Record Reputation Strike Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [1740, 100],
+      "position": [
+        1740,
+        100
+      ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
@@ -156,7 +185,10 @@
       "name": "9. Package Clean Email Code",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 300]
+      "position": [
+        1300,
+        300
+      ]
     },
     {
       "parameters": {
@@ -170,7 +202,10 @@
       "name": "10. Audit Log Clean Ingest Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [1520, 300],
+      "position": [
+        1520,
+        300
+      ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
@@ -191,7 +226,10 @@
       "name": "11. Dispatch to Flow 2 HTTP",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1740, 300]
+      "position": [
+        1740,
+        300
+      ]
     },
     {
       "parameters": {
@@ -205,7 +243,10 @@
       "name": "12. Ingest Complete Audit Postgres",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [1960, 300],
+      "position": [
+        1960,
+        300
+      ],
       "credentials": {
         "postgres": {
           "id": "CaIms8Oqvb0ztig0",
@@ -340,8 +381,9 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "id": "96BvBRGhR7jcUjTf"
 }

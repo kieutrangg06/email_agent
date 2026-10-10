@@ -46,6 +46,11 @@ export class TicketsController {
     return this.ticketsService.getStats();
   }
 
+  @Get('triage/quarantine')
+  async getQuarantineLogs() {
+    return this.ticketsService.getQuarantineLogs();
+  }
+
   @Post('triage/in-app-alert')
   async inAppAlert(@Body() body: any) {
     return { status: 'acknowledged', received: body };

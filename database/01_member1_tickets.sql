@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS email_triage_logs (
 -- 2. Bảng Chuyên viên Hỗ trợ (Support Agents - Phục vụ Luồng 3 điều phối vé)
 CREATE TABLE IF NOT EXISTS support_agents (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(255) NOT NULL,
     category VARCHAR(50) NOT NULL, -- 'Technical', 'Sales', 'Finance', 'General'
     status VARCHAR(20) DEFAULT 'AVAILABLE', -- 'AVAILABLE', 'BUSY', 'OFFLINE'
@@ -34,7 +34,8 @@ INSERT INTO support_agents (name, email, category, status, active_tickets_count)
 ('Trần Hoàng Bách', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', 0),
 ('Lê Thị Mai', 'tranglee12306@gmail.com', 'Sales', 'AVAILABLE', 0),
 ('Phạm Đức Trọng', 'tranglee12306@gmail.com', 'Finance', 'AVAILABLE', 0),
-('Đỗ Thúy Vy', 'tranglee12306@gmail.com', 'General', 'AVAILABLE', 0);
+('Đỗ Thúy Vy', 'tranglee12306@gmail.com', 'General', 'AVAILABLE', 0)
+ON CONFLICT (name) DO UPDATE SET email = EXCLUDED.email;
 
 -- 3. Bảng Tickets & SLA (Luồng 3: Ticket Generation & SLA Dispatching)
 CREATE TABLE IF NOT EXISTS tickets (

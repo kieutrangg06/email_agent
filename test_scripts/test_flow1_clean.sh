@@ -12,8 +12,8 @@ echo ">>> Gửi email sự cố kỹ thuật hợp lệ tới Webhook Luồng 1.
 curl -X POST http://localhost:5678/webhook/m1-flow1-ingest \
   -H "Content-Type: application/json" \
   -d '{
-    "from": "doanh-nghiep-vip@congty.com",
-    "name": "Giám Đốc Vận Hành",
+    "from": "trangltk.24it@vku.udn.vn",
+    "name": "Lê Thị Kiều Trang",
     "subject": "Hệ thống sập, API lỗi 504 Gateway Timeout trên production",
     "text": "Chào đội ngũ hỗ trợ, từ 08:30 sáng nay cổng thanh toán báo lỗi 504 liên tục. Đề nghị kiểm tra khẩn cấp vì khách hàng không thể thanh toán được đơn hàng."
   }'

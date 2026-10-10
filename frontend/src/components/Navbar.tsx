@@ -1,34 +1,33 @@
 import Link from 'next/link';
+import { Mail } from 'lucide-react';
 
 export function Navbar() {
   return (
-    <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <header className="border-b border-rose-150 bg-white/85 backdrop-blur-md sticky top-0 z-50 shadow-sm shadow-rose-100/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        {/* Brand */}
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white shadow-lg shadow-emerald-500/20">
-            M1
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 flex items-center justify-center font-bold text-white shadow-md shadow-rose-200">
+            <Mail className="w-5 h-5 text-white" />
           </div>
-          <span className="font-semibold text-lg text-white tracking-tight">
-            AI Email Triage &amp; Helpdesk SLA
-          </span>
-          <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
-            Member 1 Edition
-          </span>
+          <div className="flex flex-col">
+            <span className="font-bold text-base text-slate-800 tracking-tight">
+              Email Automation &amp; Helpdesk
+            </span>
+            <span className="text-[11px] text-slate-400 font-medium">
+              Hệ Thống Tiếp Nhận &amp; Điều Phối Vé Hỗ Trợ
+            </span>
+          </div>
         </div>
 
-        <nav className="flex items-center space-x-1 sm:space-x-2 text-sm">
-          <Link
-            href="/"
-            className="px-3 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition"
-          >
-            Tổng quan (3 Luồng)
-          </Link>
+        {/* Navigation */}
+        <nav className="flex items-center space-x-2 text-sm">
           <Link
             href="/tickets"
-            className="px-3 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-1.5 font-medium"
+            className="px-3.5 py-1.5 rounded-lg text-rose-600 bg-rose-50/80 hover:bg-rose-100/80 transition font-semibold flex items-center gap-1.5 border border-rose-200/60"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            Triage &amp; Ticket Dashboard
+            <Mail className="w-4 h-4 text-rose-500" />
+            <span>Hộp Thư &amp; Vé Hỗ Trợ</span>
           </Link>
         </nav>
       </div>
