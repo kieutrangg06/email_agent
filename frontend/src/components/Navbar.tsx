@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Mail } from 'lucide-react';
+import { Mail, CheckCircle, BarChart2 } from 'lucide-react';
 
 export function Navbar() {
   return (
@@ -15,7 +15,7 @@ export function Navbar() {
               Email Automation &amp; Helpdesk
             </span>
             <span className="text-[11px] text-slate-400 font-medium">
-              Hệ Thống Tiếp Nhận &amp; Điều Phối Vé Hỗ Trợ
+              Hệ Thống Tiếp Nhận, Điều Phối &amp; Phản Hồi RAG
             </span>
           </div>
         </div>
@@ -24,10 +24,24 @@ export function Navbar() {
         <nav className="flex items-center space-x-2 text-sm">
           <Link
             href="/tickets"
-            className="px-3.5 py-1.5 rounded-lg text-rose-600 bg-rose-50/80 hover:bg-rose-100/80 transition font-semibold flex items-center gap-1.5 border border-rose-200/60"
+            className="px-3.5 py-1.5 rounded-lg text-slate-700 hover:text-rose-600 hover:bg-rose-50/80 transition font-semibold flex items-center gap-1.5 border border-transparent hover:border-rose-200/60"
           >
             <Mail className="w-4 h-4 text-rose-500" />
-            <span>Hộp Thư &amp; Vé Hỗ Trợ</span>
+            <span>Hộp Thư &amp; Vé Hỗ Trợ (TV1)</span>
+          </Link>
+          <Link
+            href="/approval"
+            className="px-3.5 py-1.5 rounded-lg text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/80 transition font-semibold flex items-center gap-1.5 border border-transparent hover:border-indigo-200/60"
+          >
+            <CheckCircle className="w-4 h-4 text-indigo-500" />
+            <span>Duyệt Thư RAG (TV2)</span>
+          </Link>
+          <Link
+            href="/analytics"
+            className="px-3.5 py-1.5 rounded-lg text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/80 transition font-semibold flex items-center gap-1.5 border border-transparent hover:border-emerald-200/60"
+          >
+            <BarChart2 className="w-4 h-4 text-emerald-500" />
+            <span>Báo Cáo Điều Hành (TV2)</span>
           </Link>
         </nav>
       </div>
