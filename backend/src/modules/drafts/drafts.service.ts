@@ -97,26 +97,49 @@ export class DraftsService {
 
   async updateDraftStatus(id: number, payload: any) {
     this.logger.log(`Updating status for draft #${id} to ${payload.status}`);
+    const isSent = payload.status === 'SENT';
     const query = `
       UPDATE email_drafts
-      SET status = $1,
-          reviewed_by = COALESCE($2, reviewed_by),
+      SET status = $1::text,
+          reviewed_by = COALESCE($2::text, reviewed_by),
           reviewed_at = NOW(),
-          sent_at = CASE WHEN $1 = 'SENT' THEN NOW() ELSE sent_at END,
-          proposed_subject = COALESCE($3, proposed_subject),
-          proposed_body = COALESCE($4, proposed_body)
-      WHERE id = $5
+          sent_at = ${isSent ? 'NOW()' : 'sent_at'},
+          proposed_subject = COALESCE($3::text, proposed_subject),
+          proposed_body = COALESCE($4::text, proposed_body),
+          subject = COALESCE($5::text, subject),
+          html_content = COALESCE($6::text, html_content)
+      WHERE id = $7::int
       RETURNING *;
     `;
     const res = await this.db.query(query, [
       payload.status,
       payload.reviewed_by || 'reviewer@company.com',
-      payload.proposed_subject,
-      payload.proposed_body,
+      payload.proposed_subject || payload.subject || null,
+      payload.proposed_body || payload.html_content || null,
+      payload.subject || payload.proposed_subject || null,
+      payload.html_content || payload.proposed_body || null,
       id,
     ]);
 
     const updated = res.rows[0];
+
+    // If status is SENT, update ticket status to RESOLVED
+    if (updated && updated.ticket_code && isSent) {
+      try {
+        const tRes = await this.db.query(
+          "UPDATE tickets SET status = 'RESOLVED', resolved_at = NOW() WHERE ticket_code = $1 RETURNING *;",
+          [updated.ticket_code]
+        );
+        if (tRes.rows.length > 0 && tRes.rows[0].agent_email) {
+          await this.db.query(
+            'UPDATE support_agents SET active_tickets_count = GREATEST(active_tickets_count - 1, 0) WHERE email = $1;',
+            [tRes.rows[0].agent_email]
+          ).catch(() => {});
+        }
+      } catch (err: any) {
+        this.logger.warn(`Could not resolve ticket ${updated.ticket_code}: ${err.message}`);
+      }
+    }
 
     // Emit SSE event
     this.notifications$.next({
