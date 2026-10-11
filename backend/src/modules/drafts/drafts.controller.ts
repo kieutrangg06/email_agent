@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   ParseIntPipe,
+  Query,
   Sse,
 } from '@nestjs/common';
 import { DraftsService, DraftNotificationEvent } from './drafts.service';
@@ -21,8 +22,8 @@ export class DraftsController {
   }
 
   @Get('drafts')
-  async getAllDrafts() {
-    return this.draftsService.getAllDrafts();
+  async getAllDrafts(@Query('status') status?: string) {
+    return this.draftsService.getAllDrafts(status);
   }
 
   @Get('drafts/pending')

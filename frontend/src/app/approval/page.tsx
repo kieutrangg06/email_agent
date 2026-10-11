@@ -48,7 +48,7 @@ interface Draft {
 }
 
 export default function ApprovalPage() {
-  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [allDrafts, setAllDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'PENDING_APPROVAL' | 'ALL' | 'SENT' | 'REJECTED'>('PENDING_APPROVAL');
   const [reviewerEmail, setReviewerEmail] = useState('reviewer@company.com');
@@ -65,42 +65,44 @@ export default function ApprovalPage() {
 
   const fetchDrafts = () => {
     setLoading(true);
-    const endpoint = statusFilter === 'PENDING_APPROVAL'
-      ? 'http://localhost:4000/api/v1/drafts/pending'
-      : (statusFilter === 'ALL' ? 'http://localhost:4000/api/v1/drafts' : `http://localhost:4000/api/v1/drafts?status=${statusFilter}`);
-
-    fetch(endpoint)
+    fetch('http://localhost:4000/api/v1/drafts')
       .then((res) => {
         if (!res.ok) throw new Error('API request failed');
         return res.json();
       })
       .then((data) => {
         if (Array.isArray(data)) {
-          setDrafts(data);
+          setAllDrafts(data);
         }
         setLoading(false);
       })
-      .catch(() => {
-        // Fallback to general drafts
-        fetch('http://localhost:4000/api/v1/drafts')
-          .then((r) => r.json())
-          .then((data) => {
-            if (Array.isArray(data)) {
-              if (statusFilter === 'PENDING_APPROVAL') {
-                setDrafts(data.filter((d: any) => d.status === 'PENDING_APPROVAL'));
-              } else {
-                setDrafts(data);
-              }
-            }
-            setLoading(false);
-          })
-          .catch(() => setLoading(false));
+      .catch((err) => {
+        console.warn('Failed to load drafts:', err);
+        setLoading(false);
       });
   };
 
   useEffect(() => {
     fetchDrafts();
-  }, [statusFilter]);
+  }, []);
+
+  // Filter drafts based on active tab
+  const displayedDrafts = useMemo(() => {
+    if (statusFilter === 'ALL') return allDrafts;
+    return allDrafts.filter((d) => d.status === statusFilter);
+  }, [allDrafts, statusFilter]);
+
+  // Overall KPI stats
+  const stats = useMemo(() => {
+    const total = allDrafts.length;
+    const pending = allDrafts.filter((d) => d.status === 'PENDING_APPROVAL').length;
+    const sent = allDrafts.filter((d) => d.status === 'SENT').length;
+    const rejected = allDrafts.filter((d) => d.status === 'REJECTED').length;
+    const avgScore = total > 0
+      ? (allDrafts.reduce((acc, d) => acc + (Number(d.confidence_score) || 92), 0) / total).toFixed(1)
+      : '93.5';
+    return { total, pending, sent, rejected, avgScore };
+  }, [allDrafts]);
 
   // Real-time notification listener via Server-Sent Events (SSE)
   useEffect(() => {
@@ -197,7 +199,7 @@ export default function ApprovalPage() {
       if (patchRes.ok) {
         setActionMsg({
           type: 'success',
-          text: `✅ Bản thảo #${draft.id} đã được DUYỆT & GỬI thành công qua Luồng 5! Email SMTP đã phân phối và vé đã chuyển sang RESOLVED.`,
+          text: `✅ Bản thảo #${draft.id} (${draft.ticket_code}) đã được DUYỆT & GỬI thành công qua Luồng 5! Email SMTP đã phân phối và vé đã chuyển sang RESOLVED.`,
         });
         setEditingDraftId(null);
         fetchDrafts();
@@ -229,7 +231,7 @@ export default function ApprovalPage() {
       if (res.ok) {
         setActionMsg({
           type: 'info',
-          text: `🚫 Bản thảo #${draft.id} đã bị TỪ CHỐI (REJECTED). Không gửi email ra bên ngoài.`,
+          text: `🚫 Bản thảo #${draft.id} (${draft.ticket_code}) đã bị TỪ CHỐI (REJECTED). Không gửi email ra bên ngoài.`,
         });
         fetchDrafts();
       }
@@ -239,18 +241,6 @@ export default function ApprovalPage() {
       setActionLoading(null);
     }
   };
-
-  // Stats for the ribbon
-  const stats = useMemo(() => {
-    const total = drafts.length;
-    const pending = drafts.filter((d) => d.status === 'PENDING_APPROVAL').length;
-    const sent = drafts.filter((d) => d.status === 'SENT').length;
-    const rejected = drafts.filter((d) => d.status === 'REJECTED').length;
-    const avgScore = total > 0
-      ? (drafts.reduce((acc, d) => acc + (Number(d.confidence_score) || 92), 0) / total).toFixed(1)
-      : '93.5';
-    return { total, pending, sent, rejected, avgScore };
-  }, [drafts]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -382,6 +372,15 @@ export default function ApprovalPage() {
       <div className="flex border-b border-rose-200/80 gap-2 overflow-x-auto pb-1">
         {(['PENDING_APPROVAL', 'ALL', 'SENT', 'REJECTED'] as const).map((filter) => {
           const isActive = statusFilter === filter;
+          const count =
+            filter === 'PENDING_APPROVAL'
+              ? stats.pending
+              : filter === 'ALL'
+              ? stats.total
+              : filter === 'SENT'
+              ? stats.sent
+              : stats.rejected;
+
           return (
             <button
               key={filter}
@@ -397,10 +396,10 @@ export default function ApprovalPage() {
               {filter === 'SENT' && <CheckCircle2 className="w-4 h-4" />}
               {filter === 'REJECTED' && <XCircle className="w-4 h-4" />}
               <span>
-                {filter === 'PENDING_APPROVAL' && 'Chờ Duyệt (Pending)'}
-                {filter === 'ALL' && 'Tất Cả Bản Thảo'}
-                {filter === 'SENT' && 'Đã Gửi (Sent)'}
-                {filter === 'REJECTED' && 'Từ Chối (Rejected)'}
+                {filter === 'PENDING_APPROVAL' && `Chờ Duyệt (${count})`}
+                {filter === 'ALL' && `Tất Cả (${count})`}
+                {filter === 'SENT' && `Đã Gửi (${count})`}
+                {filter === 'REJECTED' && `Từ Chối (${count})`}
               </span>
             </button>
           );
@@ -415,19 +414,30 @@ export default function ApprovalPage() {
             <span className="text-sm font-medium">Đang tải danh sách bản thảo từ PostgreSQL...</span>
           </div>
         </div>
-      ) : drafts.length === 0 ? (
+      ) : displayedDrafts.length === 0 ? (
         <div className="py-20 text-center bg-white rounded-3xl border border-rose-150 shadow-xs p-8">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mb-3">
             <Inbox className="w-7 h-7" />
           </div>
-          <p className="text-slate-700 text-base font-bold">Không có bản thảo nào ở trạng thái này</p>
+          <p className="text-slate-700 text-base font-bold">
+            {statusFilter === 'PENDING_APPROVAL' && 'Không có bản thảo nào đang chờ duyệt'}
+            {statusFilter === 'SENT' && 'Chưa có bản thảo nào đã gửi'}
+            {statusFilter === 'REJECTED' && 'Chưa có bản thảo nào bị từ chối'}
+            {statusFilter === 'ALL' && 'Không có bản thảo nào trong hệ thống'}
+          </p>
           <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-md mx-auto">
-            Khi Luồng 3 chuyển giao ticket sang Luồng 4 (Vector RAG), bản thảo phản hồi tự động sẽ xuất hiện tại đây để chuyên viên duyệt.
+            {statusFilter === 'PENDING_APPROVAL'
+              ? 'Khi Luồng 3 chuyển giao ticket sang Luồng 4 (Vector RAG), bản thảo phản hồi tự động sẽ xuất hiện tại đây để chuyên viên duyệt.'
+              : statusFilter === 'SENT'
+              ? 'Các email đã được duyệt và chuyển phát thành công qua SMTP sẽ được lưu trữ tại đây.'
+              : statusFilter === 'REJECTED'
+              ? 'Các bản thảo bị từ chối không gửi ra bên ngoài sẽ hiển thị tại đây.'
+              : 'Toàn bộ danh sách bản thảo trong cơ sở dữ liệu.'}
           </p>
         </div>
       ) : (
         <div className="space-y-6">
-          {drafts.map((draft) => {
+          {displayedDrafts.map((draft) => {
             const isEditing = editingDraftId === draft.id;
             const isExpanded = expandedDrafts[draft.id] || false;
             const subjectToShow = isEditing ? editSubject : (draft.subject || draft.proposed_subject);
@@ -645,6 +655,24 @@ export default function ApprovalPage() {
                           </>
                         )}
                       </button>
+                    </div>
+                  )}
+
+                  {draft.status === 'SENT' && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-xl shadow-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Đã gửi thành công qua SMTP</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {draft.status === 'REJECTED' && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl shadow-xs">
+                        <XCircle className="w-4 h-4 text-rose-600" />
+                        <span>Đã từ chối (Không gửi)</span>
+                      </span>
                     </div>
                   )}
                 </div>

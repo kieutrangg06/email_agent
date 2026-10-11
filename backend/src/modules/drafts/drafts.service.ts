@@ -58,13 +58,24 @@ export class DraftsService {
     return created;
   }
 
-  async getAllDrafts() {
-    const res = await this.db.query(
-      `SELECT d.*, t.priority, t.assigned_to 
-       FROM email_drafts d 
-       LEFT JOIN tickets t ON d.ticket_code = t.ticket_code 
-       ORDER BY d.created_at DESC LIMIT 100;`
-    );
+  async getAllDrafts(status?: string) {
+    let query = `
+      SELECT d.*, 
+             COALESCE(t.priority, 'P2 - High') as priority, 
+             t.assigned_to, 
+             t.title as ticket_title,
+             t.status as ticket_status,
+             t.sla_due_at
+      FROM email_drafts d 
+      LEFT JOIN tickets t ON (d.ticket_code = t.ticket_code OR d.ticket_id = t.id)
+    `;
+    const params: any[] = [];
+    if (status && status !== 'ALL' && status !== 'All') {
+      params.push(status);
+      query += ` WHERE d.status = $1`;
+    }
+    query += ` ORDER BY d.created_at DESC LIMIT 100;`;
+    const res = await this.db.query(query, params);
     return res.rows;
   }
 
