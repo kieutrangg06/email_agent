@@ -1,6 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Edit3,
+  Clock,
+  AlertTriangle,
+  Mail,
+  Sparkles,
+  Send,
+  X,
+  FileText,
+  UserCheck,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  ShieldCheck,
+  Bot,
+  Check,
+} from 'lucide-react';
 
 interface Draft {
   id: number;
@@ -150,16 +170,14 @@ export default function ApprovalPage() {
         action: 'APPROVE_SEND',
       };
 
-      let webhookSuccess = false;
       try {
-        const n8nRes = await fetch('http://localhost:5678/webhook/m2-flow5-approval', {
+        await fetch('http://localhost:5678/webhook/m2-flow5-approval', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(webhookPayload),
         });
-        if (n8nRes.ok) webhookSuccess = true;
       } catch {
-        // n8n might be executing async or direct via backend
+        // n8n webhook might be asynchronous
       }
 
       // 2. Call NestJS backend PATCH /api/v1/drafts/:id/status
@@ -179,7 +197,7 @@ export default function ApprovalPage() {
       if (patchRes.ok) {
         setActionMsg({
           type: 'success',
-          text: `✅ Bản thảo #${draft.id} đã được DUYỆT & GỬI thành công qua Luồng 5! Email SMTP đã được phân phối và vé đã được chuyển sang RESOLVED.`,
+          text: `✅ Bản thảo #${draft.id} đã được DUYỆT & GỬI thành công qua Luồng 5! Email SMTP đã phân phối và vé đã chuyển sang RESOLVED.`,
         });
         setEditingDraftId(null);
         fetchDrafts();
@@ -222,289 +240,419 @@ export default function ApprovalPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 sm:p-10">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full text-xs font-semibold tracking-wide">
-                THÀNH VIÊN 2 &bull; HITL
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                Human-in-the-Loop Web Approval
-              </h1>
-            </div>
-            <p className="text-sm text-slate-400 mt-1">
-              Phê duyệt, chỉnh sửa bản thảo phản hồi do AI RAG tạo ra trước khi xuất ngoại (Outbound Dispatch Luồng 5)
-            </p>
-          </div>
+  // Stats for the ribbon
+  const stats = useMemo(() => {
+    const total = drafts.length;
+    const pending = drafts.filter((d) => d.status === 'PENDING_APPROVAL').length;
+    const sent = drafts.filter((d) => d.status === 'SENT').length;
+    const rejected = drafts.filter((d) => d.status === 'REJECTED').length;
+    const avgScore = total > 0
+      ? (drafts.reduce((acc, d) => acc + (Number(d.confidence_score) || 92), 0) / total).toFixed(1)
+      : '93.5';
+    return { total, pending, sent, rejected, avgScore };
+  }, [drafts]);
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
-              <span className="text-slate-400">Reviewer:</span>
-              <input
-                type="email"
-                value={reviewerEmail}
-                onChange={(e) => setReviewerEmail(e.target.value)}
-                className="bg-transparent border-none text-indigo-300 font-mono focus:outline-none w-48 text-xs"
-              />
+  return (
+    <div className="space-y-6 pb-12">
+      {/* Toast Notification Banner */}
+      {actionMsg && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-md animate-bounce-short">
+          <div
+            className={`p-4 rounded-2xl shadow-xl border flex items-start gap-3 backdrop-blur-md ${
+              actionMsg.type === 'success'
+                ? 'bg-emerald-50/95 border-emerald-200 text-emerald-900'
+                : actionMsg.type === 'error'
+                ? 'bg-rose-50/95 border-rose-200 text-rose-900'
+                : 'bg-sky-50/95 border-sky-200 text-sky-900'
+            }`}
+          >
+            {actionMsg.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />}
+            {actionMsg.type === 'error' && <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />}
+            {actionMsg.type === 'info' && <Sparkles className="w-5 h-5 text-sky-500 shrink-0 mt-0.5" />}
+            <div className="space-y-0.5 flex-1">
+              <p className="font-bold text-sm">
+                {actionMsg.type === 'success' ? 'Thao tác thành công' : actionMsg.type === 'error' ? 'Lỗi hệ thống' : 'Thông báo vận hành'}
+              </p>
+              <p className="text-xs leading-relaxed opacity-90">{actionMsg.text}</p>
             </div>
             <button
-              onClick={fetchDrafts}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition shadow-md shadow-indigo-600/20 flex items-center gap-2"
+              onClick={() => setActionMsg(null)}
+              className="text-slate-400 hover:text-slate-600 ml-auto shrink-0"
             >
-              🔄 Tải lại
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
+      )}
 
-        {/* Action message banner */}
-        {actionMsg && (
-          <div
-            className={`p-4 rounded-xl text-sm border flex items-center justify-between ${
-              actionMsg.type === 'success'
-                ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                : actionMsg.type === 'error'
-                ? 'bg-rose-950/60 border-rose-500/40 text-rose-300'
-                : 'bg-blue-950/60 border-blue-500/40 text-blue-300'
-            }`}
-          >
-            <span>{actionMsg.text}</span>
-            <button
-              onClick={() => setActionMsg(null)}
-              className="text-xs opacity-60 hover:opacity-100 ml-4 font-bold"
-            >
-              ✕
-            </button>
+      {/* Page Header Card */}
+      <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+              THÀNH VIÊN 2 • HITL APPROVAL
+            </span>
           </div>
-        )}
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
+            Phê Duyệt &amp; Phân Phối Thư Phản Hồi RAG
+          </h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            Kiểm duyệt, tinh chỉnh bản thảo do AI RAG tạo ra trước khi xuất ngoại qua SMTP (Luồng 5) và đóng vé hỗ trợ.
+          </p>
+        </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-          {(['PENDING_APPROVAL', 'ALL', 'SENT', 'REJECTED'] as const).map((filter) => (
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 bg-slate-50 border border-rose-200/80 px-3 py-1.5 rounded-xl text-xs">
+            <UserCheck className="w-4 h-4 text-rose-500" />
+            <span className="text-slate-500 font-medium">Chuyên viên:</span>
+            <input
+              type="email"
+              value={reviewerEmail}
+              onChange={(e) => setReviewerEmail(e.target.value)}
+              className="bg-white border border-rose-200 rounded-lg px-2 py-0.5 text-rose-700 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-rose-400 w-44"
+            />
+          </div>
+
+          <button
+            onClick={fetchDrafts}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
+            title="Làm mới dữ liệu từ Database"
+          >
+            <RefreshCw className={`w-4 h-4 text-rose-500 ${loading ? 'animate-spin' : ''}`} />
+            <span>Làm Mới</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Ribbon */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-rose-150 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-400">Tổng Bản Thảo</p>
+            <p className="text-xl font-extrabold text-slate-800">{stats.total}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-rose-150 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-400">Đang Chờ Duyệt</p>
+            <p className="text-xl font-extrabold text-amber-600">{stats.pending}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-rose-150 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-400">Đã Duyệt &amp; Gửi</p>
+            <p className="text-xl font-extrabold text-emerald-700">{stats.sent}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-rose-150 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-100/80 text-rose-700 flex items-center justify-center font-bold">
+            <XCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-400">Bị Từ Chối</p>
+            <p className="text-xl font-extrabold text-rose-600">{stats.rejected}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-rose-150 shadow-xs flex items-center gap-3 col-span-2 sm:col-span-1">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-400">Độ Tin Cậy AI</p>
+            <p className="text-xl font-extrabold text-purple-700">{stats.avgScore}%</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Filter Tabs */}
+      <div className="flex border-b border-rose-200/80 gap-2 overflow-x-auto pb-1">
+        {(['PENDING_APPROVAL', 'ALL', 'SENT', 'REJECTED'] as const).map((filter) => {
+          const isActive = statusFilter === filter;
+          return (
             <button
               key={filter}
               onClick={() => setStatusFilter(filter)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                statusFilter === filter
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+              className={`pb-3 px-4 text-xs sm:text-sm font-bold transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
+                isActive
+                  ? 'border-rose-500 text-rose-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              {filter === 'PENDING_APPROVAL' && '⏳ Chờ duyệt (Pending)'}
-              {filter === 'ALL' && '📁 Tất cả'}
-              {filter === 'SENT' && '✅ Đã gửi (Sent)'}
-              {filter === 'REJECTED' && '❌ Từ chối (Rejected)'}
+              {filter === 'PENDING_APPROVAL' && <Clock className="w-4 h-4" />}
+              {filter === 'ALL' && <Inbox className="w-4 h-4" />}
+              {filter === 'SENT' && <CheckCircle2 className="w-4 h-4" />}
+              {filter === 'REJECTED' && <XCircle className="w-4 h-4" />}
+              <span>
+                {filter === 'PENDING_APPROVAL' && 'Chờ Duyệt (Pending)'}
+                {filter === 'ALL' && 'Tất Cả Bản Thảo'}
+                {filter === 'SENT' && 'Đã Gửi (Sent)'}
+                {filter === 'REJECTED' && 'Từ Chối (Rejected)'}
+              </span>
             </button>
-          ))}
-          <span className="ml-auto text-xs text-slate-500">
-            Tổng cộng: <strong className="text-white">{drafts.length}</strong> bản thảo
-          </span>
+          );
+        })}
+      </div>
+
+      {/* Drafts List Container */}
+      {loading ? (
+        <div className="py-20 text-center bg-white rounded-3xl border border-rose-150 shadow-xs">
+          <div className="flex items-center justify-center gap-2 text-rose-500">
+            <RefreshCw className="w-5 h-5 animate-spin" />
+            <span className="text-sm font-medium">Đang tải danh sách bản thảo từ PostgreSQL...</span>
+          </div>
         </div>
-
-        {/* Drafts List */}
-        {loading ? (
-          <div className="py-20 text-center text-slate-500 text-sm">
-            Đang tải danh sách bản thảo từ PostgreSQL...
+      ) : drafts.length === 0 ? (
+        <div className="py-20 text-center bg-white rounded-3xl border border-rose-150 shadow-xs p-8">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mb-3">
+            <Inbox className="w-7 h-7" />
           </div>
-        ) : drafts.length === 0 ? (
-          <div className="py-20 text-center bg-slate-900/40 rounded-2xl border border-slate-800/80">
-            <div className="text-4xl mb-3">📭</div>
-            <p className="text-slate-400 text-sm font-medium">Không có bản thảo nào ở trạng thái này</p>
-            <p className="text-slate-600 text-xs mt-1">
-              Khi Luồng 3 chuyển giao ticket sang Luồng 4, bản thảo phản hồi RAG sẽ tự động xuất hiện tại đây.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {drafts.map((draft) => {
-              const isEditing = editingDraftId === draft.id;
-              const isExpanded = expandedDrafts[draft.id] || false;
-              const subjectToShow = isEditing ? editSubject : (draft.subject || draft.proposed_subject);
-              const bodyToShow = isEditing ? editBody : (draft.html_content || draft.proposed_body);
+          <p className="text-slate-700 text-base font-bold">Không có bản thảo nào ở trạng thái này</p>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-md mx-auto">
+            Khi Luồng 3 chuyển giao ticket sang Luồng 4 (Vector RAG), bản thảo phản hồi tự động sẽ xuất hiện tại đây để chuyên viên duyệt.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {drafts.map((draft) => {
+            const isEditing = editingDraftId === draft.id;
+            const isExpanded = expandedDrafts[draft.id] || false;
+            const subjectToShow = isEditing ? editSubject : (draft.subject || draft.proposed_subject);
+            const bodyToShow = isEditing ? editBody : (draft.html_content || draft.proposed_body);
 
-              return (
-                <div
-                  key={draft.id}
-                  className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl transition hover:border-slate-700"
-                >
-                  {/* Card Header */}
-                  <div className="p-5 bg-slate-800/40 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs font-bold px-2.5 py-1 bg-slate-800 text-indigo-400 border border-indigo-500/30 rounded-md">
-                        {draft.ticket_code || `DRAFT-#${draft.id}`}
-                      </span>
-                      {draft.priority && (
-                        <span
-                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                            draft.priority.includes('P1')
-                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                              : draft.priority.includes('P2')
-                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          }`}
-                        >
-                          {draft.priority}
-                        </span>
-                      )}
+            return (
+              <div
+                key={draft.id}
+                className="bg-white rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/20 overflow-hidden transition hover:shadow-md hover:border-rose-200"
+              >
+                {/* Card Header */}
+                <div className="p-5 bg-rose-50/40 border-b border-rose-100 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-mono text-xs font-bold px-2.5 py-1 bg-white text-rose-700 border border-rose-200 rounded-lg shadow-xs">
+                      {draft.ticket_code || `DRAFT-#${draft.id}`}
+                    </span>
+
+                    {draft.priority && (
                       <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                          draft.status === 'PENDING_APPROVAL'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                            : draft.status === 'SENT'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                          draft.priority.includes('P1')
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : draft.priority.includes('P2')
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-sky-50 text-sky-700 border border-sky-200'
                         }`}
                       >
-                        {draft.status}
+                        {draft.priority}
                       </span>
-                    </div>
+                    )}
 
-                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <span
+                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${
+                        draft.status === 'PENDING_APPROVAL'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
+                          : draft.status === 'SENT'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}
+                    >
+                      {draft.status === 'PENDING_APPROVAL' ? 'CHỜ DUYỆT' : draft.status === 'SENT' ? 'ĐÃ GỬI' : 'TỪ CHỐI'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                       <span>
                         Độ tin cậy AI:{' '}
-                        <strong className="text-emerald-400 font-mono">
+                        <strong className="text-purple-700 font-bold font-mono">
                           {draft.confidence_score ? `${Number(draft.confidence_score).toFixed(1)}%` : '92.0%'}
                         </strong>
                       </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-slate-400" />
                       <span>
-                        Người nhận: <strong className="text-white font-mono">{draft.recipient_email}</strong>
+                        Gửi tới:{' '}
+                        <strong className="text-slate-800 font-mono">{draft.recipient_email}</strong>
                       </span>
                     </div>
                   </div>
-
-                  {/* Card Body */}
-                  <div className="p-6 space-y-5">
-                    {/* Customer Inquiry Snapshot */}
-                    {(draft.original_subject || draft.original_body) && (
-                      <div className="bg-slate-950/60 rounded-xl p-4 border border-slate-800/80 text-xs space-y-2">
-                        <div className="flex items-center justify-between text-slate-400">
-                          <span className="font-semibold text-slate-300">
-                            📩 Email gốc từ khách hàng ({draft.sender_name || draft.recipient_email}):
-                          </span>
-                          <button
-                            onClick={() => toggleExpand(draft.id)}
-                            className="text-indigo-400 hover:text-indigo-300 underline font-semibold"
-                          >
-                            {isExpanded ? 'Thu gọn' : 'Xem chi tiết'}
-                          </button>
-                        </div>
-                        <div className="text-slate-300 font-medium">
-                          <strong>Tiêu đề:</strong> {draft.original_subject}
-                        </div>
-                        {isExpanded && draft.original_body && (
-                          <div className="text-slate-400 mt-2 p-3 bg-slate-900 rounded border border-slate-800 whitespace-pre-wrap">
-                            {draft.original_body}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Draft Content / Edit Form */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300 tracking-wide uppercase">
-                          Tiêu đề thư phản hồi
-                        </label>
-                        {!isEditing && draft.status === 'PENDING_APPROVAL' && (
-                          <button
-                            onClick={() => startEdit(draft)}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold"
-                          >
-                            ✏️ Chỉnh sửa nội dung
-                          </button>
-                        )}
-                      </div>
-
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={editSubject}
-                          onChange={(e) => setEditSubject(e.target.value)}
-                          className="w-full bg-slate-950 border border-indigo-500/50 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      ) : (
-                        <div className="text-sm font-semibold text-white bg-slate-950/40 p-3 rounded-xl border border-slate-800">
-                          {subjectToShow}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between pt-2">
-                        <label className="text-xs font-bold text-slate-300 tracking-wide uppercase">
-                          Nội dung thư phản hồi (HTML / Text)
-                        </label>
-                      </div>
-
-                      {isEditing ? (
-                        <textarea
-                          rows={10}
-                          value={editBody}
-                          onChange={(e) => setEditBody(e.target.value)}
-                          className="w-full bg-slate-950 border border-indigo-500/50 rounded-xl p-4 font-mono text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      ) : (
-                        <div
-                          className="bg-slate-950 p-5 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed max-h-96 overflow-y-auto"
-                          dangerouslySetInnerHTML={{ __html: bodyToShow }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Edit Actions */}
-                    {isEditing && (
-                      <div className="flex items-center gap-3 pt-2">
-                        <button
-                          onClick={() => setEditingDraftId(null)}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-300 transition"
-                        >
-                          Lưu tạm trên màn hình
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="px-4 py-2 bg-transparent text-slate-400 hover:text-white text-xs font-semibold rounded-lg transition"
-                        >
-                          Hủy bỏ
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Card Footer / Dispatch Buttons */}
-                  <div className="p-5 bg-slate-950/60 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
-                    <div className="text-xs text-slate-500 font-mono">
-                      Tạo lúc: {draft.created_at ? new Date(draft.created_at).toLocaleString('vi-VN') : 'Vừa xong'}
-                      {draft.reviewed_by && ` &bull; Duyệt bởi: ${draft.reviewed_by}`}
-                    </div>
-
-                    {draft.status === 'PENDING_APPROVAL' && (
-                      <div className="flex items-center gap-3">
-                        <button
-                          disabled={actionLoading === draft.id}
-                          onClick={() => handleReject(draft)}
-                          className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800/60 text-rose-300 text-xs font-semibold rounded-lg transition disabled:opacity-50"
-                        >
-                          ❌ Từ chối
-                        </button>
-                        <button
-                          disabled={actionLoading === draft.id}
-                          onClick={() => handleApproveAndSend(draft)}
-                          className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-emerald-900/30 transition disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {actionLoading === draft.id ? '⏳ Đang phân phối...' : '🚀 Duyệt & Gửi (Luồng 5)'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
 
-      </div>
+                {/* Card Body */}
+                <div className="p-6 space-y-5">
+                  {/* Customer Inquiry Snapshot */}
+                  {(draft.original_subject || draft.original_body) && (
+                    <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80 text-xs space-y-2">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Mail className="w-3.5 h-3.5 text-rose-500" />
+                          Email gốc từ khách hàng ({draft.sender_name || draft.recipient_email}):
+                        </span>
+                        <button
+                          onClick={() => toggleExpand(draft.id)}
+                          className="text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 text-xs"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <span>Thu gọn</span>
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </>
+                          ) : (
+                            <>
+                              <span>Xem nội dung gốc</span>
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="text-slate-700 font-medium">
+                        <strong className="text-slate-900">Tiêu đề:</strong> {draft.original_subject}
+                      </div>
+
+                      {isExpanded && draft.original_body && (
+                        <div className="text-slate-600 mt-2 p-3 bg-white rounded-xl border border-slate-200 whitespace-pre-wrap leading-relaxed shadow-inner">
+                          {draft.original_body}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Draft Content / Edit Form */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-600 tracking-wide uppercase flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-rose-500" />
+                        Tiêu đề thư phản hồi
+                      </label>
+                      {!isEditing && draft.status === 'PENDING_APPROVAL' && (
+                        <button
+                          onClick={() => startEdit(draft)}
+                          className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1 font-bold"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Chỉnh sửa nội dung</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editSubject}
+                        onChange={(e) => setEditSubject(e.target.value)}
+                        className="w-full bg-white border border-rose-300 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-rose-200"
+                      />
+                    ) : (
+                      <div className="text-sm font-bold text-slate-800 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        {subjectToShow}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2">
+                      <label className="text-xs font-bold text-slate-600 tracking-wide uppercase flex items-center gap-1.5">
+                        <Bot className="w-3.5 h-3.5 text-rose-500" />
+                        Nội dung thư phản hồi (AI RAG Template HTML)
+                      </label>
+                    </div>
+
+                    {isEditing ? (
+                      <textarea
+                        rows={10}
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        className="w-full bg-white border border-rose-300 rounded-xl p-4 font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-200 leading-relaxed"
+                      />
+                    ) : (
+                      <div
+                        className="bg-slate-50/60 p-5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed max-h-96 overflow-y-auto"
+                        dangerouslySetInnerHTML={{ __html: bodyToShow }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Edit Actions */}
+                  {isEditing && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => setEditingDraftId(null)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Lưu tạm trên màn hình</span>
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold transition"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Hủy bỏ</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Footer / Dispatch Buttons */}
+                <div className="p-5 bg-rose-50/30 border-t border-rose-100 flex flex-wrap items-center justify-between gap-4">
+                  <div className="text-xs text-slate-500 font-medium">
+                    Tạo lúc: {draft.created_at ? new Date(draft.created_at).toLocaleString('vi-VN') : 'Vừa xong'}
+                    {draft.reviewed_by && (
+                      <span className="text-slate-700 font-semibold ml-2">
+                        • Duyệt bởi: {draft.reviewed_by}
+                      </span>
+                    )}
+                  </div>
+
+                  {draft.status === 'PENDING_APPROVAL' && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        disabled={actionLoading === draft.id}
+                        onClick={() => handleReject(draft)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold rounded-xl transition shadow-xs disabled:opacity-50"
+                      >
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                        <span>Từ chối</span>
+                      </button>
+                      <button
+                        disabled={actionLoading === draft.id}
+                        onClick={() => handleApproveAndSend(draft)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-rose-200 transition disabled:opacity-50"
+                      >
+                        {actionLoading === draft.id ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                            <span>Đang phân phối...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 text-white" />
+                            <span>Duyệt &amp; Gửi (Luồng 5)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
