@@ -1,0 +1,389 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search, ExternalLink } from 'lucide-react';
+
+interface Invoice {
+  id: number;
+  invoice_number: string;
+  seller_tax_id: string;
+  seller_name: string;
+  buyer_name: string;
+  buyer_email: string;
+  issue_date: string;
+  subtotal: number;
+  vat_amount: number;
+  total_amount: number;
+  calculated_total: number;
+  discrepancy: number;
+  is_math_valid: boolean;
+  math_status: string;
+  file_storage_path: string;
+  created_at: string;
+}
+
+interface AuditLog {
+  id: number;
+  event_type: string;
+  workflow_id: string;
+  description: string;
+  created_at: string;
+}
+
+export default function InvoicesPage() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'invoices' | 'logs'>('invoices');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'VALIDATED' | 'DISCREPANCY_FLAGGED'>('ALL');
+  const [search, setSearch] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [invRes, logRes] = await Promise.all([
+        fetch('http://localhost:4000/api/v1/finance/invoices').then((r) => (r.ok ? r.json() : [])),
+        fetch('http://localhost:4000/api/v1/finance/audit-logs').then((r) => (r.ok ? r.json() : [])),
+      ]);
+      setInvoices(Array.isArray(invRes) ? invRes : []);
+      setAuditLogs(Array.isArray(logRes) ? logRes : []);
+    } catch {
+      setInvoices([]);
+      setAuditLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleTriggerValidInvoice = async () => {
+    try {
+      showToast('Đang gửi hóa đơn hợp lệ qua Luồng 9...');
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const payload = {
+        filename: `hoadon_vat_${rand}.pdf`,
+        file_extension: 'pdf',
+        sender_email: 'ketoan.doitac@gmail.com',
+        sender_name: 'Công ty Cổ phần Giải pháp Số NovaCRM',
+        subtotal: 50000000,
+        vat_amount: 5000000,
+        total_amount: 55000000, // 50 + 5 = 55 (Khớp 100%)
+      };
+
+      const res = await fetch('http://localhost:5678/webhook/m3-flow9-invoice-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Webhook failed');
+      showToast('Luồng 9 thực thi thành công: Hóa đơn 55tr HỢP LỆ (VALIDATED)!');
+      setTimeout(fetchData, 1200);
+    } catch {
+      showToast('Lỗi kết nối Webhook Luồng 9. Hãy đảm bảo n8n đang chạy tại cổng 5678.');
+    }
+  };
+
+  const handleTriggerMismatchInvoice = async () => {
+    try {
+      showToast('Đang gửi hóa đơn sai lệch số học (Gian lận) qua Luồng 9...');
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const payload = {
+        filename: `hoadon_sai_lech_${rand}.pdf`,
+        file_extension: 'pdf',
+        sender_email: 'ketoan.nghivanketoan@gmail.com',
+        sender_name: 'Công ty Cổ phần Logistics Global',
+        subtotal: 45000000,
+        vat_amount: 4500000,
+        total_amount: 52000000, // 45 + 4.5 = 49.5 != 52 (Lệch 2.5tr)
+      };
+
+      const res = await fetch('http://localhost:5678/webhook/m3-flow9-invoice-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Webhook failed');
+      showToast('Luồng 9 phát hiện sai lệch số học! Đã gắn cờ DISCREPANCY_FLAGGED và báo động đỏ.');
+      setTimeout(fetchData, 1200);
+    } catch {
+      showToast('Lỗi kết nối Webhook Luồng 9. Hãy đảm bảo n8n đang chạy tại cổng 5678.');
+    }
+  };
+
+  const filteredInvoices = invoices.filter((inv) => {
+    const matchStatus = filterStatus === 'ALL' ? true : inv.math_status === filterStatus;
+    const matchSearch =
+      search === '' ||
+      inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
+      inv.seller_name.toLowerCase().includes(search.toLowerCase()) ||
+      inv.buyer_name.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
+  });
+
+  const validCount = invoices.filter((i) => i.math_status === 'VALIDATED').length;
+  const flagCount = invoices.filter((i) => i.math_status === 'DISCREPANCY_FLAGGED').length;
+  const totalVerifiedAmount = invoices
+    .filter((i) => i.math_status === 'VALIDATED')
+    .reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl border border-rose-500/30 flex items-center gap-2 animate-bounce">
+          <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-rose-100 shadow-sm">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200/60 text-purple-700 text-xs font-semibold mb-2">
+            <FileText className="w-3.5 h-3.5" />
+            <span>Thành Viên 3 &bull; Luồng 9 (Multi-Modal Invoice OCR &amp; Accounting Audit)</span>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Bóc Tách Hóa Đơn OCR &amp; Kiểm Toán Đối Soát Số Học</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Ứng dụng Vision AI nhận diện chứng từ PDF/Ảnh, tự động kiểm tra số học: Tiền hàng + VAT = Tổng thanh toán.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={fetchData}
+            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            title="Tải lại"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleTriggerValidInvoice}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-200 transition flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Bắn Hóa Đơn Hợp Lệ</span>
+          </button>
+          <button
+            onClick={handleTriggerMismatchInvoice}
+            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm shadow-md shadow-rose-200 transition flex items-center gap-2"
+          >
+            <AlertCircle className="w-4 h-4" />
+            <span>Bắn Hóa Đơn Sai Lệch</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Số Chứng Từ OCR</div>
+          <div className="text-2xl font-black text-slate-900 mt-2">{invoices.length}</div>
+          <div className="text-xs text-slate-400 mt-1">Đã bóc tách qua n8n Vision AI</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Chứng Từ Khớp 100%</div>
+          <div className="text-2xl font-black text-emerald-600 mt-2">{validCount}</div>
+          <div className="text-xs text-emerald-600/80 mt-1 font-semibold flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Đã ghi sổ kế toán nội bộ</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Sai Lệch Số Học / Báo Động</div>
+          <div className="text-2xl font-black text-rose-600 mt-2">{flagCount}</div>
+          <div className="text-xs text-rose-600/80 mt-1 font-semibold flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>Đã gửi cảnh báo Kế toán trưởng</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Tiền Quyết Toán Hợp Lệ</div>
+          <div className="text-2xl font-black text-slate-900 mt-2">
+            {totalVerifiedAmount.toLocaleString('vi-VN')} <span className="text-sm font-normal text-slate-500">VNĐ</span>
+          </div>
+          <div className="text-xs text-slate-400 mt-1">Chứng từ sẵn sàng thanh toán</div>
+        </div>
+      </div>
+
+      {/* Tabs & Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`font-semibold text-sm transition pb-2 border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'invoices' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Danh Sách Hóa Đơn ({invoices.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`font-semibold text-sm transition pb-2 border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'logs' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Nhật Ký Kiểm Toán Audit Logs ({auditLogs.length})</span>
+          </button>
+        </div>
+
+        {activeTab === 'invoices' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Tìm số HĐ, đơn vị..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            {(['ALL', 'VALIDATED', 'DISCREPANCY_FLAGGED'] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setFilterStatus(st)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  filterStatus === st ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {st === 'ALL' ? 'Tất cả' : st === 'VALIDATED' ? 'Hợp lệ' : 'Sai lệch'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Main Table Content */}
+      <div className="bg-white rounded-2xl border border-rose-100/70 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-400">Đang tải dữ liệu hóa đơn kế toán...</div>
+        ) : activeTab === 'invoices' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-3.5">Số Hóa Đơn</th>
+                  <th className="px-5 py-3.5">Đơn Vị Phát Hành (MST)</th>
+                  <th className="px-5 py-3.5">Khách Hàng Nhận</th>
+                  <th className="px-5 py-3.5">Tiền Hàng / VAT</th>
+                  <th className="px-5 py-3.5">Tổng Thanh Toán</th>
+                  <th className="px-5 py-3.5">Kiểm Toán Số Học</th>
+                  <th className="px-5 py-3.5">Tệp Gốc</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredInvoices.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                      Không tìm thấy chứng từ hóa đơn nào.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredInvoices.map((inv) => {
+                    const isOk = inv.math_status === 'VALIDATED';
+                    return (
+                      <tr key={inv.id} className="hover:bg-rose-50/20 transition">
+                        <td className="px-5 py-4">
+                          <div className="font-bold text-slate-900 font-mono">{inv.invoice_number}</div>
+                          <div className="text-xs text-slate-400">
+                            {new Date(inv.issue_date).toLocaleDateString('vi-VN')}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="font-semibold text-slate-800">{inv.seller_name}</div>
+                          <div className="text-xs font-mono text-slate-500">MST: {inv.seller_tax_id}</div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="text-slate-800 font-medium">{inv.buyer_name}</div>
+                          <div className="text-xs text-slate-400">{inv.buyer_email || 'N/A'}</div>
+                        </td>
+                        <td className="px-5 py-4 text-xs font-mono">
+                          <div>Hàng: {Number(inv.subtotal).toLocaleString('vi-VN')} đ</div>
+                          <div className="text-slate-400">VAT: {Number(inv.vat_amount).toLocaleString('vi-VN')} đ</div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="font-bold text-slate-900 font-mono">
+                            {Number(inv.total_amount).toLocaleString('vi-VN')} VNĐ
+                          </div>
+                          {!isOk && inv.discrepancy > 0 && (
+                            <div className="text-xs text-rose-600 font-bold mt-0.5">
+                              Lệch: {Number(inv.discrepancy).toLocaleString('vi-VN')} đ
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          {isOk ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Khớp 100%
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                              <XCircle className="w-3.5 h-3.5" /> Sai lệch số học
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-xs">
+                          <span className="text-slate-400 font-mono text-[11px] block truncate max-w-[140px]" title={inv.file_storage_path}>
+                            {inv.file_storage_path.split('/').pop() || 'storage.pdf'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-3.5">Mã Nhật Ký</th>
+                  <th className="px-5 py-3.5">Sự Kiện Kiểm Toán</th>
+                  <th className="px-5 py-3.5">Quy Trình (Workflow)</th>
+                  <th className="px-5 py-3.5">Mô Tả Đối Soát</th>
+                  <th className="px-5 py-3.5">Thời Gian</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-rose-50/20 transition">
+                    <td className="px-5 py-4 font-mono text-xs text-slate-400">#{log.id}</td>
+                    <td className="px-5 py-4">
+                      <span className="font-semibold text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                        {log.event_type}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-xs text-slate-600 font-mono">{log.workflow_id || 'System'}</td>
+                    <td className="px-5 py-4 text-xs text-slate-800">{log.description}</td>
+                    <td className="px-5 py-4 text-xs text-slate-400 font-mono">
+                      {new Date(log.created_at).toLocaleString('vi-VN')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

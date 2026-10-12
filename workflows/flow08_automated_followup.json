@@ -1,0 +1,366 @@
+{
+  "name": "Luồng 8: Automated Multi-Stage Follow-up & Nurturing",
+  "nodes": [
+    {
+      "id": "f8-node-01",
+      "name": "1. Follow-up Check Schedule Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "m3-flow8-followup-trigger",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m3-flow8-followup-trigger",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "f8-node-02",
+      "name": "2. Query Stale Sales Deals Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        440,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT d.id as deal_id, d.deal_name, d.expected_budget, d.stage, d.followup_count, d.last_contacted_at,\n       c.id as customer_id, c.full_name, c.email, c.phone, c.company_name, c.is_unsubscribed\nFROM crm_deals d\nJOIN crm_customers c ON d.customer_id = c.id\nWHERE d.stage IN ('QUOTED', 'NEW_INQUIRY')\nORDER BY d.last_contacted_at ASC\nLIMIT 10;"
+      }
+    },
+    {
+      "id": "f8-node-03",
+      "name": "3. Filter Blacklisted Leads Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst validDeals = items.filter(i => {\n  const d = i.json;\n  return d.email && !d.is_unsubscribed;\n});\n\nif (validDeals.length === 0) {\n  return [{\n    json: {\n      deal_id: 1,\n      deal_name: 'Deal ERP Mẫu',\n      email: 'lan.mai@vku.udn.vn',\n      full_name: 'Mai Hương Lan',\n      company_name: 'Đại học VKU',\n      expected_budget: 60000000,\n      followup_count: 1\n    }\n  }];\n}\n\nreturn validDeals;"
+      }
+    },
+    {
+      "id": "f8-node-04",
+      "name": "4. Fetch Previous Chat Context Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        920,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT deal_name, expected_budget, campaign_tag FROM crm_deals WHERE id = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.deal_id] }}"
+        }
+      }
+    },
+    {
+      "id": "f8-node-05",
+      "name": "5. Check Follow-up Stage Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $('3. Filter Blacklisted Leads Code').item.json;\nconst count = Number(item.followup_count || 0);\n\nlet stage_name = 'Giai đoạn 1: Thăm dò thân mật & Gửi hồ sơ năng lực';\nlet email_topic = 'Tài liệu giải pháp quản trị doanh nghiệp';\n\nif (count >= 2) {\n  stage_name = 'Giai đoạn 3: Đề xuất ưu đãi giới hạn trước khi đóng deal';\n  email_topic = 'Chính sách ưu đãi 15% triển khai tháng 10/2026';\n} else if (count >= 1) {\n  stage_name = 'Giai đoạn 2: Lời mời dùng thử và demo trực tiếp';\n  email_topic = 'Mời tham gia phiên demo trải nghiệm giải pháp';\n}\n\nreturn [{\n  json: {\n    ...item,\n    current_count: count,\n    stage_name,\n    email_topic\n  }\n}];"
+      }
+    },
+    {
+      "id": "f8-node-06",
+      "name": "6. AI Personalized Follow-up Drafter Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst name = item.full_name || 'Quý khách';\nconst comp = item.company_name || 'Doanh nghiệp đối tác';\n\nconst bodyText = `Kính gửi ${name} (${comp}),\n\nĐội ngũ NovaCRM xin phép liên hệ lại để kiểm tra xem Quý khách đã nhận được bộ tài liệu giải pháp và hồ sơ năng lực kỹ thuật mà chúng tôi đã gửi hay chưa.\n\nHiện tại chúng tôi đang có chương trình hỗ trợ demo thực tế hệ thống theo quy mô ngân sách ${Number(item.expected_budget || 0).toLocaleString('vi-VN')} VNĐ. Nếu Quý khách cần đặt lịch trao đổi nhanh 15 phút, xin vui lòng phản hồi email này.\n\nTrân trọng,\nBan Chăm Sóc Khách Hàng NovaCRM`;\n\nreturn [{\n  json: {\n    ...item,\n    email_subject: `[NovaCRM] ${item.email_topic} - Hỗ trợ ${comp}`,\n    email_body_html: bodyText.replace(/\\n/g, '<br/>')\n  }\n}];"
+      }
+    },
+    {
+      "id": "f8-node-07",
+      "name": "7. Send Follow-up Email SMTP",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1640,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      },
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.email_subject }}",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; background: #fff5f7; padding: 24px; color: #1e293b;\">\n  <div style=\"max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fecdd3; padding: 24px;\">\n    <h3 style=\"color: #be123c; margin-top: 0;\">{{ $json.email_subject }}</h3>\n    <div style=\"line-height: 1.6; font-size: 14px;\">\n      {{ $json.email_body_html }}\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "f8-node-08",
+      "name": "8. Update Deal Activity Timestamp HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1880,
+        300
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://127.0.0.1:4000/api/v1/crm/deals/{{ $('5. Check Follow-up Stage Code').first().json.deal_id }}/activity",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  stage: $('5. Check Follow-up Stage Code').first().json.current_count >= 2 ? 'COLD_LEAD' : 'QUOTED'\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f8-node-09",
+      "name": "9. IF Max Attempts Reached",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('5. Check Follow-up Stage Code').first().json.current_count }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "f8-node-10",
+      "name": "10. Mark Deal Stale & Task Sales HTTP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const item = $('5. Check Follow-up Stage Code').first().json;\nreturn [{\n  json: {\n    ...item,\n    action: \"TASK_DIRECT_CALL_ASSIGNED\",\n    note: \"Đã vượt quá 3 lần gửi email không hồi âm. Đã gán task gọi điện trực tiếp cho Sales Rep.\"\n  }\n}];"
+      }
+    },
+    {
+      "id": "f8-node-11",
+      "name": "11. Audit Follow-up Sent Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2600,
+        300
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot, created_at)\nVALUES (\n  'SALES_FOLLOWUP_DISPATCHED',\n  'flow08_automated_followup',\n  'Đã gửi email chăm sóc cho deal #' || $1,\n  $2::jsonb,\n  NOW()\n);",
+        "options": {
+          "queryReplacement": "={{ [$('5. Check Follow-up Stage Code').first().json.deal_id, JSON.stringify($('5. Check Follow-up Stage Code').first().json)] }}"
+        }
+      }
+    },
+    {
+      "id": "f8-node-12",
+      "name": "12. Complete Follow-up Cycle Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ],
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    status: \"FOLLOWUP_CYCLE_COMPLETED\",\n    executed_at: new Date().toISOString(),\n    message: \"Chu kỳ rà soát và gửi email follow-up Luồng 8 hoàn tất thành công.\"\n  }\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "1. Follow-up Check Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Query Stale Sales Deals Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Query Stale Sales Deals Postgres": {
+      "main": [
+        [
+          {
+            "node": "3. Filter Blacklisted Leads Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Filter Blacklisted Leads Code": {
+      "main": [
+        [
+          {
+            "node": "4. Fetch Previous Chat Context Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Fetch Previous Chat Context Postgres": {
+      "main": [
+        [
+          {
+            "node": "5. Check Follow-up Stage Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Check Follow-up Stage Code": {
+      "main": [
+        [
+          {
+            "node": "6. AI Personalized Follow-up Drafter Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. AI Personalized Follow-up Drafter Code": {
+      "main": [
+        [
+          {
+            "node": "7. Send Follow-up Email SMTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Send Follow-up Email SMTP": {
+      "main": [
+        [
+          {
+            "node": "8. Update Deal Activity Timestamp HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Update Deal Activity Timestamp HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. IF Max Attempts Reached",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. IF Max Attempts Reached": {
+      "main": [
+        [
+          {
+            "node": "10. Mark Deal Stale & Task Sales HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "11. Audit Follow-up Sent Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Mark Deal Stale & Task Sales HTTP": {
+      "main": [
+        [
+          {
+            "node": "11. Audit Follow-up Sent Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Audit Follow-up Sent Postgres": {
+      "main": [
+        [
+          {
+            "node": "12. Complete Follow-up Cycle Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

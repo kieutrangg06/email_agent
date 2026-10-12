@@ -1,0 +1,378 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Users, DollarSign, TrendingUp, Send, RefreshCw, Plus, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
+
+interface Customer {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string;
+  company_name: string;
+  lead_score: number;
+  is_unsubscribed: boolean;
+  created_at?: string;
+}
+
+interface Deal {
+  id: number;
+  customer_id: number;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  lead_score?: number;
+  deal_name: string;
+  expected_budget: number;
+  stage: string;
+  campaign_tag: string;
+  assigned_sales_rep: string;
+  followup_count: number;
+  last_contacted_at: string;
+  created_at: string;
+}
+
+export default function CrmPage() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStage, setFilterStage] = useState('ALL');
+  const [activeTab, setActiveTab] = useState<'deals' | 'customers'>('deals');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [cRes, dRes] = await Promise.all([
+        fetch('http://localhost:4000/api/v1/crm/customers').then((r) => (r.ok ? r.json() : [])),
+        fetch('http://localhost:4000/api/v1/crm/deals').then((r) => (r.ok ? r.json() : [])),
+      ]);
+      setCustomers(Array.isArray(cRes) ? cRes : []);
+      setDeals(Array.isArray(dRes) ? dRes : []);
+    } catch {
+      setCustomers([]);
+      setDeals([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleTriggerFlow7 = async () => {
+    try {
+      showToast('Đang kích hoạt Luồng 7 (AI Lead Extraction & Scoring)...');
+      const payload = {
+        sender_email: `lead_${Date.now().toString().slice(-4)}@vinacorp.vn`,
+        sender_name: 'Phan Văn Nam',
+        company: 'Tập đoàn VinaCorp',
+        phone: '0912888999',
+        budget: '95000000',
+        content: 'Chúng tôi cần triển khai hệ thống quản trị khách hàng cho 200 nhân sự với ngân sách khoảng 95 triệu đồng. Trân trọng, Phan Văn Nam - 0912888999',
+      };
+
+      const res = await fetch('http://localhost:5678/webhook/m3-flow7-crm-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Webhook failed');
+      showToast('Luồng 7 thực thi thành công: Lead VIP 95tr đã được ghi nhận!');
+      setTimeout(fetchData, 1200);
+    } catch {
+      showToast('Lỗi gửi Webhook Luồng 7. Hãy đảm bảo n8n đang chạy tại cổng 5678.');
+    }
+  };
+
+  const handleTriggerFlow8 = async () => {
+    try {
+      showToast('Đang kích hoạt Luồng 8 (Automated Multi-Stage Follow-up)...');
+      const res = await fetch('http://localhost:5678/webhook/m3-flow8-followup-trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trigger_mode: 'MANUAL_TEST', timestamp: new Date().toISOString() }),
+      });
+
+      if (!res.ok) throw new Error('Webhook failed');
+      showToast('Luồng 8 thực thi thành công: Đã rà soát và bắn email chăm sóc!');
+      setTimeout(fetchData, 1200);
+    } catch {
+      showToast('Lỗi gửi Webhook Luồng 8. Hãy đảm bảo n8n đang chạy.');
+    }
+  };
+
+  const filteredDeals = deals.filter((d) => (filterStage === 'ALL' ? true : d.stage === filterStage));
+
+  const totalPipeline = deals.reduce((acc, d) => acc + Number(d.expected_budget || 0), 0);
+  const vipCount = customers.filter((c) => c.lead_score >= 80).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl border border-rose-500/30 flex items-center gap-2 animate-bounce">
+          <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-rose-100 shadow-sm">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-amber-700 text-xs font-semibold mb-2">
+            <Users className="w-3.5 h-3.5" />
+            <span>Thành Viên 3 &bull; Luồng 7 &amp; Luồng 8 (CRM Lead Scoring &amp; Follow-up)</span>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Quản Lý Đường Ống Bán Hàng &amp; Nuôi Dưỡng Khách Hàng</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Tự động trích xuất thực thể, tính điểm Lead Score, phân khúc chiến dịch và gửi chuỗi email chăm sóc tự động.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={fetchData}
+            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            title="Tải lại dữ liệu"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleTriggerFlow7}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-semibold text-sm shadow-md shadow-amber-200 transition flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Bắn Lead Mẫu (Luồng 7)</span>
+          </button>
+          <button
+            onClick={handleTriggerFlow8}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm shadow-md transition flex items-center gap-2"
+          >
+            <Send className="w-4 h-4" />
+            <span>Chạy Follow-up 48h (Luồng 8)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Giá Trị Pipeline</div>
+          <div className="text-2xl font-black text-slate-900 mt-2">
+            {totalPipeline.toLocaleString('vi-VN')} <span className="text-sm font-normal text-slate-500">VNĐ</span>
+          </div>
+          <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>{deals.length} cơ hội kinh doanh</span>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lead Tiềm Năng VIP (&ge; 80 pts)</div>
+          <div className="text-2xl font-black text-amber-600 mt-2">{vipCount}</div>
+          <div className="text-xs text-slate-400 mt-1">Được ưu tiên tư vấn khẩn cấp</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Số Khách Hàng</div>
+          <div className="text-2xl font-black text-slate-900 mt-2">{customers.length}</div>
+          <div className="text-xs text-slate-400 mt-1">Lưu trữ trên crm_customers</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đang Chăm Sóc (Quoted)</div>
+          <div className="text-2xl font-black text-rose-600 mt-2">
+            {deals.filter((d) => d.stage === 'QUOTED').length}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">Trong chu kỳ gửi email Luồng 8</div>
+        </div>
+      </div>
+
+      {/* Tabs & Filters */}
+      <div className="flex items-center justify-between border-b border-slate-200">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setActiveTab('deals')}
+            className={`pb-3 font-semibold text-sm transition border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'deals' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Cơ Hội Bán Hàng (Deals Pipeline)</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={`pb-3 font-semibold text-sm transition border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'customers' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Hồ Sơ Khách Hàng (Customer Scores)</span>
+          </button>
+        </div>
+
+        {activeTab === 'deals' && (
+          <div className="flex items-center gap-1.5 pb-2">
+            {['ALL', 'NEW_INQUIRY', 'QUOTED', 'COLD_LEAD', 'WON'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setFilterStage(st)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                  filterStage === st ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Main Table Content */}
+      <div className="bg-white rounded-2xl border border-rose-100/70 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-400">Đang tải dữ liệu đường ống CRM...</div>
+        ) : activeTab === 'deals' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-3.5">Cơ Hội (Deal)</th>
+                  <th className="px-5 py-3.5">Khách Hàng / Công Ty</th>
+                  <th className="px-5 py-3.5">Ngân Sách Dự Kiến</th>
+                  <th className="px-5 py-3.5">Điểm Tiềm Năng</th>
+                  <th className="px-5 py-3.5">Giai Đoạn</th>
+                  <th className="px-5 py-3.5">Follow-up</th>
+                  <th className="px-5 py-3.5">Phụ Trách</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredDeals.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                      Chưa có cơ hội bán hàng nào trong giai đoạn này.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDeals.map((deal) => {
+                    const score = Number(deal.lead_score || 70);
+                    return (
+                      <tr key={deal.id} className="hover:bg-rose-50/20 transition">
+                        <td className="px-5 py-4">
+                          <div className="font-bold text-slate-900">{deal.deal_name}</div>
+                          <div className="text-xs text-slate-400 font-mono mt-0.5">Mã #{deal.id} &bull; {deal.campaign_tag}</div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="font-semibold text-slate-800">{deal.customer_name || 'Khách hàng'}</div>
+                          <div className="text-xs text-slate-500">{deal.customer_email} &bull; {deal.customer_phone || 'N/A'}</div>
+                        </td>
+                        <td className="px-5 py-4 font-bold text-emerald-700">
+                          {Number(deal.expected_budget || 0).toLocaleString('vi-VN')} VNĐ
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                score >= 80 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {score} PTS
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              deal.stage === 'NEW_INQUIRY'
+                                ? 'bg-blue-100 text-blue-700'
+                                : deal.stage === 'QUOTED'
+                                ? 'bg-amber-100 text-amber-700'
+                                : deal.stage === 'COLD_LEAD'
+                                ? 'bg-slate-200 text-slate-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                            }`}
+                          >
+                            {deal.stage}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="text-xs text-slate-600 flex items-center gap-1 font-medium">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Đã gửi {deal.followup_count} lần</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {new Date(deal.last_contacted_at).toLocaleDateString('vi-VN')}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-xs font-medium text-slate-700">
+                          {deal.assigned_sales_rep || 'Nguyễn Văn An'}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-3.5">Họ &amp; Tên Khách Hàng</th>
+                  <th className="px-5 py-3.5">Doanh Nghiệp / Đơn Vị</th>
+                  <th className="px-5 py-3.5">Email &amp; Số Điện Thoại</th>
+                  <th className="px-5 py-3.5">Điểm Tiềm Năng (Score)</th>
+                  <th className="px-5 py-3.5">Trạng Thái Email</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {customers.map((c) => (
+                  <tr key={c.id} className="hover:bg-rose-50/20 transition">
+                    <td className="px-5 py-4 font-bold text-slate-900">{c.full_name}</td>
+                    <td className="px-5 py-4 text-slate-700 font-medium">{c.company_name}</td>
+                    <td className="px-5 py-4 text-xs">
+                      <div className="text-slate-800 font-medium">{c.email}</div>
+                      <div className="text-slate-400">{c.phone || 'Chưa cập nhật SĐT'}</div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              c.lead_score >= 80 ? 'bg-amber-500' : c.lead_score >= 60 ? 'bg-blue-500' : 'bg-slate-400'
+                            }`}
+                            style={{ width: `${Math.min(c.lead_score, 100)}%` }}
+                          />
+                        </div>
+                        <span className="font-bold text-xs text-slate-700">{c.lead_score} / 100</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      {c.is_unsubscribed ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-rose-600 font-semibold">
+                          <AlertTriangle className="w-3.5 h-3.5" /> Từ chối nhận tin
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Sẵn sàng nhận mail
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
