@@ -1,0 +1,402 @@
+{
+  "id": "flow05hitlsend01",
+  "name": "Luồng 5 - Human-in-the-Loop Web Approval & Outbound Dispatch (12 Nodes)",
+  "nodes": [
+    {
+      "id": "f5-node-01",
+      "name": "1. Human Action Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "m2-flow5-approval",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m2-flow5-approval",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5-node-02",
+      "name": "2. Validate Reviewer Permission HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/reviewers/validate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  reviewer_email: $('1. Human Action Webhook Trigger').first().json.body?.reviewer_email || $('1. Human Action Webhook Trigger').first().json.reviewer_email || 'reviewer@company.com'\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5-node-03",
+      "name": "3. Fetch Final Draft Content Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT d.*, t.id AS t_id, t.ticket_code AS t_code, t.created_at AS ticket_created_at, t.sla_due_at, t.first_response_sla FROM email_drafts d LEFT JOIN tickets t ON (d.ticket_id = t.id OR d.ticket_code = t.ticket_code) WHERE d.id = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [Number($('1. Human Action Webhook Trigger').first().json.body?.draft_id || $('1. Human Action Webhook Trigger').first().json.draft_id || 1)] }}"
+        }
+      }
+    },
+    {
+      "id": "f5-node-04",
+      "name": "4. Email Address Validation Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const draft = $input.first().json;\nconst webhookRaw = $('1. Human Action Webhook Trigger').first().json;\nconst webhookBody = webhookRaw.body || webhookRaw;\n\nconst recipientEmail = String(draft.recipient_email || 'client@enterprise.com').trim().toLowerCase();\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst isValidEmail = emailRegex.test(recipientEmail);\n\nif (!isValidEmail) {\n  throw new Error(`Địa chỉ email người nhận không hợp lệ cú pháp: ${recipientEmail}`);\n}\n\n// Ưu tiên nội dung đã qua chỉnh sửa từ Human Reviewer\nconst reviewerEmail = String(webhookBody.reviewer_email || 'reviewer@company.com').trim();\nconst finalSubject = String(webhookBody.modified_subject || draft.subject || draft.proposed_subject || 'Phản hồi hỗ trợ').trim();\nconst finalBody = String(webhookBody.modified_body || draft.html_content || draft.proposed_body || 'Nội dung phản hồi').trim();\n\nconst ticketCode = draft.ticket_code || draft.t_code || 'TK-UNKNOWN';\nconst ticketId = draft.ticket_id || draft.t_id || null;\nconst ticketCreatedAt = draft.ticket_created_at || draft.created_at || new Date().toISOString();\nconst slaDueAt = draft.sla_due_at || draft.first_response_sla || new Date(Date.now() + 24 * 3600 * 1000).toISOString();\n\nreturn [{\n  json: {\n    ...draft,\n    draft_id: draft.id,\n    recipient_email: recipientEmail,\n    reviewer_email: reviewerEmail,\n    final_subject: finalSubject,\n    final_html: finalBody,\n    ticket_code: ticketCode,\n    ticket_id: ticketId,\n    ticket_created_at: ticketCreatedAt,\n    sla_due_at: slaDueAt,\n    is_valid_email: true\n  }\n}];"
+      }
+    },
+    {
+      "id": "f5-node-05",
+      "name": "5. Send Outbound Email SMTP",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1160,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "parameters": {
+        "fromEmail": "support@company.com",
+        "toEmail": "={{ $json.recipient_email }}",
+        "subject": "={{ $json.final_subject }}",
+        "html": "={{ $json.final_html }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5-node-06",
+      "name": "6. IF Send Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !$json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f5-node-07",
+      "name": "7. Update Draft Sent Status HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1640,
+        220
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'http://localhost:4000/api/v1/drafts/' + $('4. Email Address Validation Code').first().json.draft_id + '/status' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  status: \"SENT\",\n  reviewed_by: $('4. Email Address Validation Code').first().json.reviewer_email,\n  subject: $('4. Email Address Validation Code').first().json.final_subject,\n  html_content: $('4. Email Address Validation Code').first().json.final_html,\n  sent_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5-node-08",
+      "name": "8. Update Ticket Status HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1880,
+        220
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'http://localhost:4000/api/v1/tickets/' + $('4. Email Address Validation Code').first().json.ticket_code + '/status' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  status: \"RESOLVED\"\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5-node-09",
+      "name": "9. Append Resolution Comment Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2120,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ticket_comments (ticket_id, author_type, content) VALUES ((SELECT id FROM tickets WHERE ticket_code = $1 LIMIT 1), 'HUMAN_AGENT', $2) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('4. Email Address Validation Code').first().json.ticket_code, $('4. Email Address Validation Code').first().json.final_subject + ' | Đã gửi phản hồi thành công qua SMTP'] }}"
+        }
+      }
+    },
+    {
+      "id": "f5-node-10",
+      "name": "10. Calculate Resolution Time Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        220
+      ],
+      "parameters": {
+        "jsCode": "const draft = $('4. Email Address Validation Code').first().json;\n\nconst sentAt = new Date();\nconst createdAt = new Date(draft.ticket_created_at || Date.now());\nconst resolutionTimeMs = Math.max(0, sentAt.getTime() - createdAt.getTime());\nconst resolutionTimeMinutes = Math.round(resolutionTimeMs / 60000);\n\nconst slaDueAt = new Date(draft.sla_due_at || (createdAt.getTime() + 24 * 3600 * 1000));\nconst isMetSla = sentAt.getTime() <= slaDueAt.getTime();\nconst slaStatus = isMetSla ? 'MET_SLA' : 'BREACHED_SLA';\n\nreturn [{\n  json: {\n    ...draft,\n    sent_at: sentAt.toISOString(),\n    resolution_time_ms: resolutionTimeMs,\n    resolution_time_minutes: resolutionTimeMinutes,\n    is_met_sla: isMetSla,\n    sla_status: slaStatus\n  }\n}];"
+      }
+    },
+    {
+      "id": "f5-node-11",
+      "name": "11. Log SLA Compliance Metric Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2600,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot) VALUES ($1, 'flow05_hitl_approval_send', $2, $3::jsonb) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('10. Calculate Resolution Time Code').first().json.sla_status,\n  'Đánh giá SLA cho vé ' + $('4. Email Address Validation Code').first().json.ticket_code + ': ' + $('10. Calculate Resolution Time Code').first().json.sla_status,\n  JSON.stringify({\n    ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n    resolution_time_ms: $('10. Calculate Resolution Time Code').first().json.resolution_time_ms,\n    resolution_time_minutes: $('10. Calculate Resolution Time Code').first().json.resolution_time_minutes,\n    sla_status: $('10. Calculate Resolution Time Code').first().json.sla_status,\n    reviewer_email: $('4. Email Address Validation Code').first().json.reviewer_email\n  })\n] }}"
+        }
+      }
+    },
+    {
+      "id": "f5-node-12",
+      "name": "12. Audit Log Email Dispatched Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2840,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot) VALUES ('OUTBOUND_EMAIL_SUCCESSFULLY_SENT', 'flow05_hitl_approval_send', 'Email phản hồi khách hàng đã được gửi thành công sau khi phê duyệt HITL', $1::jsonb) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify({\n  draft_id: $('4. Email Address Validation Code').first().json.draft_id,\n  ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n  recipient_email: $('4. Email Address Validation Code').first().json.recipient_email,\n  reviewer_email: $('4. Email Address Validation Code').first().json.reviewer_email,\n  final_subject: $('4. Email Address Validation Code').first().json.final_subject,\n  status: 'RESOLVED',\n  dispatched_at: new Date().toISOString()\n})] }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Human Action Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Validate Reviewer Permission HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Validate Reviewer Permission HTTP": {
+      "main": [
+        [
+          {
+            "node": "3. Fetch Final Draft Content Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Fetch Final Draft Content Postgres": {
+      "main": [
+        [
+          {
+            "node": "4. Email Address Validation Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Email Address Validation Code": {
+      "main": [
+        [
+          {
+            "node": "5. Send Outbound Email SMTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Send Outbound Email SMTP": {
+      "main": [
+        [
+          {
+            "node": "6. IF Send Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. IF Send Success": {
+      "main": [
+        [
+          {
+            "node": "7. Update Draft Sent Status HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12. Audit Log Email Dispatched Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Update Draft Sent Status HTTP": {
+      "main": [
+        [
+          {
+            "node": "8. Update Ticket Status HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Update Ticket Status HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. Append Resolution Comment Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Append Resolution Comment Postgres": {
+      "main": [
+        [
+          {
+            "node": "10. Calculate Resolution Time Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Calculate Resolution Time Code": {
+      "main": [
+        [
+          {
+            "node": "11. Log SLA Compliance Metric Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Log SLA Compliance Metric Postgres": {
+      "main": [
+        [
+          {
+            "node": "12. Audit Log Email Dispatched Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}

@@ -14,7 +14,7 @@ import { TicketsService } from './tickets.service';
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
-  // 1. Triage Endpoints (Luồng 1 & Triage Page)
+  // 1. Triage Endpoints (Luồng 1 & 2)
   @Get('triage/departments')
   async getDepartments() {
     return this.ticketsService.getDepartments();
@@ -46,23 +46,19 @@ export class TicketsController {
     return this.ticketsService.getStats();
   }
 
+  @Get('triage/quarantine')
+  async getQuarantineLogs() {
+    return this.ticketsService.getQuarantineLogs();
+  }
+
   @Post('triage/in-app-alert')
   async inAppAlert(@Body() body: any) {
     return { status: 'acknowledged', received: body };
   }
 
-  // 2. Ticket Endpoints (Luồng 2 & Tickets Page)
+  // 2. Ticket Endpoints (Luồng 3 & Tickets Page)
   @Get('tickets')
   async getAllTickets(
-    @Query('status') status?: string,
-    @Query('priority') priority?: string,
-  ) {
-    return this.ticketsService.getAllTickets(status, priority);
-  }
-
-  // Alias for compatibility with older frontend calls
-  @Get('triage/tickets')
-  async getAllTicketsAlias(
     @Query('status') status?: string,
     @Query('priority') priority?: string,
   ) {
@@ -89,9 +85,14 @@ export class TicketsController {
     return this.ticketsService.createTicket(body);
   }
 
-  @Post('triage/tickets')
-  async createTicketAlias(@Body() body: any) {
-    return this.ticketsService.createTicket(body);
+  @Post('tickets/comments')
+  async addComment(@Body() body: any) {
+    return this.ticketsService.addTicketComment(body);
+  }
+
+  @Get('tickets/:code/comments')
+  async getComments(@Param('code') code: string) {
+    return this.ticketsService.getTicketComments(code);
   }
 
   @Patch('tickets/:code/status')
@@ -106,9 +107,5 @@ export class TicketsController {
   async resolveTicket(@Param('code') code: string) {
     return this.ticketsService.resolveTicket(code);
   }
-
-  @Patch('triage/tickets/:code/resolve')
-  async resolveTicketAlias(@Param('code') code: string) {
-    return this.ticketsService.resolveTicket(code);
-  }
 }
+

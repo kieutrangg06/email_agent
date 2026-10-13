@@ -1,112 +1,129 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../core/database/database.service';
 
-export interface CrmNotification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  invoiceNumber?: string;
-  createdAt: string;
+export interface CrmCustomerDto {
+  fullName?: string;
+  full_name?: string;
+  email: string;
+  phone?: string;
+  companyName?: string;
+  company_name?: string;
+  company?: string;
+  leadScore?: number;
+  lead_score?: number;
+  isUnsubscribed?: boolean;
+  is_unsubscribed?: boolean;
+}
+
+export interface CrmDealDto {
+  customerId?: number;
+  customer_id?: number;
+  email?: string;
+  dealName?: string;
+  deal_name?: string;
+  expectedBudget?: number;
+  expected_budget?: number;
+  stage?: string;
+  campaignTag?: string;
+  campaign_tag?: string;
+  assignedSalesRep?: string;
+  assigned_sales_rep?: string;
 }
 
 @Injectable()
 export class CrmService {
-  private notifications: CrmNotification[] = [];
-
   constructor(private readonly db: DatabaseService) {}
 
   async getAllCustomers() {
     const res = await this.db.query(
-      'SELECT * FROM crm_customers ORDER BY created_at DESC'
+      `SELECT * FROM crm_customers ORDER BY created_at DESC`
     );
     return res.rows.map((row: any) => ({
       id: row.id,
-      email: row.email,
       full_name: row.full_name || '',
-      company: row.company || '',
+      email: row.email,
       phone: row.phone || '',
+      company_name: row.company_name || row.company || 'Doanh nghiệp đối tác',
       lead_score: Number(row.lead_score || 0),
-      status: row.status || 'NEW',
+      is_unsubscribed: Boolean(row.is_unsubscribed),
       created_at: row.created_at,
       updated_at: row.updated_at,
     }));
   }
 
-  async upsertLead(payload: any) {
-    const email = payload.email || payload.senderEmail || payload.sender_email;
-    if (!email) {
-      throw new Error('Email is required for CRM Lead');
-    }
+  async upsertCustomer(dto: CrmCustomerDto) {
+    const email = dto.email;
+    if (!email) throw new Error('Email is required');
 
-    const fullName =
-      payload.full_name ||
-      payload.fullName ||
-      payload.sender_name ||
-      payload.senderName ||
-      'Khách hàng tiềm năng';
-
-    const company =
-      payload.company ||
-      payload.companyName ||
-      payload.sender_company ||
-      'Doanh nghiệp liên hệ';
-
-    const phone = payload.phone || payload.phoneNumber || null;
-
-    let leadScore = 50;
-    if (payload.lead_score !== undefined) {
-      leadScore = Number(payload.lead_score);
-    } else if (payload.leadScore !== undefined) {
-      leadScore = Number(payload.leadScore);
-    } else if (payload.score !== undefined) {
-      leadScore = Number(payload.score);
-    } else {
-      // Calculate dynamic score if budget or dealValue is provided
-      const dealValue = Number(
-        payload.dealValue || payload.deal_value || payload.budget || 0
-      );
-      if (dealValue >= 50000000) leadScore += 40;
-      if (phone) leadScore += 10;
-    }
-
-    const status =
-      payload.status || (leadScore >= 80 ? 'PRIORITY_SALES' : 'QUALIFIED');
+    const fullName = dto.fullName || dto.full_name || 'Khách hàng tiềm năng';
+    const phone = dto.phone || null;
+    const company = dto.companyName || dto.company_name || dto.company || 'Doanh nghiệp đối tác';
+    const leadScore = Number(dto.leadScore ?? dto.lead_score ?? 65);
+    const isUnsubscribed = Boolean(dto.isUnsubscribed ?? dto.is_unsubscribed ?? false);
 
     const res = await this.db.query(
-      `INSERT INTO crm_customers (email, full_name, company, phone, lead_score, status, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+      `INSERT INTO crm_customers (email, full_name, phone, company_name, company, lead_score, is_unsubscribed, updated_at)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, NOW())
        ON CONFLICT (email) DO UPDATE SET
-         full_name = COALESCE(EXCLUDED.full_name, crm_customers.full_name),
-         company = COALESCE(EXCLUDED.company, crm_customers.company),
+         full_name = EXCLUDED.full_name,
          phone = COALESCE(EXCLUDED.phone, crm_customers.phone),
+         company_name = EXCLUDED.company_name,
+         company = EXCLUDED.company_name,
          lead_score = GREATEST(EXCLUDED.lead_score, crm_customers.lead_score),
-         status = EXCLUDED.status,
-         updated_at = CURRENT_TIMESTAMP
+         is_unsubscribed = EXCLUDED.is_unsubscribed,
+         updated_at = NOW()
        RETURNING *`,
-      [email, fullName, company, phone, leadScore, status]
+      [email, fullName, phone, company, leadScore, isUnsubscribed]
     );
 
     return res.rows[0];
   }
 
-  async addNotification(payload: any) {
-    const notif: CrmNotification = {
-      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      type: payload.type || 'INFO',
-      title: payload.title || 'Thông báo hệ thống',
-      message: payload.message || '',
-      invoiceNumber: payload.invoiceNumber || payload.invoice_number,
-      createdAt: new Date().toISOString(),
-    };
-    this.notifications.unshift(notif);
-    if (this.notifications.length > 50) {
-      this.notifications.pop();
-    }
-    return { success: true, notification: notif };
+  async getAllDeals() {
+    const res = await this.db.query(
+      `SELECT d.*, c.full_name as customer_name, c.email as customer_email, c.phone as customer_phone, c.lead_score
+       FROM crm_deals d
+       LEFT JOIN crm_customers c ON d.customer_id = c.id
+       ORDER BY d.created_at DESC`
+    );
+    return res.rows;
   }
 
-  async getNotifications() {
-    return this.notifications;
+  async createDeal(dto: CrmDealDto) {
+    let customerId = dto.customerId || dto.customer_id;
+
+    if (!customerId && dto.email) {
+      const cust = await this.upsertCustomer({ email: dto.email });
+      customerId = cust.id;
+    }
+
+    const dealName = dto.dealName || dto.deal_name || 'Cơ hội tư vấn giải pháp CRM';
+    const expectedBudget = Number(dto.expectedBudget ?? dto.expected_budget ?? 20000000);
+    const stage = dto.stage || 'NEW_INQUIRY';
+    const campaignTag = dto.campaignTag || dto.campaign_tag || 'ORGANIC';
+    const assignedSalesRep = dto.assignedSalesRep || dto.assigned_sales_rep || 'Nguyễn Văn An';
+
+    const res = await this.db.query(
+      `INSERT INTO crm_deals (customer_id, deal_name, expected_budget, stage, campaign_tag, assigned_sales_rep, followup_count, last_contacted_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 0, NOW(), NOW(), NOW())
+       RETURNING *`,
+      [customerId, dealName, expectedBudget, stage, campaignTag, assignedSalesRep]
+    );
+
+    return res.rows[0];
+  }
+
+  async updateDealActivity(dealId: number, data: { stage?: string; note?: string }) {
+    const res = await this.db.query(
+      `UPDATE crm_deals
+       SET followup_count = followup_count + 1,
+           last_contacted_at = NOW(),
+           stage = COALESCE($2, stage),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [dealId, data.stage || null]
+    );
+    return res.rows[0];
   }
 }

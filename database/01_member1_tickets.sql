@@ -1,96 +1,133 @@
 -- ====================================================================
--- DATABASE SCRIPT 01: MEMBER 1 - TRIAGE & TICKETS
--- (OWNER: MEMBER 1 - feature/m1-triage-ticket)
+-- MEMBER 1 DATABASE: TRIAGE LOGS, AGENTS, TICKETS & COMMENTS
 -- ====================================================================
 
--- 1. Bảng lưu trữ Triage Logs (Luồng 1: AI Email Triage & Routing)
+-- 1. Bảng lưu trữ Triage Logs (Luồng 1 & 2: Ingest & AI Triage - Agent 1)
 CREATE TABLE IF NOT EXISTS email_triage_logs (
     id SERIAL PRIMARY KEY,
+    inbound_email VARCHAR(255),
     sender_email VARCHAR(255) NOT NULL,
     sender_name VARCHAR(100),
     subject TEXT NOT NULL,
     body_snippet TEXT,
+    classified_department VARCHAR(50), -- 'TECH', 'SALES', 'FINANCE', 'GENERAL'
     category VARCHAR(50) NOT NULL, -- 'Technical', 'Sales', 'Finance', 'General'
-    priority VARCHAR(20) NOT NULL, -- 'P1 - Critical', 'P2 - High', 'P3 - Medium', 'P4 - Low'
+    priority VARCHAR(20) NOT NULL, -- 'P1 - Critical', 'P2 - High', 'P3 - Medium', 'P4 - Low' hoặc 'P1', 'P2', 'P3', 'P4'
     sentiment VARCHAR(50) NOT NULL, -- 'Khan cap', 'Tich cuc', 'Tieu cuc', 'Trung tinh'
+    confidence_score NUMERIC(4,2) DEFAULT 0.95,
     urgency_reason TEXT,
     sla_deadline TIMESTAMP WITH TIME ZONE,
     status VARCHAR(30) DEFAULT 'PENDING', -- 'PENDING', 'PROCESSED', 'DROPPED', 'ASSIGNED'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tương thích các cột nếu bảng đã tồn tại
-ALTER TABLE email_triage_logs ADD COLUMN IF NOT EXISTS sender_name VARCHAR(100);
-ALTER TABLE email_triage_logs ADD COLUMN IF NOT EXISTS body_snippet TEXT;
-ALTER TABLE email_triage_logs ADD COLUMN IF NOT EXISTS urgency_reason TEXT;
-ALTER TABLE email_triage_logs ADD COLUMN IF NOT EXISTS sla_deadline TIMESTAMP WITH TIME ZONE;
-ALTER TABLE email_triage_logs ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'PENDING';
+-- Bổ sung cột nếu bảng đã có từ trước
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_triage_logs' AND column_name='inbound_email') THEN
+        ALTER TABLE email_triage_logs ADD COLUMN inbound_email VARCHAR(255);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_triage_logs' AND column_name='classified_department') THEN
+        ALTER TABLE email_triage_logs ADD COLUMN classified_department VARCHAR(50);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_triage_logs' AND column_name='confidence_score') THEN
+        ALTER TABLE email_triage_logs ADD COLUMN confidence_score NUMERIC(4,2) DEFAULT 0.95;
+    END IF;
+END $$;
 
--- 2. Bảng Chuyên viên Hỗ trợ (Support Agents - phục vụ Luồng 2 điều phối vé)
+-- 2. Bảng Chuyên viên Hỗ trợ (Support Agents - Phục vụ Luồng 3 điều phối vé)
 CREATE TABLE IF NOT EXISTS support_agents (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
+    full_name VARCHAR(100),
+    name VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    department_id INT REFERENCES departments(id),
     category VARCHAR(50) NOT NULL, -- 'Technical', 'Sales', 'Finance', 'General'
     status VARCHAR(20) DEFAULT 'AVAILABLE', -- 'AVAILABLE', 'BUSY', 'OFFLINE'
+    is_active BOOLEAN DEFAULT TRUE,
     active_tickets_count INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed Chuyên viên hỗ trợ
-INSERT INTO support_agents (name, email, category, status, active_tickets_count) VALUES
-('Nguyễn Văn An', 'an.nguyen@enterprise.vn', 'Technical', 'AVAILABLE', 1),
-('Trần Hoàng Bách', 'bach.tran@enterprise.vn', 'Technical', 'AVAILABLE', 0),
-('Lê Thị Mai', 'mai.le@enterprise.vn', 'Sales', 'AVAILABLE', 0),
-('Phạm Đức Trọng', 'trong.pham@enterprise.vn', 'Finance', 'AVAILABLE', 0),
-('Đỗ Thúy Vy', 'vy.do@enterprise.vn', 'General', 'AVAILABLE', 0)
-ON CONFLICT (email) DO UPDATE SET
-    name = EXCLUDED.name,
-    category = EXCLUDED.category,
-    status = EXCLUDED.status;
+-- Bổ sung cột nếu bảng đã có từ trước
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='support_agents' AND column_name='full_name') THEN
+        ALTER TABLE support_agents ADD COLUMN full_name VARCHAR(100);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='support_agents' AND column_name='is_active') THEN
+        ALTER TABLE support_agents ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='support_agents' AND column_name='department_id') THEN
+        ALTER TABLE support_agents ADD COLUMN department_id INT REFERENCES departments(id);
+    END IF;
+END $$;
 
--- 3. Bảng Tickets & SLA (Luồng 2: Ticket Generation & SLA Dispatching)
+INSERT INTO support_agents (name, full_name, email, category, status, is_active, active_tickets_count) VALUES
+('Nguyễn Văn An', 'Nguyễn Văn An', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', true, 0),
+('Trần Hoàng Bách', 'Trần Hoàng Bách', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', true, 0),
+('Lê Thị Mai', 'Lê Thị Mai', 'tranglee12306@gmail.com', 'Sales', 'AVAILABLE', true, 0),
+('Phạm Đức Trọng', 'Phạm Đức Trọng', 'tranglee12306@gmail.com', 'Finance', 'AVAILABLE', true, 0),
+('Đỗ Thúy Vy', 'Đỗ Thúy Vy', 'tranglee12306@gmail.com', 'General', 'AVAILABLE', true, 0)
+ON CONFLICT (name) DO UPDATE SET 
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    is_active = EXCLUDED.is_active;
+
+-- 3. Bảng Tickets & SLA (Luồng 3: Ticket Generation & SLA Dispatching)
 CREATE TABLE IF NOT EXISTS tickets (
     id SERIAL PRIMARY KEY,
-    ticket_code VARCHAR(50) UNIQUE NOT NULL, -- 'TICK-2026-XXXX'
+    ticket_code VARCHAR(50) UNIQUE NOT NULL, -- 'TK-YYYYMMDD-XXXX' hoặc 'TICK-2026-XXXX'
+    customer_email VARCHAR(255),
     sender_email VARCHAR(255) NOT NULL,
+    subject TEXT,
     title TEXT NOT NULL,
     description TEXT,
     summary TEXT,
     category VARCHAR(50) NOT NULL,
     priority VARCHAR(20) NOT NULL DEFAULT 'P3 - Medium',
+    assigned_agent_id INT REFERENCES support_agents(id),
     assigned_to VARCHAR(100) NOT NULL,
     agent_email VARCHAR(255),
+    sla_due_at TIMESTAMP WITH TIME ZONE,
     first_response_sla TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(30) DEFAULT 'OPEN', -- 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'
+    status VARCHAR(30) DEFAULT 'PENDING', -- 'PENDING', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMP WITH TIME ZONE
 );
 
--- Tương thích các cột nếu bảng đã tồn tại
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS summary TEXT;
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS agent_email VARCHAR(255);
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS first_response_sla TIMESTAMP WITH TIME ZONE;
+-- Bổ sung cột nếu bảng đã có từ trước
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='customer_email') THEN
+        ALTER TABLE tickets ADD COLUMN customer_email VARCHAR(255);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='subject') THEN
+        ALTER TABLE tickets ADD COLUMN subject TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='sla_due_at') THEN
+        ALTER TABLE tickets ADD COLUMN sla_due_at TIMESTAMP WITH TIME ZONE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='assigned_agent_id') THEN
+        ALTER TABLE tickets ADD COLUMN assigned_agent_id INT REFERENCES support_agents(id);
+    END IF;
+END $$;
 
--- Chỉ mục tăng tốc độ truy vấn
+-- 4. Bảng Ghi chú và Phân tích Sự cố (Ticket Comments - Phục vụ Node 8 Luồng 3)
+CREATE TABLE IF NOT EXISTS ticket_comments (
+    id SERIAL PRIMARY KEY,
+    ticket_id INT REFERENCES tickets(id),
+    ticket_code VARCHAR(50),
+    author_type VARCHAR(20) NOT NULL, -- 'SYSTEM', 'AI_AGENT', 'HUMAN_AGENT'
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes tối ưu hiệu năng
 CREATE INDEX IF NOT EXISTS idx_triage_status ON email_triage_logs(status);
 CREATE INDEX IF NOT EXISTS idx_triage_category ON email_triage_logs(category);
 CREATE INDEX IF NOT EXISTS idx_tickets_code ON tickets(ticket_code);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
+CREATE INDEX IF NOT EXISTS idx_ticket_comments_code ON ticket_comments(ticket_code);
 
--- 4. Sample Seed Data cho Kiểm thử Triage & Tickets
-INSERT INTO email_triage_logs (sender_email, sender_name, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status)
-VALUES
-('client-alpha@enterprise.vn', 'Alpha Enterprise', 'Sự cố lỗi hệ thống API Gateway 504 Timeout', 'Hệ thống báo lỗi 504 Gateway Timeout trên production từ 08:30 sáng, khách hàng không thanh toán được.', 'Technical', 'P1 - Critical', 'Khan cap', 'Sự cố hạ tầng nghiêm trọng ảnh hưởng trực tiếp đến thanh toán', NOW() + INTERVAL '2 hours', 'PROCESSED'),
-('sales-lead@vietcorp.com', 'VietCorp Director', 'Đề xuất báo giá gói dịch vụ Doanh nghiệp Enterprise Cloud', 'Chúng tôi quan tâm đến giải pháp tự động hóa email cho 200 người dùng, đề nghị gửi bảng báo giá chi tiết.', 'Sales', 'P2 - High', 'Tich cuc', 'Cơ hội hợp đồng quy mô lớn cần phản hồi nhanh', NOW() + INTERVAL '4 hours', 'PROCESSED'),
-('accounting@vendor.vn', 'Vendor Finance', 'Yêu cầu đối soát công nợ quý 3 và xuất hóa đơn điện tử', 'Kính gửi quý công ty bảng đối soát công nợ tháng 9, đề nghị kiểm tra và xác nhận thanh toán trước ngày 10.', 'Finance', 'P3 - Medium', 'Trung tinh', 'Yêu cầu chứng từ đối soát định kỳ theo quy trình kế toán', NOW() + INTERVAL '8 hours', 'PENDING')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO tickets (ticket_code, sender_email, title, description, summary, category, priority, assigned_to, agent_email, first_response_sla, status)
-VALUES
-('TICK-2026-0001', 'client-alpha@enterprise.vn', 'Lỗi API 504 Gateway Timeout trên production', 'Khách hàng phản ánh hệ thống không truy cập được từ 08:30 sáng nay, giao dịch bị gián đoạn.', 'Hạ tầng cổng thanh toán timeout liên tục, nghi vấn nghẽn kết nối database pool.', 'Technical', 'P1 - Critical', 'Nguyễn Văn An', 'tranglee12306@gmail.com', NOW() + INTERVAL '2 hours', 'OPEN'),
-('TICK-2026-0002', 'user-beta@techhub.io', 'Tài khoản quản trị viên bị khóa sau khi đổi mật khẩu', 'Tôi vừa thay đổi mật khẩu quản trị nhưng sau đó không thể đăng nhập được vào trang admin.', 'Lỗi đồng bộ token phiên đăng nhập sau thao tác đổi mật khẩu của admin.', 'Technical', 'P2 - High', 'Trần Hoàng Bách', 'tranglee12306@gmail.com', NOW() + INTERVAL '4 hours', 'IN_PROGRESS'),
-('TICK-2026-0003', 'support@client-gamma.com', 'Hướng dẫn cấu hình Webhook tích hợp CRM ngoài', 'Xin hỗ trợ tài liệu kết nối webhook của hệ thống với nền tảng nội bộ bên công ty chúng tôi.', 'Yêu cầu tài liệu API specification và sample payload cho webhook endpoint.', 'General', 'P4 - Low', 'Đỗ Thúy Vy', 'tranglee12306@gmail.com', NOW() + INTERVAL '24 hours', 'RESOLVED')
-ON CONFLICT (ticket_code) DO NOTHING;

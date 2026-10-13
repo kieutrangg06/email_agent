@@ -1,0 +1,396 @@
+{
+  "id": "flow06execdigest01",
+  "name": "Luồng 6 - Daily Executive Intelligence & Incident Spike Alert (12 Nodes)",
+  "nodes": [
+    {
+      "id": "f6-node-01",
+      "name": "1. Daily Cron Schedule Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 18 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f6-node-02",
+      "name": "2. Fetch Daily Inbound Volume Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT COUNT(*) FROM email_triage_logs WHERE created_at >= CURRENT_DATE) AS total_emails_today, (SELECT COUNT(*) FROM email_quarantine_vault WHERE created_at >= CURRENT_DATE) AS spam_blocked_today;",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-03",
+      "name": "3. Fetch Ticket & SLA Stats Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS total_tickets, COUNT(*) FILTER (WHERE status = 'RESOLVED' OR status = 'CLOSED') AS resolved_tickets, COUNT(*) FILTER (WHERE priority ILIKE '%P1%') AS p1_count, COUNT(*) FILTER (WHERE status = 'PENDING' OR status = 'IN_PROGRESS') AS pending_tickets, COALESCE(ROUND((COUNT(*) FILTER (WHERE status = 'RESOLVED' OR status = 'CLOSED')::numeric / NULLIF(COUNT(*), 0)::numeric) * 100, 2), 100.0) AS sla_compliance_rate, (SELECT COUNT(*) FROM tickets WHERE priority ILIKE '%P1%' AND created_at >= NOW() - INTERVAL '7 days' AND created_at < CURRENT_DATE) AS p1_past_7_days FROM tickets WHERE created_at >= NOW() - INTERVAL '24 hours';",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-04",
+      "name": "4. Detect Incident Spike Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const inbound = $('2. Fetch Daily Inbound Volume Postgres').first().json;\nconst ticketStats = $input.first().json;\n\nconst totalEmailsToday = Number(inbound.total_emails_today) || 0;\nconst spamBlockedToday = Number(inbound.spam_blocked_today) || 0;\n\nconst totalTickets = Number(ticketStats.total_tickets) || 0;\nconst resolvedTickets = Number(ticketStats.resolved_tickets) || 0;\nconst p1CountToday = Number(ticketStats.p1_count) || 0;\nconst pendingTickets = Number(ticketStats.pending_tickets) || 0;\nconst slaComplianceRate = Number(ticketStats.sla_compliance_rate) || 100.0;\n\n// Tính toán trung bình P1 trong 7 ngày qua (baseline)\nconst p1Past7Days = Number(ticketStats.p1_past_7_days) || 0;\nconst baselineDailyP1 = Math.max(1.0, p1Past7Days / 7);\n\n// Tính tỷ lệ tăng trưởng P1 so với mức trung bình\nconst increasePercent = Math.round(((p1CountToday - baselineDailyP1) / baselineDailyP1) * 100);\n\n// Đánh cờ is_spike_detected = true nếu phát sinh lỗi P1 vượt quá 20%\nconst isSpikeDetected = (p1CountToday > 0 && increasePercent > 20);\n\nconst summaryDate = new Date().toISOString().slice(0, 10);\n\nreturn [{\n  json: {\n    summary_date: summaryDate,\n    total_emails_today: totalEmailsToday,\n    spam_blocked_today: spamBlockedToday,\n    total_tickets: totalTickets,\n    resolved_tickets: resolvedTickets,\n    pending_tickets: pendingTickets,\n    p1_count: p1CountToday,\n    baseline_daily_p1: Number(baselineDailyP1.toFixed(2)),\n    increase_percent: increasePercent,\n    is_spike_detected: isSpikeDetected,\n    sla_compliance_rate: slaComplianceRate\n  }\n}];"
+      }
+    },
+    {
+      "id": "f6-node-05",
+      "name": "5. AI Executive Summarizer Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1160,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Bạn là AI Executive Intelligence Agent (Agent 5) phục vụ Ban Giám Đốc.\nHãy phân tích tình hình vận hành hệ thống trong 24h qua và viết bản tóm tắt điều hành chiến lược:\n\nSỐ LIỆU VẬN HÀNH:\n- Ngày báo cáo: ${$json.summary_date}\n- Tổng email tiếp nhận: ${$json.total_emails_today}\n- Số thư rác/phishing cách ly: ${$json.spam_blocked_today}\n- Tổng số vé sự cố: ${$json.total_tickets} (Đã xử lý: ${$json.resolved_tickets}, Đang chờ: ${$json.pending_tickets})\n- Số sự cố nghiêm trọng P1: ${$json.p1_count}\n- Tỷ lệ tuân thủ cam kết SLA: ${$json.sla_compliance_rate}%\n- Cảnh báo đột biến sự cố (>20%): ${$json.is_spike_detected ? 'CÓ ĐỘT BIẾN NGHIÊM TRỌNG' : 'Bình thường'}\n\nNHIỆM VỤ:\n1. Tóm tắt điều hành cô đọng (executive_summary): Đánh giá sức khỏe hệ thống, hiệu suất giải quyết vé.\n2. Phân tích 3 sự cố nổi cộm nhất và nguyên nhân gốc rễ (root_causes).\n3. Đề xuất hành động tức thời cho Ban Giám Đốc (recommendations).\n\nTrả về đúng JSON:\n{\n  \"executive_summary\": \"string\",\n  \"top_incidents\": [\"string\", \"string\", \"string\"],\n  \"root_causes\": [\"string\", \"string\"],\n  \"recommendations\": [\"string\", \"string\"]\n}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-06",
+      "name": "6. Format Executive HTML Report Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const metrics = $('4. Detect Incident Spike Code').first().json;\nconst aiResp = $input.first().json;\n\nlet parsed = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    parsed = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch (e) {}\n}\n\nconst summaryText = parsed.executive_summary || `Hệ thống tiếp nhận tổng cộng ${metrics.total_emails_today} email trong ngày ${metrics.summary_date}. Đội ngũ kỹ thuật đã xử lý thành công ${metrics.resolved_tickets}/${metrics.total_tickets} vé sự cố, đạt tỷ lệ tuân thủ SLA ${metrics.sla_compliance_rate}%. ${metrics.is_spike_detected ? 'Hệ thống ghi nhận dấu hiệu đột biến sự cố P1 cần chỉ đạo ứng cứu.' : 'Toàn bộ chỉ số vận hành duy trì trong dải an toàn.'}`;\n\nconst rootCauses = parsed.root_causes || [\n  'Lưu lượng truy cập cổng API tăng đột biến gây nghẽn hàng đợi',\n  'Một số tiến trình kiểm tra xác thực OTP bị suy giảm hiệu năng tạm thời'\n];\n\nconst recommendations = parsed.recommendations || [\n  'Mở rộng tài nguyên scaling tự động cho cụm gateway dịch vụ',\n  'Phân công KTV trực ban 24/7 theo dõi các vé P1 chưa đóng'\n];\n\n// Format HTML Digest chuyên nghiệp cho Ban Giám Đốc\nconst htmlDigest = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Báo Cáo Điều Hành Doanh Nghiệp</title></head>\n<body style=\"margin:0;padding:0;background-color:#0b0f19;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"680\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 25px 50px rgba(0,0,0,0.4);max-width:680px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);padding:32px 40px;color:#ffffff;\">\n            <div style=\"font-size:11px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;opacity:0.9;\">EXECUTIVE INTELLIGENCE &bull; BAN LÃNH ĐẠO</div>\n            <h1 style=\"margin:0;font-size:22px;font-weight:bold;\">BÁO CÁO TỔNG KẾT VẬN HÀNH HẰNG NGÀY</h1>\n            <div style=\"margin-top:8px;font-size:13px;opacity:0.9;\">Ngày báo cáo: <strong>${metrics.summary_date}</strong> &bull; Tổng hợp tự động bởi AI Agent 5</div>\n          </td>\n        </tr>\n        ${metrics.is_spike_detected ? `\n        <tr>\n          <td style=\"background:#fef2f2;border-bottom:2px solid #ef4444;padding:16px 40px;\">\n            <strong style=\"color:#b91c1c;font-size:14px;\">🚨 CẢNH BÁO ĐỘT BIẾN SỰ CỐ KHẨN CẤP:</strong>\n            <span style=\"color:#991b1b;font-size:13px;\"> Tỷ lệ lỗi P1 tăng ${metrics.increase_percent}% so với mức trung bình 7 ngày qua!</span>\n          </td>\n        </tr>` : ''}\n        <tr>\n          <td style=\"padding:32px 40px;\">\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:28px;\">\n              <tr>\n                <td width=\"24%\" style=\"background:#f8fafc;padding:16px;border-radius:10px;text-align:center;border:1px solid #e2e8f0;\">\n                  <div style=\"font-size:11px;color:#64748b;font-weight:bold;text-transform:uppercase;\">Email Tiếp Nhận</div>\n                  <div style=\"font-size:24px;font-weight:bold;color:#0f172a;margin-top:4px;\">${metrics.total_emails_today}</div>\n                </td>\n                <td width=\"4%\"></td>\n                <td width=\"24%\" style=\"background:#f8fafc;padding:16px;border-radius:10px;text-align:center;border:1px solid #e2e8f0;\">\n                  <div style=\"font-size:11px;color:#64748b;font-weight:bold;text-transform:uppercase;\">Vé Sự Cố</div>\n                  <div style=\"font-size:24px;font-weight:bold;color:#4f46e5;margin-top:4px;\">${metrics.total_tickets}</div>\n                </td>\n                <td width=\"4%\"></td>\n                <td width=\"24%\" style=\"background:#f8fafc;padding:16px;border-radius:10px;text-align:center;border:1px solid #e2e8f0;\">\n                  <div style=\"font-size:11px;color:#64748b;font-weight:bold;text-transform:uppercase;\">Tuân Thủ SLA</div>\n                  <div style=\"font-size:24px;font-weight:bold;color:#059669;margin-top:4px;\">${metrics.sla_compliance_rate}%</div>\n                </td>\n                <td width=\"4%\"></td>\n                <td width=\"24%\" style=\"background:#f8fafc;padding:16px;border-radius:10px;text-align:center;border:1px solid #e2e8f0;\">\n                  <div style=\"font-size:11px;color:#64748b;font-weight:bold;text-transform:uppercase;\">Sự Cố P1</div>\n                  <div style=\"font-size:24px;font-weight:bold;color:${metrics.p1_count > 0 ? '#dc2626' : '#059669'};margin-top:4px;\">${metrics.p1_count}</div>\n                </td>\n              </tr>\n            </table>\n            <h3 style=\"font-size:15px;color:#0f172a;margin:0 0 10px 0;\">📌 Tóm Tắt Tình Hình Điều Hành:</h3>\n            <div style=\"font-size:14px;line-height:1.7;color:#334155;background:#f8fafc;padding:18px;border-radius:10px;border-left:4px solid #4f46e5;\">\n              ${summaryText}\n            </div>\n            <h3 style=\"font-size:15px;color:#0f172a;margin:24px 0 10px 0;\">🔍 Phân Tích Nguyên Nhân & Đề Xuất:</h3>\n            <ul style=\"font-size:13px;color:#475569;line-height:1.6;padding-left:20px;margin:0;\">\n              ${rootCauses.map(r => `<li><strong>Nguyên nhân:</strong> ${r}</li>`).join('')}\n              ${recommendations.map(r => `<li><strong>Hành động:</strong> ${r}</li>`).join('')}\n            </ul>\n            <div style=\"margin-top:32px;text-align:center;\">\n              <a href=\"http://localhost:3000/analytics\" style=\"background:#4338ca;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:13px;display:inline-block;\">Xem Bảng Điều Khiển Executive Analytics</a>\n            </div>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nconst emergencyAlertHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo Đỏ Khẩn Cấp CEO</title></head>\n<body style=\"background-color:#450a0a;font-family:sans-serif;color:#ffffff;padding:30px;\">\n  <div style=\"max-width:600px;margin:0 auto;background:#18181b;padding:30px;border-radius:12px;border:2px solid #ef4444;\">\n    <h1 style=\"color:#ef4444;margin:0 0 10px 0;font-size:20px;\">🚨 [CẢNH BÁO ĐỎ KHẨN CẤP] ĐỘT BIẾN SỰ CỐ P1 DOANH NGHIỆP</h1>\n    <p style=\"color:#fecaca;\">Kính gửi Tổng Giám Đốc và Hội đồng Quản trị,</p>\n    <p style=\"font-size:14px;line-height:1.6;color:#e4e4e7;\">\n      Hệ thống AI Điều hành vừa kích hoạt cơ chế báo động cấp bách do số lượng sự cố nghiêm trọng (P1) ngày hôm nay (${metrics.summary_date}) đã tăng <strong>${metrics.increase_percent}%</strong> so với trung bình 7 ngày qua.\n    </p>\n    <table width=\"100%\" style=\"background:#27272a;padding:15px;border-radius:8px;font-size:13px;margin:20px 0;\">\n      <tr><td>Số sự cố P1 hôm nay:</td><td><strong style=\"color:#ef4444;\">${metrics.p1_count}</strong></td></tr>\n      <tr><td>Tỷ lệ vượt ngưỡng:</td><td><strong style=\"color:#f59e0b;\">+${metrics.increase_percent}%</strong></td></tr>\n      <tr><td>SLA hiện thời:</td><td><strong>${metrics.sla_compliance_rate}%</strong></td></tr>\n    </table>\n    <a href=\"http://localhost:3000/analytics\" style=\"display:inline-block;background:#dc2626;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:13px;\">Vào Trung Tâm Điều Hành Khẩn Cấp</a>\n  </div>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    ...metrics,\n    executive_summary: summaryText,\n    html_digest: htmlDigest,\n    emergency_alert_html: emergencyAlertHtml,\n    recipient_emails: 'director@company.com,deputy-director@company.com'\n  }\n}];"
+      }
+    },
+    {
+      "id": "f6-node-07",
+      "name": "7. Query Recipient Directors Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1640,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, director_name, COALESCE(email, recipient_email) AS email FROM daily_digest_recipients WHERE is_active = true;",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-08",
+      "name": "8. Save Daily Summary Record HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1880,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/digest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  summary_date: $('4. Detect Incident Spike Code').first().json.summary_date,\n  report_date: $('4. Detect Incident Spike Code').first().json.summary_date,\n  total_received: $('4. Detect Incident Spike Code').first().json.total_emails_today,\n  total_emails_received: $('4. Detect Incident Spike Code').first().json.total_emails_today,\n  total_tickets_created: $('4. Detect Incident Spike Code').first().json.total_tickets,\n  total_p1: $('4. Detect Incident Spike Code').first().json.p1_count,\n  sla_compliance_rate: $('4. Detect Incident Spike Code').first().json.sla_compliance_rate,\n  executive_summary: $('6. Format Executive HTML Report Code').first().json.executive_summary,\n  anomaly_detected: $('4. Detect Incident Spike Code').first().json.is_spike_detected,\n  incident_spike: $('4. Detect Incident Spike Code').first().json.is_spike_detected\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-09",
+      "name": "9. Send Executive Digest Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2120,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "parameters": {
+        "fromEmail": "support@company.com",
+        "toEmail": "={{ $('6. Format Executive HTML Report Code').first().json.recipient_emails || 'director@company.com' }}",
+        "subject": "={{ '📊 [BÁO CÁO ĐIỀU HÀNH NGÀY] ' + $('4. Detect Incident Spike Code').first().json.summary_date + ($('4. Detect Incident Spike Code').first().json.is_spike_detected ? ' 🚨 [CẢNH BÁO SỰ CỐ]' : '') }}",
+        "html": "={{ $('6. Format Executive HTML Report Code').first().json.html_digest }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-10",
+      "name": "10. IF Critical Spike Detected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2360,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $('4. Detect Incident Spike Code').first().json.is_spike_detected }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f6-node-11",
+      "name": "11. Emergency Director Alert Mailer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2600,
+        220
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "smtp": {
+          "id": "syQs2FbeoQhUSFO8",
+          "name": "SMTP account"
+        }
+      },
+      "parameters": {
+        "fromEmail": "support@company.com",
+        "toEmail": "ceo@company.com,director@company.com",
+        "subject": "🚨 [CẢNH BÁO ĐỎ KHẨN CẤP CEO] ĐỘT BIẾN SỰ CỐ P1 VƯỢT NGƯỠNG AN TOÀN",
+        "html": "={{ $('6. Format Executive HTML Report Code').first().json.emergency_alert_html }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f6-node-12",
+      "name": "12. Audit Digest Generation Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2840,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot) VALUES ('EXECUTIVE_DIGEST_COMPILED', 'flow06_executive_digest', 'Hoàn tất biên soạn và gửi báo cáo điều hành giám đốc hàng ngày', $1::jsonb) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify({\n  summary_date: $('4. Detect Incident Spike Code').first().json.summary_date,\n  total_emails: $('4. Detect Incident Spike Code').first().json.total_emails_today,\n  total_tickets: $('4. Detect Incident Spike Code').first().json.total_tickets,\n  sla_compliance: $('4. Detect Incident Spike Code').first().json.sla_compliance_rate,\n  is_spike_detected: $('4. Detect Incident Spike Code').first().json.is_spike_detected,\n  compiled_at: new Date().toISOString()\n})] }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Daily Cron Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Fetch Daily Inbound Volume Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Fetch Daily Inbound Volume Postgres": {
+      "main": [
+        [
+          {
+            "node": "3. Fetch Ticket & SLA Stats Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Fetch Ticket & SLA Stats Postgres": {
+      "main": [
+        [
+          {
+            "node": "4. Detect Incident Spike Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Detect Incident Spike Code": {
+      "main": [
+        [
+          {
+            "node": "5. AI Executive Summarizer Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. AI Executive Summarizer Gemini": {
+      "main": [
+        [
+          {
+            "node": "6. Format Executive HTML Report Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Format Executive HTML Report Code": {
+      "main": [
+        [
+          {
+            "node": "7. Query Recipient Directors Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Query Recipient Directors Postgres": {
+      "main": [
+        [
+          {
+            "node": "8. Save Daily Summary Record HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Save Daily Summary Record HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. Send Executive Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Send Executive Digest Email": {
+      "main": [
+        [
+          {
+            "node": "10. IF Critical Spike Detected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. IF Critical Spike Detected": {
+      "main": [
+        [
+          {
+            "node": "11. Emergency Director Alert Mailer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12. Audit Digest Generation Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Emergency Director Alert Mailer": {
+      "main": [
+        [
+          {
+            "node": "12. Audit Digest Generation Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}
