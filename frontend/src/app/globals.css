@@ -2,8 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #020617;
-  color: #f8fafc;
-  min-height: 100vh;
+@layer base {
+  body {
+    background: linear-gradient(135deg, #fff5f7 0%, #ffffff 45%, #fdf2f8 100%);
+    color: #1e293b;
+    min-height: 100vh;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom delicate pastel scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #fdf2f8;
+}
+::-webkit-scrollbar-thumb {
+  background: #fda4af;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #fb7185;
 }

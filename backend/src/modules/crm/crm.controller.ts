@@ -1,38 +1,41 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { CrmService } from './crm.service';
-import { InvoicesService } from '../invoices/invoices.service';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { CrmService, CrmCustomerDto, CrmDealDto } from './crm.service';
 
 @Controller('api/v1/crm')
 export class CrmController {
-  constructor(
-    private readonly crmService: CrmService,
-    private readonly invoicesService: InvoicesService,
-  ) {}
+  constructor(private readonly crmService: CrmService) {}
 
   @Get('customers')
   async getAllCustomers() {
     return this.crmService.getAllCustomers();
   }
 
+  @Post('customers')
+  async upsertCustomer(@Body() body: CrmCustomerDto) {
+    return this.crmService.upsertCustomer(body);
+  }
+
+  // Alias for legacy compatibility
   @Post('leads')
-  async createOrUpdateLead(@Body() body: any) {
-    return this.crmService.upsertLead(body);
+  async upsertLeadAlias(@Body() body: any) {
+    return this.crmService.upsertCustomer(body);
   }
 
-  // Node 14 Luồng 6 webhook endpoint alias: POST /api/v1/crm/invoices
-  @Post('invoices')
-  async syncAccountingInvoice(@Body() body: any) {
-    return this.invoicesService.createInvoice(body);
+  @Get('deals')
+  async getAllDeals() {
+    return this.crmService.getAllDeals();
   }
 
-  // Node 19 Luồng 6 toast notification endpoint: POST /api/v1/crm/notifications
-  @Post('notifications')
-  async pushToastAlert(@Body() body: any) {
-    return this.crmService.addNotification(body);
+  @Post('deals')
+  async createDeal(@Body() body: CrmDealDto) {
+    return this.crmService.createDeal(body);
   }
 
-  @Get('notifications')
-  async getNotifications() {
-    return this.crmService.getNotifications();
+  @Patch('deals/:id/activity')
+  async updateDealActivity(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { stage?: string; note?: string }
+  ) {
+    return this.crmService.updateDealActivity(id, body);
   }
 }

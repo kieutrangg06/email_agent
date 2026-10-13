@@ -1,0 +1,339 @@
+{
+  "name": "Luồng 7: AI Entity Extraction & CRM Lead Scoring",
+  "nodes": [
+    {
+      "id": "f7-node-01",
+      "name": "1. Sales Intent Ingest Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "m3-flow7-crm-lead",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m3-flow7-crm-lead",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "f7-node-02",
+      "name": "2. AI Lead Entity Extractor Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst body = item.body || item;\nconst text = String((body.content || '') + ' ' + (body.text || '') + ' ' + (body.subject || '') + ' ' + (body.clean_body || ''));\n\n// Phone extraction\nconst phoneMatch = text.match(/(?:\\+84|0)[1-9]\\d{8,9}/);\nconst extracted_phone = phoneMatch ? phoneMatch[0] : (body.phone || '0905123456');\n\n// Budget extraction\nlet extracted_budget = 0;\nif (text.match(/(\\d+)\\s*(?:tỷ|ty)/i)) {\n  extracted_budget = parseInt(text.match(/(\\d+)\\s*(?:tỷ|ty)/i)[1], 10) * 1000000000;\n} else if (text.match(/(\\d+)\\s*(?:triệu|trieu|tr|million)/i)) {\n  extracted_budget = parseInt(text.match(/(\\d+)\\s*(?:triệu|trieu|tr|million)/i)[1], 10) * 1000000;\n} else if (text.match(/(\\d+)\\s*(?:k|nghìn|nghin)/i)) {\n  extracted_budget = parseInt(text.match(/(\\d+)\\s*(?:k|nghìn|nghin)/i)[1], 10) * 1000;\n} else if (body.budget) {\n  extracted_budget = Number(body.budget);\n} else {\n  extracted_budget = 30000000;\n}\n\n// Company extraction\nlet extracted_company = body.company || body.company_name || '';\nif (!extracted_company) {\n  const compMatch = text.match(/(?:Tập đoàn|Công ty(?:\\s+TNHH|\\s+Cổ phần)?|Doanh nghiệp)\\s+[^\\n,.-]+/i);\n  extracted_company = compMatch ? compMatch[0].trim() : 'Doanh nghiệp đối tác';\n}\n\n// Name extraction\nlet extracted_name = body.sender_name || body.name || '';\nif (!extracted_name && body.sender_email) {\n  extracted_name = body.sender_email.split('@')[0];\n}\nif (!extracted_name) extracted_name = 'Khách hàng tiềm năng';\n\nreturn [{\n  json: {\n    ...body,\n    sender_email: (body.sender_email || body.email || 'lead@enterprise.vn').trim(),\n    extracted_name,\n    extracted_phone,\n    extracted_company,\n    extracted_budget,\n    extracted_requirement: body.content || body.subject || 'Tư vấn giải pháp tự động hóa email'\n  }\n}];"
+      }
+    },
+    {
+      "id": "f7-node-03",
+      "name": "3. AI Campaign Categorizer Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst budget = Number(item.extracted_budget || 0);\n\nlet campaign_segment = 'SME_RETAIL';\nlet campaign_tag = 'CAMPAIGN_GROWTH_SME';\n\nif (budget >= 70000000) {\n  campaign_segment = 'ENTERPRISE_HIGH_VALUE';\n  campaign_tag = 'CAMPAIGN_ENTERPRISE_2026';\n} else if (budget >= 30000000) {\n  campaign_segment = 'MID_MARKET';\n  campaign_tag = 'CAMPAIGN_MID_2026';\n}\n\nreturn [{\n  json: {\n    ...item,\n    campaign_segment,\n    campaign_tag\n  }\n}];"
+      }
+    },
+    {
+      "id": "f7-node-04",
+      "name": "4. Sanitize Extracted Entities Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nlet phone = String(item.extracted_phone || '').trim();\nif (phone.startsWith('0')) {\n  phone = '+84' + phone.substring(1);\n}\n\nconst cleanCompany = String(item.extracted_company || 'Doanh nghiệp đối tác')\n  .replace(/^=+/, '').trim();\nconst cleanName = String(item.extracted_name || 'Khách hàng')\n  .replace(/^=+/, '').trim();\n\nreturn [{\n  json: {\n    ...item,\n    clean_phone: phone,\n    clean_company: cleanCompany,\n    clean_name: cleanName\n  }\n}];"
+      }
+    },
+    {
+      "id": "f7-node-05",
+      "name": "5. Query Existing Customer Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1160,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email, full_name, lead_score FROM crm_customers WHERE email = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_email] }}"
+        }
+      }
+    },
+    {
+      "id": "f7-node-06",
+      "name": "6. AI Lead Scoring Engine Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $('4. Sanitize Extracted Entities Code').first().json;\nconst dbCheck = $input.first().json;\nconst budget = Number(raw.extracted_budget || 0);\n\nlet lead_score = 65;\nlet status = 'FOLLOWED_UP';\n\nif (budget >= 70000000) {\n  lead_score = 100;\n  status = 'PRIORITY_SALES';\n} else if (budget >= 25000000) {\n  lead_score = 85;\n  status = 'QUALIFIED';\n} else {\n  lead_score = 65;\n  status = 'FOLLOWED_UP';\n}\n\nif (raw.clean_phone && raw.clean_phone.length >= 10) {\n  lead_score = Math.min(100, lead_score + 5);\n}\n\nconst is_existing = Boolean(dbCheck && dbCheck.id);\n\nreturn [{\n  json: {\n    ...raw,\n    existing_customer_id: is_existing ? dbCheck.id : null,\n    is_existing,\n    lead_score,\n    lead_status: status\n  }\n}];"
+      }
+    },
+    {
+      "id": "f7-node-07",
+      "name": "7. Upsert CRM Customer Record HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1640,
+        300
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:4000/api/v1/crm/customers",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  fullName: $json.clean_name,\n  email: $json.sender_email,\n  phone: $json.clean_phone,\n  companyName: $json.clean_company,\n  leadScore: $json.lead_score\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f7-node-08",
+      "name": "8. Create Sales Deal Opportunity HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1880,
+        300
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:4000/api/v1/crm/deals",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  email: $('6. AI Lead Scoring Engine Code').first().json.sender_email,\n  dealName: 'Cơ hội: ' + $('6. AI Lead Scoring Engine Code').first().json.clean_company,\n  expectedBudget: $('6. AI Lead Scoring Engine Code').first().json.extracted_budget,\n  stage: 'NEW_INQUIRY',\n  campaignTag: $('6. AI Lead Scoring Engine Code').first().json.campaign_tag,\n  assignedSalesRep: 'Nguyễn Văn An'\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f7-node-09",
+      "name": "9. Assign Sales Representative Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const scoreInfo = $('6. AI Lead Scoring Engine Code').first().json;\nconst dealRes = $input.first().json;\n\nlet rep_name = 'Nguyễn Văn An';\nlet rep_email = 'tranglee12306@gmail.com';\n\nif (scoreInfo.campaign_segment === 'ENTERPRISE_HIGH_VALUE') {\n  rep_name = 'Trần Hoàng Bách (Enterprise Lead)';\n} else {\n  rep_name = 'Lê Thị Mai (Growth SMB)';\n}\n\nreturn [{\n  json: {\n    ...scoreInfo,\n    deal_id: dealRes.id || null,\n    assigned_rep_name: rep_name,\n    assigned_rep_email: rep_email\n  }\n}];"
+      }
+    },
+    {
+      "id": "f7-node-10",
+      "name": "10. Internal Sales Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2360,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      },
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranglee12306@gmail.com",
+        "subject": "=[HOT LEAD] Khách hàng tiềm năng mới: {{ $json.clean_name }} ({{ $json.lead_score }} PTS)",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; background: #fff5f7; padding: 24px; color: #1e293b;\">\n  <div style=\"max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 14px; border: 1px solid #fecdd3; overflow: hidden;\">\n    <div style=\"background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); padding: 24px; color: white;\">\n      <h2 style=\"margin: 0;\">🔥 CƠ HỘI BÁN HÀNG TIỀM NĂNG (LEAD SCORE: {{ $json.lead_score }} PTS)</h2>\n    </div>\n    <div style=\"padding: 24px; line-height: 1.6;\">\n      <p>Khách hàng: <strong>{{ $json.clean_name }}</strong></p>\n      <p>Doanh nghiệp: <strong>{{ $json.clean_company }}</strong></p>\n      <p>Email: <a href=\"mailto:{{ $json.sender_email }}\">{{ $json.sender_email }}</a></p>\n      <p>Số điện thoại: <strong>{{ $json.clean_phone }}</strong></p>\n      <p>Ngân sách dự kiến: <strong style=\"color: #059669;\">{{ Number($json.extracted_budget).toLocaleString('vi-VN') }} VNĐ</strong></p>\n      <p>Chiến dịch: <code>{{ $json.campaign_tag }}</code></p>\n      <p>Chuyên viên phụ trách: <strong>{{ $json.assigned_rep_name }}</strong></p>\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "f7-node-11",
+      "name": "11. Audit CRM Creation Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2600,
+        300
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "CaIms8Oqvb0ztig0",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot, created_at)\nVALUES (\n  'CRM_LEAD_QUALIFIED_AND_STORED',\n  'flow07_crm_lead_scoring',\n  'Đã bóc tách và phân loại khách hàng ' || $1 || ' điểm ' || $2,\n  $3::jsonb,\n  NOW()\n);",
+        "options": {
+          "queryReplacement": "={{ [$json.clean_name, $json.lead_score, JSON.stringify($json)] }}"
+        }
+      }
+    },
+    {
+      "id": "f7-node-12",
+      "name": "12. Enqueue Follow-up Tracker Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const current = $('9. Assign Sales Representative Code').first().json;\n\nreturn [{\n  json: {\n    status: \"ENQUEUED_FOR_NURTURING\",\n    customer_email: current.sender_email,\n    deal_id: current.deal_id,\n    lead_score: current.lead_score,\n    campaign_tag: current.campaign_tag,\n    next_followup_at: new Date(Date.now() + 48*3600*1000).toISOString(),\n    enqueued_at: new Date().toISOString()\n  }\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "1. Sales Intent Ingest Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. AI Lead Entity Extractor Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. AI Lead Entity Extractor Code": {
+      "main": [
+        [
+          {
+            "node": "3. AI Campaign Categorizer Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. AI Campaign Categorizer Code": {
+      "main": [
+        [
+          {
+            "node": "4. Sanitize Extracted Entities Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Sanitize Extracted Entities Code": {
+      "main": [
+        [
+          {
+            "node": "5. Query Existing Customer Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Query Existing Customer Postgres": {
+      "main": [
+        [
+          {
+            "node": "6. AI Lead Scoring Engine Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. AI Lead Scoring Engine Code": {
+      "main": [
+        [
+          {
+            "node": "7. Upsert CRM Customer Record HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Upsert CRM Customer Record HTTP": {
+      "main": [
+        [
+          {
+            "node": "8. Create Sales Deal Opportunity HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Create Sales Deal Opportunity HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. Assign Sales Representative Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Assign Sales Representative Code": {
+      "main": [
+        [
+          {
+            "node": "10. Internal Sales Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Internal Sales Alert Email": {
+      "main": [
+        [
+          {
+            "node": "11. Audit CRM Creation Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Audit CRM Creation Postgres": {
+      "main": [
+        [
+          {
+            "node": "12. Enqueue Follow-up Tracker Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}
