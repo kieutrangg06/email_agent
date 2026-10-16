@@ -40,9 +40,5 @@ services:
 
 volumes:
   enterprise_postgres_data:
-    external: true
-    name: email-automation_enterprise_postgres_data
   enterprise_n8n_data:
-    external: true
-    name: email-automation_enterprise_n8n_data
 

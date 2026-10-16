@@ -14,13 +14,13 @@ const userProjectId = 'UZztQa3VnbyDlAby';
 const workflows = [
   ['96BvBRGhR7jcUjTf', 'workflows/flow01_ingest_antispam.json'],
   ['XO1y6C2GPfRboapc', 'workflows/flow02_department_triage.json'],
-  ['w5Pbpv0jeRQrQax8', 'workflows/flow03_ticket_sla_dispatch.json'],
-  ['EdYUP4U8srby9rbX', 'workflows/flow04_rag_knowledge_draft.json'],
-  ['GFtPv6LkzO2dhnDI', 'workflows/flow05_hitl_approval_send.json'],
-  ['DyupcoXvPN1VxCkD', 'workflows/flow06_executive_digest.json'],
-  ['bVILhHhVoSHLsiHg', 'workflows/flow07_crm_lead_scoring.json'],
-  ['UlZOwf1vXNI0OO6C', 'workflows/flow08_automated_followup.json'],
-  ['j1qFvlHH0Ib74KX4', 'workflows/flow09_invoice_multimodal_ocr.json'],
+  ['mmOveqCSfFPnXQ06', 'workflows/flow03_ticket_sla_dispatch.json'],
+  ['flow04ragdraft01', 'workflows/flow04_rag_knowledge_draft.json'],
+  ['flow05hitlsend01', 'workflows/flow05_hitl_approval_send.json'],
+  ['flow06execdigest01', 'workflows/flow06_executive_digest.json'],
+  ['vONnAwyvyh2BpHqT', 'workflows/flow07_crm_lead_scoring.json'],
+  ['9sPtMCFv6tct4VYx', 'workflows/flow08_automated_followup.json'],
+  ['U6gjCB2RTjdEgXCK', 'workflows/flow09_invoice_multimodal_ocr.json'],
 ];
 
 async function sync() {
