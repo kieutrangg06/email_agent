@@ -114,16 +114,14 @@ export class FinanceService {
 
     const res = await this.db.query(
       `INSERT INTO finance_invoices (
-         invoice_number, seller_tax_id, tax_code, seller_name, vendor_name,
+         invoice_number, seller_tax_id, seller_name,
          buyer_name, buyer_email, issue_date, subtotal, vat_amount, total_amount,
-         math_status, status, file_storage_path, storage_path, created_at
+         math_status, file_storage_path, created_at
        )
-       VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
        ON CONFLICT (invoice_number) DO UPDATE SET
          seller_tax_id = EXCLUDED.seller_tax_id,
-         tax_code = EXCLUDED.seller_tax_id,
          seller_name = EXCLUDED.seller_name,
-         vendor_name = EXCLUDED.seller_name,
          buyer_name = EXCLUDED.buyer_name,
          buyer_email = EXCLUDED.buyer_email,
          issue_date = EXCLUDED.issue_date,
@@ -131,9 +129,7 @@ export class FinanceService {
          vat_amount = EXCLUDED.vat_amount,
          total_amount = EXCLUDED.total_amount,
          math_status = EXCLUDED.math_status,
-         status = EXCLUDED.status,
-         file_storage_path = EXCLUDED.file_storage_path,
-         storage_path = EXCLUDED.file_storage_path
+         file_storage_path = EXCLUDED.file_storage_path
        RETURNING *`,
       [
         invoiceNumber,
@@ -146,7 +142,6 @@ export class FinanceService {
         vatAmount,
         totalAmount,
         mathStatus,
-        status,
         fileStoragePath,
       ]
     );

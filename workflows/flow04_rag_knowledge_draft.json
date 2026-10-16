@@ -5,13 +5,20 @@
     {
       "id": "f4-node-01",
       "name": "1. Ticket Created Trigger",
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "position": [
         200,
         300
       ],
-      "parameters": {}
+      "webhookId": "m2-flow4-rag-draft",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m2-flow4-rag-draft",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
     },
     {
       "id": "f4-node-02",
@@ -69,6 +76,7 @@
           "name": "Postgres account"
         }
       },
+      "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT id, title, content, 1 - (embedding <=> $1) AS similarity FROM knowledge_base ORDER BY embedding <=> $1 LIMIT 3;",
@@ -190,6 +198,7 @@
         2360,
         300
       ],
+      "onError": "continueRegularOutput",
       "parameters": {
         "method": "POST",
         "url": "http://localhost:4000/api/v1/notifications/email-draft",

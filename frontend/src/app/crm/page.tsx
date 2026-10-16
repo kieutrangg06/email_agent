@@ -65,80 +65,6 @@ export default function CrmPage() {
     fetchData();
   }, []);
 
-  const handleTriggerFlow7 = async () => {
-    try {
-      showToast('Đang kích hoạt Luồng 7 (AI Lead Extraction & Scoring)...');
-      const payload = {
-        sender_email: `lead_${Date.now().toString().slice(-4)}@vinacorp.vn`,
-        sender_name: 'Phan Văn Nam',
-        company: 'Tập đoàn VinaCorp',
-        phone: '0912888999',
-        budget: '95000000',
-        content: 'Chúng tôi cần triển khai hệ thống quản trị khách hàng cho 200 nhân sự với ngân sách khoảng 95 triệu đồng. Trân trọng, Phan Văn Nam - 0912888999',
-      };
-
-      // 1. Trigger n8n Webhook
-      try {
-        await fetch('http://localhost:5678/webhook/m3-flow7-crm-lead', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch {}
-
-      // 2. Direct Backend Sync to Guarantee Instant UI Refresh
-      try {
-        await fetch('http://localhost:4000/api/v1/crm/customers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            full_name: payload.sender_name,
-            email: payload.sender_email,
-            phone: payload.phone,
-            company: payload.company,
-            lead_score: 95,
-            status: 'NEW',
-          }),
-        });
-        await fetch('http://localhost:4000/api/v1/crm/deals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: `Cơ hội CRM ERP: ${payload.company}`,
-            customer_email: payload.sender_email,
-            expected_budget: 95000000,
-            stage: 'QUALIFICATION',
-          }),
-        });
-      } catch {}
-
-      showToast('Luồng 7 thực thi thành công: Lead VIP 95tr đã được ghi nhận!');
-      setTimeout(fetchData, 600);
-    } catch {
-      showToast('Đang cập nhật đường ống CRM...');
-      setTimeout(fetchData, 800);
-    }
-  };
-
-  const handleTriggerFlow8 = async () => {
-    try {
-      showToast('Đang kích hoạt Luồng 8 (Automated Multi-Stage Follow-up)...');
-      try {
-        await fetch('http://localhost:5678/webhook/m3-flow8-followup-trigger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trigger_mode: 'MANUAL_TEST', timestamp: new Date().toISOString() }),
-        });
-      } catch {}
-
-      showToast('Luồng 8 thực thi thành công: Đã rà soát và bắn email chăm sóc!');
-      setTimeout(fetchData, 600);
-    } catch {
-      showToast('Đang rà soát và cập nhật đường ống...');
-      setTimeout(fetchData, 800);
-    }
-  };
-
   const filteredDeals = deals.filter((d) => (filterStage === 'ALL' ? true : d.stage === filterStage));
 
   const totalPipeline = deals.reduce((acc, d) => acc + Number(d.expected_budget || 0), 0);
@@ -157,37 +83,20 @@ export default function CrmPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-rose-100 shadow-sm">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-amber-700 text-xs font-semibold mb-2">
-            <Users className="w-3.5 h-3.5" />
-            <span>Thành Viên 3 &bull; Luồng 7 &amp; Luồng 8 (CRM Lead Scoring &amp; Follow-up)</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Quản Lý Đường Ống Bán Hàng &amp; Nuôi Dưỡng Khách Hàng</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Quản Lý Đường Ống Bán Hàng &amp; Khách Hàng</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Tự động trích xuất thực thể, tính điểm Lead Score, phân khúc chiến dịch và gửi chuỗi email chăm sóc tự động.
+            Theo dõi cơ hội kinh doanh, phân khúc tiềm năng và chăm sóc khách hàng tự động.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <button
             onClick={fetchData}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
             title="Tải lại dữ liệu"
           >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleTriggerFlow7}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-semibold text-sm shadow-md shadow-amber-200 transition flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Bắn Lead Mẫu (Luồng 7)</span>
-          </button>
-          <button
-            onClick={handleTriggerFlow8}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm shadow-md transition flex items-center gap-2"
-          >
-            <Send className="w-4 h-4" />
-            <span>Chạy Follow-up 48h (Luồng 8)</span>
+            <RefreshCw className="w-4 h-4 text-rose-500" />
+            <span>Làm Mới</span>
           </button>
         </div>
       </div>
@@ -214,7 +123,7 @@ export default function CrmPage() {
         <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Số Khách Hàng</div>
           <div className="text-2xl font-black text-slate-900 mt-2">{customers.length}</div>
-          <div className="text-xs text-slate-400 mt-1">Lưu trữ trên crm_customers</div>
+          <div className="text-xs text-slate-400 mt-1">Khách hàng trong cơ sở dữ liệu</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-rose-100/60 shadow-sm">
@@ -222,7 +131,7 @@ export default function CrmPage() {
           <div className="text-2xl font-black text-rose-600 mt-2">
             {deals.filter((d) => d.stage === 'QUOTED').length}
           </div>
-          <div className="text-xs text-slate-400 mt-1">Trong chu kỳ gửi email Luồng 8</div>
+          <div className="text-xs text-slate-400 mt-1">Đang trong chu kỳ liên hệ</div>
         </div>
       </div>
 

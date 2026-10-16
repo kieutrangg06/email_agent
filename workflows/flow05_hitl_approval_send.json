@@ -95,12 +95,12 @@
       "onError": "continueRegularOutput",
       "credentials": {
         "smtp": {
-          "id": "syQs2FbeoQhUSFO8",
+          "id": "Jtq10Z7c0pkw5YhZ",
           "name": "SMTP account"
         }
       },
       "parameters": {
-        "fromEmail": "support@company.com",
+        "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "={{ $json.recipient_email }}",
         "subject": "={{ $json.final_subject }}",
         "html": "={{ $json.final_html }}",

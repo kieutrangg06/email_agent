@@ -64,11 +64,11 @@ BEGIN
 END $$;
 
 INSERT INTO support_agents (name, full_name, email, category, status, is_active, active_tickets_count) VALUES
-('Nguyễn Văn An', 'Nguyễn Văn An', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', true, 0),
-('Trần Hoàng Bách', 'Trần Hoàng Bách', 'tranglee12306@gmail.com', 'Technical', 'AVAILABLE', true, 0),
-('Lê Thị Mai', 'Lê Thị Mai', 'tranglee12306@gmail.com', 'Sales', 'AVAILABLE', true, 0),
-('Phạm Đức Trọng', 'Phạm Đức Trọng', 'tranglee12306@gmail.com', 'Finance', 'AVAILABLE', true, 0),
-('Đỗ Thúy Vy', 'Đỗ Thúy Vy', 'tranglee12306@gmail.com', 'General', 'AVAILABLE', true, 0)
+('Nguyễn Văn An', 'Nguyễn Văn An', 'tranngo170770@gmail.com', 'Technical', 'AVAILABLE', true, 0),
+('Trần Hoàng Bách', 'Trần Hoàng Bách', 'tranngo170770@gmail.com', 'Technical', 'AVAILABLE', true, 0),
+('Lê Thị Mai', 'Lê Thị Mai', 'tranngo170770@gmail.com', 'Sales', 'AVAILABLE', true, 0),
+('Phạm Đức Trọng', 'Phạm Đức Trọng', 'tranngo170770@gmail.com', 'Finance', 'AVAILABLE', true, 0),
+('Đỗ Thúy Vy', 'Đỗ Thúy Vy', 'tranngo170770@gmail.com', 'General', 'AVAILABLE', true, 0)
 ON CONFLICT (name) DO UPDATE SET 
     email = EXCLUDED.email,
     full_name = EXCLUDED.full_name,

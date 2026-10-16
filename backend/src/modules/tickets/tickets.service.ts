@@ -13,18 +13,18 @@ export class TicketsService {
               COALESCE(code, UPPER(SUBSTRING(name FROM 1 FOR 4))) as code, 
               name, 
               description, 
-              COALESCE(manager_email, head_email, 'tranglee12306@gmail.com') as manager_email, 
-              COALESCE(head_email, manager_email, 'tranglee12306@gmail.com') as head_email,
+              COALESCE(manager_email, head_email, 'tranngo170770@gmail.com') as manager_email, 
+              COALESCE(head_email, manager_email, 'tranngo170770@gmail.com') as head_email,
               COALESCE(is_active, true) as is_active 
        FROM departments 
        ORDER BY id ASC;`
     );
     if (!res.rows || res.rows.length === 0) {
       return [
-        { id: 1, code: 'TECH', name: 'Technical', description: 'Khắc phục sự cố API, hạ tầng kỹ thuật', manager_email: 'tranglee12306@gmail.com', head_email: 'tranglee12306@gmail.com', is_active: true },
-        { id: 2, code: 'SALES', name: 'Sales', description: 'Tư vấn kinh doanh & báo giá giải pháp', manager_email: 'tranglee12306@gmail.com', head_email: 'tranglee12306@gmail.com', is_active: true },
-        { id: 3, code: 'FINANCE', name: 'Finance', description: 'Đối soát hóa đơn & thanh toán', manager_email: 'tranglee12306@gmail.com', head_email: 'tranglee12306@gmail.com', is_active: true },
-        { id: 4, code: 'GENERAL', name: 'General', description: 'Hỗ trợ giải đáp chung & thông tin', manager_email: 'tranglee12306@gmail.com', head_email: 'tranglee12306@gmail.com', is_active: true },
+        { id: 1, code: 'TECH', name: 'Technical', description: 'Khắc phục sự cố API, hạ tầng kỹ thuật', manager_email: 'tranngo170770@gmail.com', head_email: 'tranngo170770@gmail.com', is_active: true },
+        { id: 2, code: 'SALES', name: 'Sales', description: 'Tư vấn kinh doanh & báo giá giải pháp', manager_email: 'tranngo170770@gmail.com', head_email: 'tranngo170770@gmail.com', is_active: true },
+        { id: 3, code: 'FINANCE', name: 'Finance', description: 'Đối soát hóa đơn & thanh toán', manager_email: 'tranngo170770@gmail.com', head_email: 'tranngo170770@gmail.com', is_active: true },
+        { id: 4, code: 'GENERAL', name: 'General', description: 'Hỗ trợ giải đáp chung & thông tin', manager_email: 'tranngo170770@gmail.com', head_email: 'tranngo170770@gmail.com', is_active: true },
       ];
     }
     return res.rows;
@@ -78,7 +78,7 @@ export class TicketsService {
     const category = data.category || 'Technical';
     const priority = data.priority || 'P1 - Critical';
     const assignedTo = data.assigned_to || 'Nguyễn Văn An';
-    const agentEmail = data.agent_email || 'tranglee12306@gmail.com';
+    const agentEmail = data.agent_email || 'tranngo170770@gmail.com';
     const senderEmail = data.customer_email || data.sender_email || 'guest@enterprise.com';
     const title = data.title || data.subject || 'Yêu cầu hỗ trợ kỹ thuật';
     const description = data.description || '';

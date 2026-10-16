@@ -62,13 +62,12 @@ export class CrmService {
     const isUnsubscribed = Boolean(dto.isUnsubscribed ?? dto.is_unsubscribed ?? false);
 
     const res = await this.db.query(
-      `INSERT INTO crm_customers (email, full_name, phone, company_name, company, lead_score, is_unsubscribed, updated_at)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, NOW())
+      `INSERT INTO crm_customers (email, full_name, phone, company_name, lead_score, is_unsubscribed, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
        ON CONFLICT (email) DO UPDATE SET
          full_name = EXCLUDED.full_name,
          phone = COALESCE(EXCLUDED.phone, crm_customers.phone),
          company_name = EXCLUDED.company_name,
-         company = EXCLUDED.company_name,
          lead_score = GREATEST(EXCLUDED.lead_score, crm_customers.lead_score),
          is_unsubscribed = EXCLUDED.is_unsubscribed,
          updated_at = NOW()
