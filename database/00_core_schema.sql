@@ -2,6 +2,8 @@
 -- MEMBER 1 DATABASE: CORE SCHEMA, REPUTATION & QUARANTINE VAULT
 -- ====================================================================
 
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- 1. Departments table (Theo chuẩn đề án + tương thích UI)
 CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
@@ -15,10 +17,10 @@ CREATE TABLE IF NOT EXISTS departments (
 );
 
 INSERT INTO departments (code, name, description, manager_email, head_email, is_active) VALUES
-('TECH', 'Technical', 'Khắc phục sự cố API, hạ tầng cơ sở dữ liệu, lỗi phân quyền hệ thống', 'tranglee12306@gmail.com', 'tranglee12306@gmail.com', true),
-('SALES', 'Sales', 'Tiếp nhận yêu cầu báo giá, tư vấn bản quyền phần mềm, hợp đồng triển khai', 'tranglee12306@gmail.com', 'tranglee12306@gmail.com', true),
-('FINANCE', 'Finance', 'Tiếp nhận đối soát sao kê, xuất hóa đơn điện tử VAT, thanh toán đối tác', 'tranglee12306@gmail.com', 'tranglee12306@gmail.com', true),
-('GENERAL', 'General', 'Hỗ trợ giải đáp chung, điều phối lịch làm việc & hỗ trợ khách hàng', 'tranglee12306@gmail.com', 'tranglee12306@gmail.com', true)
+('TECH', 'Technical', 'Khắc phục sự cố API, hạ tầng cơ sở dữ liệu, lỗi phân quyền hệ thống', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', true),
+('SALES', 'Sales', 'Tiếp nhận yêu cầu báo giá, tư vấn bản quyền phần mềm, hợp đồng triển khai', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', true),
+('FINANCE', 'Finance', 'Tiếp nhận đối soát sao kê, xuất hóa đơn điện tử VAT, thanh toán đối tác', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', true),
+('GENERAL', 'General', 'Hỗ trợ giải đáp chung, điều phối lịch làm việc & hỗ trợ khách hàng', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', true)
 ON CONFLICT (name) DO UPDATE SET 
     code = EXCLUDED.code, 
     description = EXCLUDED.description, 
@@ -90,3 +92,22 @@ CREATE TABLE IF NOT EXISTS system_audit_logs (
     payload_snapshot JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 5. Users table for Authentication & RBAC
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(150),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'AGENT', -- ADMIN, MANAGER, AGENT
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO users (full_name, email, password_hash, role) VALUES
+('Quản trị viên Hệ thống', 'admin@enterprise.vn', 'SecretPassword123!', 'ADMIN'),
+('Nguyễn Văn An (Trưởng nhóm IT)', 'an.nguyen@enterprise.vn', 'SecretPassword123!', 'MANAGER'),
+('Trần Thị Bình (Chuyên viên Hỗ trợ)', 'binh.tran@enterprise.vn', 'SecretPassword123!', 'AGENT')
+ON CONFLICT (email) DO NOTHING;
+

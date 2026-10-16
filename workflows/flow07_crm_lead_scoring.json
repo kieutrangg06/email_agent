@@ -143,7 +143,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const scoreInfo = $('6. AI Lead Scoring Engine Code').first().json;\nconst dealRes = $input.first().json;\n\nlet rep_name = 'Nguyễn Văn An';\nlet rep_email = 'tranglee12306@gmail.com';\n\nif (scoreInfo.campaign_segment === 'ENTERPRISE_HIGH_VALUE') {\n  rep_name = 'Trần Hoàng Bách (Enterprise Lead)';\n} else {\n  rep_name = 'Lê Thị Mai (Growth SMB)';\n}\n\nreturn [{\n  json: {\n    ...scoreInfo,\n    deal_id: dealRes.id || null,\n    assigned_rep_name: rep_name,\n    assigned_rep_email: rep_email\n  }\n}];"
+        "jsCode": "const scoreInfo = $('6. AI Lead Scoring Engine Code').first().json;\nconst dealRes = $input.first().json;\n\nlet rep_name = 'Nguyễn Văn An';\nlet rep_email = 'tranngo170770@gmail.com';\n\nif (scoreInfo.campaign_segment === 'ENTERPRISE_HIGH_VALUE') {\n  rep_name = 'Trần Hoàng Bách (Enterprise Lead)';\n} else {\n  rep_name = 'Lê Thị Mai (Growth SMB)';\n}\n\nreturn [{\n  json: {\n    ...scoreInfo,\n    deal_id: dealRes.id || null,\n    assigned_rep_name: rep_name,\n    assigned_rep_email: rep_email\n  }\n}];"
       }
     },
     {
@@ -165,7 +165,7 @@
       },
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "tranglee12306@gmail.com",
+        "toEmail": "tranngo170770@gmail.com",
         "subject": "=[HOT LEAD] Khách hàng tiềm năng mới: {{ $json.clean_name }} ({{ $json.lead_score }} PTS)",
         "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; background: #fff5f7; padding: 24px; color: #1e293b;\">\n  <div style=\"max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 14px; border: 1px solid #fecdd3; overflow: hidden;\">\n    <div style=\"background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); padding: 24px; color: white;\">\n      <h2 style=\"margin: 0;\">🔥 CƠ HỘI BÁN HÀNG TIỀM NĂNG (LEAD SCORE: {{ $json.lead_score }} PTS)</h2>\n    </div>\n    <div style=\"padding: 24px; line-height: 1.6;\">\n      <p>Khách hàng: <strong>{{ $json.clean_name }}</strong></p>\n      <p>Doanh nghiệp: <strong>{{ $json.clean_company }}</strong></p>\n      <p>Email: <a href=\"mailto:{{ $json.sender_email }}\">{{ $json.sender_email }}</a></p>\n      <p>Số điện thoại: <strong>{{ $json.clean_phone }}</strong></p>\n      <p>Ngân sách dự kiến: <strong style=\"color: #059669;\">{{ Number($json.extracted_budget).toLocaleString('vi-VN') }} VNĐ</strong></p>\n      <p>Chiến dịch: <code>{{ $json.campaign_tag }}</code></p>\n      <p>Chuyên viên phụ trách: <strong>{{ $json.assigned_rep_name }}</strong></p>\n    </div>\n  </div>\n</body>\n</html>",
         "options": {}
@@ -334,5 +334,6 @@
   },
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "active": true
 }

@@ -51,7 +51,7 @@ export default function ApprovalPage() {
   const [allDrafts, setAllDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'PENDING_APPROVAL' | 'ALL' | 'SENT' | 'REJECTED'>('PENDING_APPROVAL');
-  const [reviewerEmail, setReviewerEmail] = useState('reviewer@company.com');
+  const [reviewerEmail, setReviewerEmail] = useState('tranngo170770@gmail.com');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -159,7 +159,7 @@ export default function ApprovalPage() {
 
     setActionMsg({
       type: 'info',
-      text: `🚀 Đang kích hoạt Luồng 5 (Human Action Webhook Trigger) và xác thực quyền reviewer...`,
+      text: `Đang gửi email phản hồi tới khách hàng...`,
     });
 
     try {
@@ -199,7 +199,7 @@ export default function ApprovalPage() {
       if (patchRes.ok) {
         setActionMsg({
           type: 'success',
-          text: `✅ Bản thảo #${draft.id} (${draft.ticket_code}) đã được DUYỆT & GỬI thành công qua Luồng 5! Email SMTP đã phân phối và vé đã chuyển sang RESOLVED.`,
+          text: `Bản thảo #${draft.id} (${draft.ticket_code}) đã được DUYỆT & GỬI thành công! Email đã gửi tới khách hàng và vé đã chuyển sang RESOLVED.`,
         });
         setEditingDraftId(null);
         fetchDrafts();
@@ -278,32 +278,15 @@ export default function ApprovalPage() {
       {/* Page Header Card */}
       <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-              THÀNH VIÊN 2 • HITL APPROVAL
-            </span>
-          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
-            Phê Duyệt &amp; Phân Phối Thư Phản Hồi RAG
+            Phê Duyệt Thư Phản Hồi
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
-            Kiểm duyệt, tinh chỉnh bản thảo do AI RAG tạo ra trước khi xuất ngoại qua SMTP (Luồng 5) và đóng vé hỗ trợ.
+            Kiểm duyệt và tinh chỉnh bản thảo trả lời do AI đề xuất trước khi gửi thư chính thức tới khách hàng.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 bg-slate-50 border border-rose-200/80 px-3 py-1.5 rounded-xl text-xs">
-            <UserCheck className="w-4 h-4 text-rose-500" />
-            <span className="text-slate-500 font-medium">Chuyên viên:</span>
-            <input
-              type="email"
-              value={reviewerEmail}
-              onChange={(e) => setReviewerEmail(e.target.value)}
-              className="bg-white border border-rose-200 rounded-lg px-2 py-0.5 text-rose-700 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-rose-400 w-44"
-            />
-          </div>
-
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={fetchDrafts}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
@@ -427,7 +410,7 @@ export default function ApprovalPage() {
           </p>
           <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-md mx-auto">
             {statusFilter === 'PENDING_APPROVAL'
-              ? 'Khi Luồng 3 chuyển giao ticket sang Luồng 4 (Vector RAG), bản thảo phản hồi tự động sẽ xuất hiện tại đây để chuyên viên duyệt.'
+              ? 'Khi có vé sự cố mới được tiếp nhận, bản thảo phản hồi do AI gợi ý sẽ tự động xuất hiện tại đây để chuyên viên rà soát.'
               : statusFilter === 'SENT'
               ? 'Các email đã được duyệt và chuyển phát thành công qua SMTP sẽ được lưu trữ tại đây.'
               : statusFilter === 'REJECTED'
@@ -651,7 +634,7 @@ export default function ApprovalPage() {
                         ) : (
                           <>
                             <Send className="w-4 h-4 text-white" />
-                            <span>Duyệt &amp; Gửi (Luồng 5)</span>
+                            <span>Duyệt &amp; Gửi Email</span>
                           </>
                         )}
                       </button>

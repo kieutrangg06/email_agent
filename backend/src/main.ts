@@ -1,6 +1,5 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -10,7 +9,6 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // Enable CORS for frontend Next.js (port 3000) and n8n (port 5678)
   app.enableCors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -19,7 +17,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 4000;
   await app.listen(port, '0.0.0.0');
-  console.log(`[Member 1 Core API] Server is running on: http://localhost:${port}`);
+  console.log(`[Enterprise Email Automation API] Server is running on: http://localhost:${port}`);
+  console.log(`[Realtime Notifications SSE] Active at http://localhost:${port}/api/v1/events and /api/v1/notifications/stream`);
 }
 
 bootstrap();

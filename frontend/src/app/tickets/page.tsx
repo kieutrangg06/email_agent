@@ -285,10 +285,10 @@ export default function TicketsPage() {
       <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
-            Quản Lý Tiếp Nhận Email &amp; Vé Hỗ Trợ
+            Hộp Thư &amp; Vé Hỗ Trợ
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
-            Theo dõi tiếp nhận email, phân loại tự động và quản lý tiến độ xử lý vé hỗ trợ SLA.
+            Trung tâm tiếp nhận yêu cầu và điều phối vé hỗ trợ khách hàng.
           </p>
         </div>
 

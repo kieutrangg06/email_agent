@@ -1,17 +1,17 @@
 {
   "id": "XO1y6C2GPfRboapc",
-  "name": "Luồng 2 - AI Multi-Department Triage & Acknowledgment (12 Nodes)",
+  "name": "Flow 02 - Department Triage & SLA Tracking",
   "nodes": [
     {
       "id": "f2-node-01",
-      "name": "1. Sub-Workflow Ingest Trigger",
+      "name": "Sub-Workflow Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        200,
+        240,
         300
       ],
-      "webhookId": "m1-flow2-triage",
+      "webhookId": "department-triage",
       "parameters": {
         "httpMethod": "POST",
         "path": "m1-flow2-triage",
@@ -22,11 +22,11 @@
     },
     {
       "id": "f2-node-02",
-      "name": "2. Fetch Department Directory HTTP",
+      "name": "Fetch Departments",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        440,
+        490,
         300
       ],
       "onError": "continueRegularOutput",
@@ -38,11 +38,11 @@
     },
     {
       "id": "f2-node-03",
-      "name": "3. AI Semantic Classifier Gemini",
+      "name": "AI Semantic Classifier",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        680,
+        740,
         300
       ],
       "onError": "continueRegularOutput",
@@ -60,30 +60,30 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Bạn là AI Email Triage Agent (Agent 1) trong hệ thống tiếp nhận email doanh nghiệp. Hãy đọc email sau:\n- Người gửi: ${$('1. Sub-Workflow Ingest Trigger').first().json.sender_email}\n- Tiêu đề: ${$('1. Sub-Workflow Ingest Trigger').first().json.subject}\n- Nội dung: ${$('1. Sub-Workflow Ingest Trigger').first().json.clean_body || $('1. Sub-Workflow Ingest Trigger').first().json.body || ''}\n\nNhiệm vụ:\n1. Phân loại phòng ban: Technical, Sales, Finance, General.\n2. Gán độ ưu tiên:\n   - 'P1 - Critical': Hệ thống ngừng hoạt động diện rộng, sập server, downtime, mất kết nối cơ sở dữ liệu.\n   - 'P2 - High': Lỗi chức năng quan trọng (OTP, thanh toán, hợp đồng lớn).\n   - 'P3 - Medium': Lỗi tiêu chuẩn, phân quyền, hóa đơn VAT thường.\n   - 'P4 - Low': Hỏi đáp thông tin chung, quy định, góp ý.\n3. Sắc thái: 'Khan cap' | 'Tich cuc' | 'Tieu cuc' | 'Trung tinh'.\n4. Tính điểm tin cậy: confidence_score (0.0 đến 1.0).\n5. Lý do khẩn cấp: urgency_reason (tiếng Việt).\n\nTrả về đúng JSON:\n{\n  \"department_code\": \"TECH\" | \"SALES\" | \"FINANCE\" | \"GENERAL\",\n  \"category\": \"Technical\" | \"Sales\" | \"Finance\" | \"General\",\n  \"priority\": \"P1 - Critical\" | \"P2 - High\" | \"P3 - Medium\" | \"P4 - Low\",\n  \"sentiment\": \"Khan cap\" | \"Tich cuc\" | \"Tieu cuc\" | \"Trung tinh\",\n  \"confidence_score\": number,\n  \"urgency_reason\": \"string\"\n}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Phân tích email tiếng Việt sau. Trả về JSON: {department: 'TECH'|'SALES'|'FINANCE'|'GENERAL', priority: 'P1'|'P2'|'P3'|'P4', sentiment: 'positive'|'neutral'|'negative'|'urgent', confidence: 0-100, urgency_reason: string}. Tiêu đề: ${$('Sub-Workflow Trigger').first().json.subject || ''}. Nội dung: ${$('Sub-Workflow Trigger').first().json.body || $('Sub-Workflow Trigger').first().json.clean_body || ''}. Người gửi: ${$('Sub-Workflow Trigger').first().json.sender_email || ''}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
         "options": {}
       }
     },
     {
       "id": "f2-node-04",
-      "name": "4. Output Schema Guard Code",
+      "name": "Output Schema Guard",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        920,
+        990,
         300
       ],
       "parameters": {
-        "jsCode": "const prev = $('1. Sub-Workflow Ingest Trigger').first().json;\nconst payload = prev.body ? prev.body : prev;\nconst aiResp = $input.first().json;\n\nlet aiResult = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    aiResult = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch(e) {}\n}\n\n// Heuristic fallback nếu AI key chưa cấu hình hoặc mạng lỗi\nif (!aiResult.category || !aiResult.priority) {\n  const subject = (payload.subject || \"\").toLowerCase();\n  const body = (payload.clean_body || payload.body || \"\").toLowerCase();\n  const text = subject + \" \" + body;\n\n  if (text.includes(\"sập\") || text.includes(\"504\") || text.includes(\"500\") || text.includes(\"outage\") || text.includes(\"down\") || text.includes(\"khẩn cấp\")) {\n    aiResult = { department_code: \"TECH\", category: \"Technical\", priority: \"P1 - Critical\", sentiment: \"Khan cap\", urgency_reason: \"Sự cố gián đoạn hạ tầng khẩn cấp\", confidence_score: 0.98 };\n  } else if (text.includes(\"lỗi\") || text.includes(\"api\") || text.includes(\"bug\") || text.includes(\"database\")) {\n    aiResult = { department_code: \"TECH\", category: \"Technical\", priority: \"P2 - High\", sentiment: \"Tieu cuc\", urgency_reason: \"Lỗi chức năng kỹ thuật\", confidence_score: 0.92 };\n  } else if (text.includes(\"báo giá\") || text.includes(\"hợp đồng\") || text.includes(\"bản quyền\") || text.includes(\"tư vấn\")) {\n    aiResult = { department_code: \"SALES\", category: \"Sales\", priority: \"P2 - High\", sentiment: \"Tich cuc\", urgency_reason: \"Yêu cầu kinh doanh & báo giá\", confidence_score: 0.95 };\n  } else if (text.includes(\"hóa đơn\") || text.includes(\"vat\") || text.includes(\"thanh toán\") || text.includes(\"chứng từ\")) {\n    aiResult = { department_code: \"FINANCE\", category: \"Finance\", priority: \"P3 - Medium\", sentiment: \"Trung tinh\", urgency_reason: \"Yêu cầu tài chính & hóa đơn\", confidence_score: 0.94 };\n  } else {\n    aiResult = { department_code: \"GENERAL\", category: \"General\", priority: \"P4 - Low\", sentiment: \"Trung tinh\", urgency_reason: \"Hỗ trợ chung tiêu chuẩn\", confidence_score: 0.88 };\n  }\n}\n\nreturn [{\n  json: {\n    ...payload,\n    department_code: aiResult.department_code || \"GENERAL\",\n    category: aiResult.category || \"General\",\n    priority: aiResult.priority || \"P3 - Medium\",\n    sentiment: aiResult.sentiment || \"Trung tinh\",\n    confidence_score: aiResult.confidence_score || 0.95,\n    urgency_reason: aiResult.urgency_reason || \"Đã phân loại tự động bởi AI Agent 1\"\n  }\n}];"
+        "jsCode": "const trigger = $('Sub-Workflow Trigger').first().json;\nconst payload = trigger.body ? trigger.body : trigger;\nconst aiResp = $input.first().json;\n\nlet aiResult = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    aiResult = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch(e) {}\n}\n\n// Heuristic fallback if AI is unavailable or failed to parse\nif (!aiResult.department || !aiResult.priority) {\n  const subject = String(payload.subject || '').toLowerCase();\n  const body = String(payload.body || payload.clean_body || '').toLowerCase();\n  const text = subject + ' ' + body;\n\n  if (text.includes('sập') || text.includes('500') || text.includes('504') || text.includes('down') || text.includes('outage') || text.includes('khẩn cấp')) {\n    aiResult = { department: 'TECH', priority: 'P1', sentiment: 'urgent', confidence: 95, urgency_reason: 'Phát hiện sự cố hệ thống sập nghiêm trọng' };\n  } else if (text.includes('lỗi') || text.includes('api') || text.includes('bug') || text.includes('kỹ thuật') || text.includes('server')) {\n    aiResult = { department: 'TECH', priority: 'P2', sentiment: 'negative', confidence: 90, urgency_reason: 'Yêu cầu hỗ trợ lỗi kỹ thuật' };\n  } else if (text.includes('báo giá') || text.includes('hợp đồng') || text.includes('mua') || text.includes('tư vấn')) {\n    aiResult = { department: 'SALES', priority: 'P2', sentiment: 'positive', confidence: 92, urgency_reason: 'Cơ hội bán hàng & tư vấn hợp đồng' };\n  } else if (text.includes('hóa đơn') || text.includes('vat') || text.includes('thanh toán') || text.includes('chuyển khoản')) {\n    aiResult = { department: 'FINANCE', priority: 'P3', sentiment: 'neutral', confidence: 90, urgency_reason: 'Xử lý đối soát hóa đơn tài chính' };\n  } else {\n    aiResult = { department: 'GENERAL', priority: 'P4', sentiment: 'neutral', confidence: 85, urgency_reason: 'Yêu cầu thông tin chung' };\n  }\n}\n\n// Normalize department\nconst validDepts = ['TECH', 'SALES', 'FINANCE', 'GENERAL'];\nlet dept = String(aiResult.department || 'GENERAL').toUpperCase();\nif (!validDepts.includes(dept)) dept = 'GENERAL';\n\nconst categoryMap = {\n  TECH: 'Technical',\n  SALES: 'Sales',\n  FINANCE: 'Finance',\n  GENERAL: 'General'\n};\nconst category = categoryMap[dept] || 'General';\n\n// Normalize priority\nlet priority = String(aiResult.priority || 'P3').toUpperCase();\nif (!['P1', 'P2', 'P3', 'P4'].includes(priority)) {\n  if (priority.includes('P1')) priority = 'P1';\n  else if (priority.includes('P2')) priority = 'P2';\n  else if (priority.includes('P4')) priority = 'P4';\n  else priority = 'P3';\n}\n\n// Normalize sentiment\nlet sentiment = String(aiResult.sentiment || 'neutral').toLowerCase();\nif (!['positive', 'neutral', 'negative', 'urgent'].includes(sentiment)) {\n  sentiment = 'neutral';\n}\n\nconst confidence = Number(aiResult.confidence) || 90;\nconst confidenceScore = parseFloat((confidence > 1 ? confidence / 100 : confidence).toFixed(2));\nconst urgencyReason = aiResult.urgency_reason || 'Được phân loại tự động bởi AI Semantic Classifier';\n\nreturn [{\n  json: {\n    ...payload,\n    department: dept,\n    department_code: dept,\n    category: category,\n    priority: priority,\n    sentiment: sentiment,\n    confidence: confidence,\n    confidence_score: confidenceScore,\n    urgency_reason: urgencyReason\n  }\n}];"
       }
     },
     {
       "id": "f2-node-05",
-      "name": "5. Save Email Triage Log Postgres",
+      "name": "Save Triage Log",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        1160,
+        1240,
         300
       ],
       "credentials": {
@@ -96,38 +96,38 @@
         "operation": "executeQuery",
         "query": "INSERT INTO email_triage_logs (inbound_email, sender_email, sender_name, subject, body_snippet, classified_department, category, priority, sentiment, confidence_score, urgency_reason, sla_deadline, status) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW() + INTERVAL '24 hours', 'PENDING') RETURNING id;",
         "options": {
-          "queryReplacement": "={{ [$('4. Output Schema Guard Code').first().json.sender_email, $('4. Output Schema Guard Code').first().json.sender_name || 'Khách hàng', $('4. Output Schema Guard Code').first().json.subject, ($('4. Output Schema Guard Code').first().json.clean_body || '').substring(0, 250), $('4. Output Schema Guard Code').first().json.department_code, $('4. Output Schema Guard Code').first().json.category, $('4. Output Schema Guard Code').first().json.priority, $('4. Output Schema Guard Code').first().json.sentiment, $('4. Output Schema Guard Code').first().json.confidence_score, $('4. Output Schema Guard Code').first().json.urgency_reason] }}"
+          "queryReplacement": "={{ [$('Output Schema Guard').first().json.sender_email, $('Output Schema Guard').first().json.sender_name || 'Khách hàng', $('Output Schema Guard').first().json.subject, String($('Output Schema Guard').first().json.body || $('Output Schema Guard').first().json.clean_body || '').substring(0, 250), $('Output Schema Guard').first().json.department, $('Output Schema Guard').first().json.category, $('Output Schema Guard').first().json.priority, $('Output Schema Guard').first().json.sentiment, $('Output Schema Guard').first().json.confidence_score, $('Output Schema Guard').first().json.urgency_reason] }}"
         }
       }
     },
     {
       "id": "f2-node-06",
-      "name": "6. Compute Dynamic SLA Window Code",
+      "name": "Compute SLA Window",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
+        1490,
         300
       ],
       "parameters": {
-        "jsCode": "const current = $('4. Output Schema Guard Code').first().json;\n\nlet slaHours = 24;\nif (current.priority.includes('P1')) slaHours = 2;\nelse if (current.priority.includes('P2')) slaHours = 4;\nelse if (current.priority.includes('P3')) slaHours = 8;\nelse if (current.priority.includes('P4')) slaHours = 24;\n\nconst now = new Date();\nconst deadline = new Date(now.getTime() + slaHours * 60 * 60 * 1000);\nconst formattedDeadline = deadline.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\nconst formattedNow = now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\n\nconst customerSubject = `[Xác Nhận Hỗ Trợ] Tiếp nhận yêu cầu: ${current.subject} (Cam kết SLA: ${slaHours} giờ)`;\nconst customerHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Xác Nhận Tiếp Nhận Yêu Cầu</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.3);max-width:600px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);padding:30px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;\">HỆ THỐNG HELPDESK DOANH NGHIỆP</div>\n            <h1 style=\"margin:0;font-size:20px;font-weight:bold;\">TIẾP NHẬN YÊU CẦU THÀNH CÔNG</h1>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:30px 40px;\">\n            <p>Kính gửi <strong>${current.sender_name || 'Quý khách'}</strong>,</p>\n            <p>Hệ thống tự động đã phân loại yêu cầu của bạn đến phòng ban <strong>${current.category}</strong> với mức độ ưu tiên <strong>${current.priority}</strong>.</p>\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"10\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;margin:20px 0;\">\n              <tr><td width=\"35%\" style=\"color:#64748b;font-weight:bold;\">Phòng ban:</td><td>${current.category}</td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Độ ưu tiên:</td><td><strong style=\"color:#2563eb;\">${current.priority}</strong></td></tr>\n              <tr><td style=\"color:#64748b;font-weight:bold;\">Cam kết phản hồi:</td><td>Trong vòng <strong>${slaHours} giờ</strong> (trước ${formattedDeadline})</td></tr>\n            </table>\n            <p style=\"font-size:13px;color:#64748b;\">Trân trọng,<br>Đội ngũ Hỗ trợ Khách hàng Doanh nghiệp</p>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nconst escalationSubject = `🚨 [CẢNH BÁO ĐỎ P1] SỰ CỐ KHẨN CẤP: ${current.subject}`;\nconst escalationHtml = `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Báo Động Sự Cố Khẩn Cấp P1</title></head>\n<body style=\"margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;\">\n  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:40px 15px;\">\n    <tr><td align=\"center\">\n      <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.5);max-width:600px;width:100%;\">\n        <tr>\n          <td style=\"background:linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);padding:30px 40px;color:#ffffff;text-align:center;\">\n            <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;\">🚨 BAN CHỈ ĐẠO ỨNG CỨU SỰ CỐ &bull; P1 CRITICAL</div>\n            <h1 style=\"margin:0;font-size:22px;font-weight:900;\">BÁO ĐỘNG KHẨN CẤP CẤP ĐỘ 1</h1>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding:30px 40px;\">\n            <p style=\"font-size:15px;color:#b91c1c;font-weight:bold;\">Hệ thống AI Triage Agent 1 phát hiện sự cố nghiêm trọng diện rộng:</p>\n            <table width=\"100%\" cellspacing=\"0\" cellpadding=\"10\" style=\"background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;\">\n              <tr><td width=\"30%\" style=\"font-weight:bold;color:#991b1b;\">Khách hàng:</td><td>${current.sender_email}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#991b1b;\">Tiêu đề:</td><td>${current.subject}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#991b1b;\">Lý do khẩn cấp:</td><td>${current.urgency_reason}</td></tr>\n              <tr><td style=\"font-weight:bold;color:#991b1b;\">Hạn cam kết:</td><td><strong>2 GIỜ (trước ${formattedDeadline})</strong></td></tr>\n            </table>\n            <div style=\"margin-top:24px;text-align:center;\">\n              <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;display:inline-block;\">Vào Trực Ban Tiếp Nhận Sự Cố</a>\n            </div>\n          </td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    ...current,\n    sla_hours: slaHours,\n    sla_deadline: deadline.toISOString(),\n    customer_email_subject: customerSubject,\n    customer_email_html: customerHtml,\n    escalation_email_subject: escalationSubject,\n    escalation_email_html: escalationHtml\n  }\n}];"
+        "jsCode": "const current = $('Output Schema Guard').first().json;\n\n// SLA Mapping: P1→1h, P2→4h, P3→24h, P4→48h\nlet slaHours = 24;\nif (current.priority === 'P1') slaHours = 1;\nelse if (current.priority === 'P2') slaHours = 4;\nelse if (current.priority === 'P3') slaHours = 24;\nelse if (current.priority === 'P4') slaHours = 48;\n\nconst now = new Date();\nconst slaDueAt = new Date(now.getTime() + slaHours * 60 * 60 * 1000);\nconst formattedDeadline = slaDueAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });\nconst trackingCode = `REQ-${Date.now().toString(36).toUpperCase()}`;\n\nreturn [{\n  json: {\n    ...current,\n    tracking_code: trackingCode,\n    sla_hours: slaHours,\n    sla_due_at: slaDueAt.toISOString(),\n    sla_deadline: slaDueAt.toISOString(),\n    formatted_deadline: formattedDeadline\n  }\n}];"
       }
     },
     {
       "id": "f2-node-07",
-      "name": "7. IF Critical Priority P1",
+      "name": "IF Critical P1",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        1640,
+        1740,
         300
       ],
       "parameters": {
         "conditions": {
           "string": [
             {
-              "value1": "={{ $('6. Compute Dynamic SLA Window Code').first().json.priority }}",
-              "operation": "contains",
+              "value1": "={{ $('Compute SLA Window').first().json.priority }}",
+              "operation": "equal",
               "value2": "P1"
             }
           ]
@@ -136,11 +136,11 @@
     },
     {
       "id": "f2-node-08",
-      "name": "8. Escalate Emergency Alert Email",
+      "name": "Escalate P1 Alert",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1880,
+        1990,
         180
       ],
       "credentials": {
@@ -152,19 +152,20 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "tranglee12306@gmail.com",
-        "subject": "={{ $('6. Compute Dynamic SLA Window Code').first().json.escalation_email_subject }}",
-        "html": "={{ $('6. Compute Dynamic SLA Window Code').first().json.escalation_email_html }}",
+        "toEmail": "tranngo170770@gmail.com",
+        "subject": "={{ '🚨 [KHẨN CẤP P1] SỰ CỐ HỆ THỐNG: ' + $('Compute SLA Window').first().json.subject }}",
+        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo Khẩn Cấp P1</title></head>\n<body style=\"margin:0;padding:20px;background:#0f172a;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.5);\">\n    <div style=\"background:#dc2626;padding:25px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:22px;\">🚨 BÁO ĐỘNG SỰ CỐ KHẨN CẤP CẤP ĐỘ P1</h2>\n      <p style=\"margin:6px 0 0 0;font-size:14px;opacity:0.9;\">Cam kết phản hồi trong vòng 1 GIỜ</p>\n    </div>\n    <div style=\"padding:25px;\">\n      <p style=\"color:#b91c1c;font-weight:bold;\">Hệ thống phát hiện email sự cố nghiêm trọng:</p>\n      <table width=\"100%\" cellpadding=\"8\" style=\"background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;\">\n        <tr><td width=\"30%\" style=\"font-weight:bold;color:#991b1b;\">Người gửi:</td><td>${$('Compute SLA Window').first().json.sender_email}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Tiêu đề:</td><td>${$('Compute SLA Window').first().json.subject}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Phòng ban:</td><td>${$('Compute SLA Window').first().json.category} (${$('Compute SLA Window').first().json.department})</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Lý do khẩn cấp:</td><td>${$('Compute SLA Window').first().json.urgency_reason}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Hạn chót SLA:</td><td><strong>${$('Compute SLA Window').first().json.formatted_deadline} (1 GIỜ)</strong></td></tr>\n      </table>\n      <div style=\"margin-top:20px;text-align:center;\">\n        <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;\">Xử Lý Ngay Trên Dashboard</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>` }}",
+        "text": "={{ 'CẢNH BÁO ĐỎ P1: Sự cố ' + $('Compute SLA Window').first().json.subject + ' từ ' + $('Compute SLA Window').first().json.sender_email + ' - Hạn cam kết: 1 giờ' }}",
         "options": {}
       }
     },
     {
       "id": "f2-node-09",
-      "name": "9. Send Customer Confirmation Email",
+      "name": "Send Customer ACK",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        2120,
+        2240,
         300
       ],
       "credentials": {
@@ -176,19 +177,20 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "={{ $('6. Compute Dynamic SLA Window Code').first().json.sender_email }}",
-        "subject": "={{ $('6. Compute Dynamic SLA Window Code').first().json.customer_email_subject }}",
-        "html": "={{ $('6. Compute Dynamic SLA Window Code').first().json.customer_email_html }}",
+        "toEmail": "={{ $('Compute SLA Window').first().json.sender_email }}",
+        "subject": "={{ '[Xác Nhận] Tiếp nhận yêu cầu: ' + $('Compute SLA Window').first().json.subject + ' [' + $('Compute SLA Window').first().json.tracking_code + ']' }}",
+        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Xác Nhận Tiếp Nhận</title></head>\n<body style=\"margin:0;padding:20px;background:#f1f5f9;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.1);\">\n    <div style=\"background:#2563eb;padding:25px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:20px;\">TIẾP NHẬN YÊU CẦU THÀNH CÔNG</h2>\n      <p style=\"margin:6px 0 0 0;font-size:13px;opacity:0.9;\">Mã theo dõi: <strong>${$('Compute SLA Window').first().json.tracking_code}</strong></p>\n    </div>\n    <div style=\"padding:25px;\">\n      <p>Kính gửi <strong>${$('Compute SLA Window').first().json.sender_name || 'Quý khách'}</strong>,</p>\n      <p>Cảm ơn bạn đã liên hệ. Hệ thống đã phân loại và điều phối yêu cầu của bạn đến phòng ban chuyên trách:</p>\n      <table width=\"100%\" cellpadding=\"8\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;margin:16px 0;\">\n        <tr><td width=\"35%\" style=\"font-weight:bold;color:#64748b;\">Mã yêu cầu:</td><td><strong>${$('Compute SLA Window').first().json.tracking_code}</strong></td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Phòng ban tiếp nhận:</td><td>${$('Compute SLA Window').first().json.category}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Mức độ ưu tiên:</td><td><strong>${$('Compute SLA Window').first().json.priority}</strong></td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Thời hạn phản hồi cam kết:</td><td>Trước <strong>${$('Compute SLA Window').first().json.formatted_deadline}</strong> (${$('Compute SLA Window').first().json.sla_hours} giờ)</td></tr>\n      </table>\n      <p style=\"font-size:13px;color:#64748b;\">Trân trọng,<br>Hệ thống Tự động hóa Doanh nghiệp</p>\n    </div>\n  </div>\n</body>\n</html>` }}",
+        "text": "={{ 'Xin chào ' + ($('Compute SLA Window').first().json.sender_name || 'Quý khách') + ', yêu cầu của bạn [' + $('Compute SLA Window').first().json.tracking_code + '] đã được tiếp nhận và giao cho phòng ban ' + $('Compute SLA Window').first().json.category + '. Hạn SLA cam kết: ' + $('Compute SLA Window').first().json.formatted_deadline }}",
         "options": {}
       }
     },
     {
       "id": "f2-node-10",
-      "name": "10. Audit Triage Success Postgres",
+      "name": "Audit Triage Success",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2360,
+        2490,
         300
       ],
       "credentials": {
@@ -199,162 +201,162 @@
       },
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('m1-flow2', 'EMAIL_TRIAGED_SUCCESSFULLY', 'flow02_department_triage', 'AI Agent 1 đã phân loại phòng ban và cam kết hạn SLA', $1::jsonb, $1::jsonb);",
+        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('flow02', 'EMAIL_TRIAGED_SUCCESSFULLY', 'flow02', 'Email triaged successfully with department and SLA deadline assigned', $1::jsonb, $1::jsonb);",
         "options": {
-          "queryReplacement": "={{ [JSON.stringify($('6. Compute Dynamic SLA Window Code').first().json)] }}"
+          "queryReplacement": "={{ [JSON.stringify($('Compute SLA Window').first().json)] }}"
         }
       }
     },
     {
       "id": "f2-node-11",
-      "name": "11. Format Routing Packet Code",
+      "name": "Format Routing Packet",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
+        2740,
         300
       ],
       "parameters": {
-        "jsCode": "const current = $('6. Compute Dynamic SLA Window Code').first().json;\nreturn [{\n  json: {\n    sender_email: current.sender_email,\n    sender_name: current.sender_name,\n    subject: current.subject,\n    title: current.subject,\n    body: current.clean_body || current.body,\n    category: current.category,\n    department_code: current.department_code,\n    priority: current.priority,\n    sentiment: current.sentiment,\n    urgency_reason: current.urgency_reason,\n    sla_deadline: current.sla_deadline,\n    confidence_score: current.confidence_score\n  }\n}];"
+        "jsCode": "const current = $('Compute SLA Window').first().json;\nreturn [{\n  json: {\n    sender_email: current.sender_email,\n    sender_name: current.sender_name,\n    subject: current.subject,\n    title: current.subject,\n    body: current.clean_body || current.body,\n    department: current.department,\n    department_code: current.department_code,\n    category: current.category,\n    priority: current.priority,\n    sentiment: current.sentiment,\n    confidence: current.confidence,\n    confidence_score: current.confidence_score,\n    urgency_reason: current.urgency_reason,\n    sla_deadline: current.sla_deadline,\n    sla_due_at: current.sla_due_at,\n    sla_hours: current.sla_hours,\n    tracking_code: current.tracking_code\n  }\n}];"
       }
     },
     {
       "id": "f2-node-12",
-      "name": "12. Route to Downstream Workflows Code",
+      "name": "Route to Downstream",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2840,
+        2990,
         300
       ],
       "parameters": {
-        "jsCode": "const packet = .first().json;\nconst category = packet.category || \"Technical\";\n\n// 1. Technical -> Gọi Luồng 3\nif (category === \"Technical\" || packet.department_code === \"TECH\") {\n  try {\n    await fetch('http://127.0.0.1:5678/webhook/m1-flow3-ticket', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(packet)\n    });\n  } catch(e) {}\n}\n\n// 2. Sales -> Gọi Luồng 7 (Member 3 CRM Lead)\nif (category === \"Sales\" || packet.department_code === \"SALES\") {\n  try {\n    await fetch('http://127.0.0.1:5678/webhook/m3-flow7-crm-lead', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(packet)\n    });\n  } catch(e) {}\n}\n\n// 3. Finance -> Gọi Luồng 9 (Member 3 Invoice OCR)\nif (category === \"Finance\" || packet.department_code === \"FINANCE\") {\n  try {\n    await fetch('http://127.0.0.1:5678/webhook/m3-flow9-invoice-ocr', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(packet)\n    });\n  } catch(e) {}\n}\n\nreturn [{\n  json: {\n    status: \"DISPATCHED\",\n    routed_department: category,\n    department_code: packet.department_code,\n    priority: packet.priority,\n    downstream_handler: category === \"Technical\" ? \"Flow 3 (Technical Ticket & SLA)\" : \n                        category === \"Sales\" ? \"Flow 7 (CRM Lead Qualification - TV3 Active)\" :\n                        category === \"Finance\" ? \"Flow 9 (Invoice OCR & Audit - TV3 Active)\" : \"General Support Queue\",\n    payload: packet,\n    completed_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const http = require('http');\n\nfunction sendWebhook(path, data) {\n  return new Promise((resolve) => {\n    try {\n      const payload = JSON.stringify(data);\n      const req = http.request({\n        hostname: '127.0.0.1',\n        port: 5678,\n        path: path,\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'Content-Length': Buffer.byteLength(payload)\n        }\n      }, (res) => resolve(res.statusCode));\n      req.on('error', (err) => resolve(500));\n      req.write(payload);\n      req.end();\n    } catch(e) {\n      resolve(500);\n    }\n  });\n}\n\nconst packet = $input.first().json;\nconst dept = String(packet.department_code || packet.department || '').toUpperCase();\n\nlet targetRoute = '';\nlet targetStatus = 200;\n\nif (dept === 'TECH') {\n  targetRoute = '/webhook/ticket-dispatch';\n  targetStatus = await sendWebhook('/webhook/ticket-dispatch', packet);\n  await sendWebhook('/webhook/m1-flow3-ticket', packet);\n} else if (dept === 'SALES') {\n  targetRoute = '/webhook/crm-lead';\n  targetStatus = await sendWebhook('/webhook/crm-lead', packet);\n  await sendWebhook('/webhook/m3-flow7-crm-lead', packet);\n} else if (dept === 'FINANCE') {\n  targetRoute = '/webhook/invoice-ocr';\n  targetStatus = await sendWebhook('/webhook/invoice-ocr', packet);\n  await sendWebhook('/webhook/m3-flow9-invoice-ocr', packet);\n} else {\n  targetRoute = 'GENERAL_QUEUE';\n}\n\nreturn [{\n  json: {\n    status: 'ROUTED',\n    department: dept,\n    target_route: targetRoute,\n    http_status: targetStatus,\n    payload: packet,\n    timestamp: new Date().toISOString()\n  }\n}];"
       }
     }
   ],
   "connections": {
-    "1. Sub-Workflow Ingest Trigger": {
+    "Sub-Workflow Trigger": {
       "main": [
         [
           {
-            "node": "2. Fetch Department Directory HTTP",
+            "node": "Fetch Departments",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "2. Fetch Department Directory HTTP": {
+    "Fetch Departments": {
       "main": [
         [
           {
-            "node": "3. AI Semantic Classifier Gemini",
+            "node": "AI Semantic Classifier",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "3. AI Semantic Classifier Gemini": {
+    "AI Semantic Classifier": {
       "main": [
         [
           {
-            "node": "4. Output Schema Guard Code",
+            "node": "Output Schema Guard",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "4. Output Schema Guard Code": {
+    "Output Schema Guard": {
       "main": [
         [
           {
-            "node": "5. Save Email Triage Log Postgres",
+            "node": "Save Triage Log",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "5. Save Email Triage Log Postgres": {
+    "Save Triage Log": {
       "main": [
         [
           {
-            "node": "6. Compute Dynamic SLA Window Code",
+            "node": "Compute SLA Window",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "6. Compute Dynamic SLA Window Code": {
+    "Compute SLA Window": {
       "main": [
         [
           {
-            "node": "7. IF Critical Priority P1",
+            "node": "IF Critical P1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "7. IF Critical Priority P1": {
+    "IF Critical P1": {
       "main": [
         [
           {
-            "node": "8. Escalate Emergency Alert Email",
+            "node": "Escalate P1 Alert",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "9. Send Customer Confirmation Email",
+            "node": "Send Customer ACK",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "8. Escalate Emergency Alert Email": {
+    "Escalate P1 Alert": {
       "main": [
         [
           {
-            "node": "9. Send Customer Confirmation Email",
+            "node": "Send Customer ACK",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "9. Send Customer Confirmation Email": {
+    "Send Customer ACK": {
       "main": [
         [
           {
-            "node": "10. Audit Triage Success Postgres",
+            "node": "Audit Triage Success",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "10. Audit Triage Success Postgres": {
+    "Audit Triage Success": {
       "main": [
         [
           {
-            "node": "11. Format Routing Packet Code",
+            "node": "Format Routing Packet",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "11. Format Routing Packet Code": {
+    "Format Routing Packet": {
       "main": [
         [
           {
-            "node": "12. Route to Downstream Workflows Code",
+            "node": "Route to Downstream",
             "type": "main",
             "index": 0
           }
@@ -362,9 +364,11 @@
       ]
     }
   },
-  "active": true,
   "settings": {
-    "timezone": "Asia/Ho_Chi_Minh",
     "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "email-automation"
   }
 }

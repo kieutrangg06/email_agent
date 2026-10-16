@@ -5,6 +5,10 @@ import { DraftsModule } from './modules/drafts/drafts.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -17,6 +21,11 @@ import { FinanceModule } from './modules/finance/finance.module';
     // Member 3: CRM Growth & Finance Invoices
     CrmModule,
     FinanceModule,
+    // Enterprise Core Modules
+    AuthModule,
+    AuditModule,
+    KnowledgeModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [],

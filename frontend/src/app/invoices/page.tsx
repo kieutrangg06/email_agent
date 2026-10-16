@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search, ExternalLink } from 'lucide-react';
+import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search } from 'lucide-react';
 
 interface Invoice {
   id: number;
@@ -65,99 +65,6 @@ export default function InvoicesPage() {
     fetchData();
   }, []);
 
-  const handleTriggerValidInvoice = async () => {
-    try {
-      showToast('Đang gửi hóa đơn hợp lệ qua Luồng 9...');
-      const rand = Math.floor(100000 + Math.random() * 900000);
-      const payload = {
-        invoice_number: `INV-${rand}`,
-        filename: `hoadon_vat_${rand}.pdf`,
-        file_extension: 'pdf',
-        sender_email: 'ketoan.doitac@gmail.com',
-        buyer_email: 'ketoan.doitac@gmail.com',
-        sender_name: 'Công ty Cổ phần Giải pháp Số NovaCRM',
-        seller_name: 'Công ty Cổ phần Giải pháp Số NovaCRM',
-        subtotal: 50000000,
-        vat_amount: 5000000,
-        total_amount: 55000000, // 50 + 5 = 55 (Khớp 100%)
-        math_status: 'VALIDATED',
-        status: 'VALID',
-      };
-
-      // 1. Trigger n8n Webhook
-      try {
-        await fetch('http://localhost:5678/webhook/m3-flow9-invoice-ocr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch {
-        // browser cross-origin fallback
-      }
-
-      // 2. Direct Backend Sync to Guarantee Instant UI Refresh
-      try {
-        await fetch('http://localhost:4000/api/v1/invoices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch {}
-
-      showToast('Luồng 9 thực thi thành công: Hóa đơn 55tr HỢP LỆ (VALIDATED)!');
-      setTimeout(fetchData, 600);
-    } catch {
-      showToast('Đang cập nhật bảng kiểm toán...');
-      setTimeout(fetchData, 800);
-    }
-  };
-
-  const handleTriggerMismatchInvoice = async () => {
-    try {
-      showToast('Đang gửi hóa đơn sai lệch số học (Gian lận) qua Luồng 9...');
-      const rand = Math.floor(100000 + Math.random() * 900000);
-      const payload = {
-        invoice_number: `INV-FLAG-${rand}`,
-        filename: `hoadon_sai_lech_${rand}.pdf`,
-        file_extension: 'pdf',
-        sender_email: 'ketoan.nghivanketoan@gmail.com',
-        buyer_email: 'ketoan.nghivanketoan@gmail.com',
-        sender_name: 'Công ty Cổ phần Logistics Global',
-        seller_name: 'Công ty Cổ phần Logistics Global',
-        subtotal: 45000000,
-        vat_amount: 4500000,
-        total_amount: 52000000, // 45 + 4.5 = 49.5 != 52 (Lệch 2.5tr)
-        math_status: 'DISCREPANCY_FLAGGED',
-        status: 'FLAGGED_SUSPICIOUS',
-      };
-
-      // 1. Trigger n8n Webhook
-      try {
-        await fetch('http://localhost:5678/webhook/m3-flow9-invoice-ocr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch {
-        // browser cross-origin fallback
-      }
-
-      // 2. Direct Backend Sync to Guarantee Instant UI Refresh
-      try {
-        await fetch('http://localhost:4000/api/v1/invoices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch {}
-
-      showToast('Luồng 9 phát hiện sai lệch số học! Đã gắn cờ DISCREPANCY_FLAGGED và báo động đỏ.');
-      setTimeout(fetchData, 600);
-    } catch {
-      showToast('Đang cập nhật bảng kiểm toán...');
-      setTimeout(fetchData, 800);
-    }
-  };
 
   const filteredInvoices = invoices.filter((inv) => {
     const matchStatus = filterStatus === 'ALL' ? true : inv.math_status === filterStatus;
@@ -188,37 +95,20 @@ export default function InvoicesPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-rose-100 shadow-sm">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200/60 text-purple-700 text-xs font-semibold mb-2">
-            <FileText className="w-3.5 h-3.5" />
-            <span>Thành Viên 3 &bull; Luồng 9 (Multi-Modal Invoice OCR &amp; Accounting Audit)</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Bóc Tách Hóa Đơn OCR &amp; Kiểm Toán Đối Soát Số Học</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Bóc Tách Hóa Đơn &amp; Kiểm Toán Đối Soát Số Học</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Ứng dụng Vision AI nhận diện chứng từ PDF/Ảnh, tự động kiểm tra số học: Tiền hàng + VAT = Tổng thanh toán.
+            Nhận diện chứng từ tự động, kiểm tra tính đúng đắn số học: Tiền hàng + VAT = Tổng thanh toán.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <button
             onClick={fetchData}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
-            title="Tải lại"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
+            title="Tải lại dữ liệu"
           >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleTriggerValidInvoice}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-200 transition flex items-center gap-2"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Bắn Hóa Đơn Hợp Lệ</span>
-          </button>
-          <button
-            onClick={handleTriggerMismatchInvoice}
-            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm shadow-md shadow-rose-200 transition flex items-center gap-2"
-          >
-            <AlertCircle className="w-4 h-4" />
-            <span>Bắn Hóa Đơn Sai Lệch</span>
+            <RefreshCw className="w-4 h-4 text-rose-500" />
+            <span>Làm Mới</span>
           </button>
         </div>
       </div>

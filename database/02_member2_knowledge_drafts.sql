@@ -79,9 +79,9 @@ CREATE TABLE IF NOT EXISTS daily_digest_recipients (
 );
 
 INSERT INTO daily_digest_recipients (director_name, email, recipient_email, recipient_type, is_active) VALUES
-('Nguyễn Văn Giám Đốc', 'director@company.com', 'director@company.com', 'EXECUTIVE', true),
-('Trần Thị Phó Giám Đốc', 'deputy-director@company.com', 'deputy-director@company.com', 'EXECUTIVE', true),
-('Lê Tech Lead', 'tech-lead@vku.udn.vn', 'tech-lead@vku.udn.vn', 'OPERATIONS', true)
+('Nguyễn Văn Giám Đốc', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', 'EXECUTIVE', true),
+('Trần Thị Phó Giám Đốc', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', 'EXECUTIVE', true),
+('Lê Tech Lead', 'tranngo170770@gmail.com', 'tranngo170770@gmail.com', 'OPERATIONS', true)
 ON CONFLICT DO NOTHING;
 
 -- 5. Bảng Báo cáo điều hành hằng ngày (Daily Summaries & Incident Spike Detection)

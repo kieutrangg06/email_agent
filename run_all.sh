@@ -12,11 +12,7 @@ cd "$DIR"
 echo "======================================================================"
 echo "🚀 [1/3] Khởi động Cơ sở dữ liệu PostgreSQL 16 & n8n Engine..."
 echo "======================================================================"
-if [ -d "docker" ]; then
-  cd docker && docker compose up -d && cd ..
-else
-  docker compose up -d
-fi
+docker compose up -d
 
 echo ""
 echo "======================================================================"

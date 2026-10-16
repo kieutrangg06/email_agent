@@ -161,7 +161,7 @@
       },
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
-        "toEmail": "tranglee12306@gmail.com",
+        "toEmail": "tranngo170770@gmail.com",
         "subject": "=🚨 [KẾ TOÁN ĐỐI SOÁT] Hóa đơn {{ $('5. Mathematical Integrity Verifier Code').first().json.invoice_number }} ({{ $('5. Mathematical Integrity Verifier Code').first().json.math_status }})",
         "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; background: #fff5f7; padding: 24px; color: #1e293b;\">\n  <div style=\"max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fecdd3; padding: 24px;\">\n    <h3 style=\"color: #be123c;\">KẾT QUẢ ĐỐI SOÁT CHỨNG TỪ HÓA ĐƠN OCR</h3>\n    <p>Số Hóa Đơn: <strong>{{ $('5. Mathematical Integrity Verifier Code').first().json.invoice_number }}</strong></p>\n    <p>Đơn vị gửi: <strong>{{ $('5. Mathematical Integrity Verifier Code').first().json.buyer_name }}</strong></p>\n    <p>Tiền hàng: <strong>{{ Number($('5. Mathematical Integrity Verifier Code').first().json.subtotal).toLocaleString('vi-VN') }} VNĐ</strong></p>\n    <p>Tiền VAT: <strong>{{ Number($('5. Mathematical Integrity Verifier Code').first().json.vat_amount).toLocaleString('vi-VN') }} VNĐ</strong></p>\n    <p>Tổng thanh toán: <strong>{{ Number($('5. Mathematical Integrity Verifier Code').first().json.total_amount).toLocaleString('vi-VN') }} VNĐ</strong></p>\n    <p>Trạng thái: <strong>{{ $('5. Mathematical Integrity Verifier Code').first().json.math_status }}</strong></p>\n    <p>Ghi chú kiểm toán: <em>{{ $('5. Mathematical Integrity Verifier Code').first().json.audit_notes }}</em></p>\n  </div>\n</body>\n</html>",
         "options": {}
@@ -350,5 +350,6 @@
   },
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "active": true
 }
