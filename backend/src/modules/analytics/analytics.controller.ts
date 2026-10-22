@@ -24,4 +24,20 @@ export class AnalyticsController {
   async getDailyStats() {
     return this.analyticsService.getDailyStats();
   }
+
+  @Get('digest/inbound-volume')
+  async getInboundVolume() {
+    return this.analyticsService.getInboundVolume();
+  }
+
+  @Get('digest/ticket-stats')
+  async getTicketStats() {
+    return this.analyticsService.getTicketStats();
+  }
+
+  @Get('digest/recipients')
+  async getDigestRecipients() {
+    return this.analyticsService.getDigestRecipients();
+  }
 }
+

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../lib/api';
 import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search } from 'lucide-react';
 
 interface Invoice {
@@ -48,8 +49,8 @@ export default function InvoicesPage() {
     setLoading(true);
     try {
       const [invRes, logRes] = await Promise.all([
-        fetch('http://localhost:4000/api/v1/finance/invoices').then((r) => (r.ok ? r.json() : [])),
-        fetch('http://localhost:4000/api/v1/finance/audit-logs').then((r) => (r.ok ? r.json() : [])),
+        fetch(`${API_BASE_URL}/api/v1/finance/invoices`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`${API_BASE_URL}/api/v1/finance/audit-logs`).then((r) => (r.ok ? r.json() : [])),
       ]);
       setInvoices(Array.isArray(invRes) ? invRes : []);
       setAuditLogs(Array.isArray(logRes) ? logRes : []);

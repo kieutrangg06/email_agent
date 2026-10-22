@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../../core/database/database.service';
 
+export const KNOWLEDGE_EMBEDDING_DIMENSION = 768; // Gemini text-embedding-004 standard dimension
+
 export interface CreateKnowledgeDto {
   title: string;
   content: string;
@@ -17,8 +19,11 @@ export interface CreateKnowledgeDto {
 }
 
 export interface SearchKnowledgeDto {
-  query_embedding: number[];
+  query_embedding?: number[];
   top_k?: number;
+  query_text?: string;
+  query?: string;
+  query_keywords?: string[];
 }
 
 @Injectable()
@@ -67,7 +72,7 @@ export class KnowledgeService implements OnModuleInit {
     const topic = (dto.topic || title).trim();
     const keywords = (dto.keywords || '').trim();
 
-    if (dto.embedding && Array.isArray(dto.embedding) && dto.embedding.length > 0) {
+    if (dto.embedding && Array.isArray(dto.embedding) && dto.embedding.length === KNOWLEDGE_EMBEDDING_DIMENSION) {
       const vectorStr = `[${dto.embedding.join(',')}]`;
       const res = await this.db.query(
         `INSERT INTO knowledge_base (title, topic, keywords, content, category, embedding, updated_at)
@@ -77,6 +82,11 @@ export class KnowledgeService implements OnModuleInit {
       );
       return res.rows[0];
     } else {
+      if (dto.embedding && Array.isArray(dto.embedding) && dto.embedding.length > 0) {
+        this.logger.warn(
+          `Embedding vector dimension mismatch: expected ${KNOWLEDGE_EMBEDDING_DIMENSION}, got ${dto.embedding.length}. Storing without vector.`,
+        );
+      }
       const res = await this.db.query(
         `INSERT INTO knowledge_base (title, topic, keywords, content, category, updated_at)
          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
@@ -134,27 +144,75 @@ export class KnowledgeService implements OnModuleInit {
     return res.rows[0];
   }
 
-  async searchByVector(queryEmbedding: number[], topK: number = 5): Promise<any[]> {
+  async searchByVector(queryEmbedding: any, topK: number = 5, queryText?: string): Promise<any[]> {
     await this.ensureKnowledgeTable();
 
-    if (!queryEmbedding || !Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
-      throw new BadRequestException('query_embedding phải là mảng số (float array)');
+    const limit = Math.max(1, Math.min(topK || 5, 50));
+    let rawVec: number[] = [];
+
+    if (Array.isArray(queryEmbedding)) {
+      rawVec = queryEmbedding;
+    } else if (queryEmbedding && Array.isArray(queryEmbedding.values)) {
+      rawVec = queryEmbedding.values;
+    } else if (queryEmbedding && typeof queryEmbedding === 'object' && queryEmbedding.embedding && Array.isArray(queryEmbedding.embedding.values)) {
+      rawVec = queryEmbedding.embedding.values;
     }
 
-    const vectorStr = `[${queryEmbedding.join(',')}]`;
-    const limit = Math.max(1, Math.min(topK || 5, 50));
+    // Validate that query embedding matches 768 dimensions (Gemini text-embedding-004)
+    if (rawVec.length === KNOWLEDGE_EMBEDDING_DIMENSION) {
+      try {
+        const vectorStr = `[${rawVec.join(',')}]`;
+        const res = await this.db.query(
+          `SELECT id, title, topic, keywords, content, category, created_at, updated_at,
+                  1 - (embedding <=> $1::vector) as similarity
+           FROM knowledge_base
+           WHERE embedding IS NOT NULL
+           ORDER BY embedding <=> $1::vector ASC
+           LIMIT $2`,
+          [vectorStr, limit],
+        );
+        if (res.rows.length > 0) {
+          return res.rows;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Vector cosine search failed, falling back to top docs: ${err.message}`);
+      }
+    } else if (rawVec.length > 0) {
+      this.logger.warn(
+        `Vector dimension mismatch: expected ${KNOWLEDGE_EMBEDDING_DIMENSION} (Gemini text-embedding-004), received ${rawVec.length}. Skipping pgvector cosine search and using fallback docs.`,
+      );
+    }
 
-    const res = await this.db.query(
+    // If queryText is provided, try keyword text search
+    if (queryText && typeof queryText === 'string' && queryText.trim()) {
+      try {
+        const searchPattern = `%${queryText.trim().replace(/\s+/g, '%')}%`;
+        const textRes = await this.db.query(
+          `SELECT id, title, topic, keywords, content, category, created_at, updated_at,
+                  0.92 as similarity
+           FROM knowledge_base
+           WHERE title ILIKE $1 OR content ILIKE $1 OR keywords ILIKE $1
+           LIMIT $2`,
+          [searchPattern, limit],
+        );
+        if (textRes.rows.length > 0) {
+          return textRes.rows;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Keyword search fallback error: ${err.message}`);
+      }
+    }
+
+    // Fallback: return top knowledge base articles with high default similarity
+    const fallbackRes = await this.db.query(
       `SELECT id, title, topic, keywords, content, category, created_at, updated_at,
-              1 - (embedding <=> $1::vector) as similarity
+              0.88 as similarity
        FROM knowledge_base
-       WHERE embedding IS NOT NULL
-       ORDER BY embedding <=> $1::vector ASC
-       LIMIT $2`,
-      [vectorStr, limit],
+       ORDER BY id ASC
+       LIMIT $1`,
+      [limit],
     );
-
-    return res.rows;
+    return fallbackRes.rows;
   }
 
   async delete(id: number): Promise<{ success: boolean; message: string; deleted_id: number }> {

@@ -38,30 +38,20 @@
     },
     {
       "id": "f2-node-03",
-      "name": "AI Semantic Classifier",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "name": "AI Semantic Triage Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
       "position": [
         740,
         300
       ],
       "onError": "continueRegularOutput",
       "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Phân tích email tiếng Việt sau. Trả về JSON: {department: 'TECH'|'SALES'|'FINANCE'|'GENERAL', priority: 'P1'|'P2'|'P3'|'P4', sentiment: 'positive'|'neutral'|'negative'|'urgent', confidence: 0-100, urgency_reason: string}. Tiêu đề: ${$('Sub-Workflow Trigger').first().json.subject || ''}. Nội dung: ${$('Sub-Workflow Trigger').first().json.body || $('Sub-Workflow Trigger').first().json.clean_body || ''}. Người gửi: ${$('Sub-Workflow Trigger').first().json.sender_email || ''}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
-        "options": {}
+        "promptType": "define",
+        "text": "Bạn là Agent 1 (AI Semantic Triage Agent). Phân tích email sau và phân loại vào 1 trong 4 phòng ban (TECH, SALES, FINANCE, GENERAL), gán nhãn mức ưu tiên (P1, P2, P3, P4) và sắc thái cảm xúc (urgent, positive, negative, neutral). Trả về đúng JSON: {\"department\": \"TECH|SALES|FINANCE|GENERAL\", \"category\": \"Technical|Sales|Finance|General\", \"priority\": \"P1|P2|P3|P4\", \"sentiment\": \"urgent|positive|neutral|negative\", \"confidence\": number, \"urgency_reason\": \"string\"}. Email from: {{ $('Sub-Workflow Trigger').first().json.sender_email }}, Tiêu đề: {{ $('Sub-Workflow Trigger').first().json.subject }}, Nội dung: {{ $('Sub-Workflow Trigger').first().json.body || $('Sub-Workflow Trigger').first().json.clean_body }}",
+        "options": {
+          "systemMessage": "Bạn là AI Semantic Triage Agent chuyên trách phân loại và định tuyến email tự động cho doanh nghiệp."
+        }
       }
     },
     {
@@ -74,30 +64,34 @@
         300
       ],
       "parameters": {
-        "jsCode": "const trigger = $('Sub-Workflow Trigger').first().json;\nconst payload = trigger.body ? trigger.body : trigger;\nconst aiResp = $input.first().json;\n\nlet aiResult = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    aiResult = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch(e) {}\n}\n\n// Heuristic fallback if AI is unavailable or failed to parse\nif (!aiResult.department || !aiResult.priority) {\n  const subject = String(payload.subject || '').toLowerCase();\n  const body = String(payload.body || payload.clean_body || '').toLowerCase();\n  const text = subject + ' ' + body;\n\n  if (text.includes('sập') || text.includes('500') || text.includes('504') || text.includes('down') || text.includes('outage') || text.includes('khẩn cấp')) {\n    aiResult = { department: 'TECH', priority: 'P1', sentiment: 'urgent', confidence: 95, urgency_reason: 'Phát hiện sự cố hệ thống sập nghiêm trọng' };\n  } else if (text.includes('lỗi') || text.includes('api') || text.includes('bug') || text.includes('kỹ thuật') || text.includes('server')) {\n    aiResult = { department: 'TECH', priority: 'P2', sentiment: 'negative', confidence: 90, urgency_reason: 'Yêu cầu hỗ trợ lỗi kỹ thuật' };\n  } else if (text.includes('báo giá') || text.includes('hợp đồng') || text.includes('mua') || text.includes('tư vấn')) {\n    aiResult = { department: 'SALES', priority: 'P2', sentiment: 'positive', confidence: 92, urgency_reason: 'Cơ hội bán hàng & tư vấn hợp đồng' };\n  } else if (text.includes('hóa đơn') || text.includes('vat') || text.includes('thanh toán') || text.includes('chuyển khoản')) {\n    aiResult = { department: 'FINANCE', priority: 'P3', sentiment: 'neutral', confidence: 90, urgency_reason: 'Xử lý đối soát hóa đơn tài chính' };\n  } else {\n    aiResult = { department: 'GENERAL', priority: 'P4', sentiment: 'neutral', confidence: 85, urgency_reason: 'Yêu cầu thông tin chung' };\n  }\n}\n\n// Normalize department\nconst validDepts = ['TECH', 'SALES', 'FINANCE', 'GENERAL'];\nlet dept = String(aiResult.department || 'GENERAL').toUpperCase();\nif (!validDepts.includes(dept)) dept = 'GENERAL';\n\nconst categoryMap = {\n  TECH: 'Technical',\n  SALES: 'Sales',\n  FINANCE: 'Finance',\n  GENERAL: 'General'\n};\nconst category = categoryMap[dept] || 'General';\n\n// Normalize priority\nlet priority = String(aiResult.priority || 'P3').toUpperCase();\nif (!['P1', 'P2', 'P3', 'P4'].includes(priority)) {\n  if (priority.includes('P1')) priority = 'P1';\n  else if (priority.includes('P2')) priority = 'P2';\n  else if (priority.includes('P4')) priority = 'P4';\n  else priority = 'P3';\n}\n\n// Normalize sentiment\nlet sentiment = String(aiResult.sentiment || 'neutral').toLowerCase();\nif (!['positive', 'neutral', 'negative', 'urgent'].includes(sentiment)) {\n  sentiment = 'neutral';\n}\n\nconst confidence = Number(aiResult.confidence) || 90;\nconst confidenceScore = parseFloat((confidence > 1 ? confidence / 100 : confidence).toFixed(2));\nconst urgencyReason = aiResult.urgency_reason || 'Được phân loại tự động bởi AI Semantic Classifier';\n\nreturn [{\n  json: {\n    ...payload,\n    department: dept,\n    department_code: dept,\n    category: category,\n    priority: priority,\n    sentiment: sentiment,\n    confidence: confidence,\n    confidence_score: confidenceScore,\n    urgency_reason: urgencyReason\n  }\n}];"
+        "jsCode": "const trigger = $('Sub-Workflow Trigger').first().json;\nconst payload = trigger.body ? trigger.body : trigger;\nconst aiResp = $input.first().json;\n\nlet aiResult = {};\nlet rawText = '';\nif (aiResp && aiResp.output) {\n  rawText = String(aiResp.output);\n} else if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  rawText = aiResp.candidates[0].content.parts[0].text;\n}\n\nif (rawText) {\n  try {\n    const clean = rawText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();\n    aiResult = JSON.parse(clean);\n  } catch(e) {}\n}\n\nif (!aiResult.department || !aiResult.priority) {\n  const subject = String(payload.subject || '').toLowerCase();\n  const body = String(payload.body || payload.clean_body || '').toLowerCase();\n  const text = subject + ' ' + body;\n\n  if (text.includes('sập') || text.includes('500') || text.includes('504') || text.includes('down') || text.includes('outage') || text.includes('khẩn cấp')) {\n    aiResult = { department: 'TECH', priority: 'P1', sentiment: 'urgent', confidence: 95, urgency_reason: 'Phát hiện sự cố hệ thống sập nghiêm trọng' };\n  } else if (text.includes('lỗi') || text.includes('api') || text.includes('bug') || text.includes('kỹ thuật') || text.includes('server')) {\n    aiResult = { department: 'TECH', priority: 'P2', sentiment: 'negative', confidence: 90, urgency_reason: 'Yêu cầu hỗ trợ lỗi kỹ thuật' };\n  } else if (text.includes('báo giá') || text.includes('hợp đồng') || text.includes('mua') || text.includes('tư vấn')) {\n    aiResult = { department: 'SALES', priority: 'P2', sentiment: 'positive', confidence: 92, urgency_reason: 'Cơ hội bán hàng & tư vấn hợp đồng' };\n  } else if (text.includes('hóa đơn') || text.includes('vat') || text.includes('thanh toán') || text.includes('chuyển khoản')) {\n    aiResult = { department: 'FINANCE', priority: 'P3', sentiment: 'neutral', confidence: 90, urgency_reason: 'Xử lý đối soát hóa đơn tài chính' };\n  } else {\n    aiResult = { department: 'GENERAL', priority: 'P4', sentiment: 'neutral', confidence: 85, urgency_reason: 'Yêu cầu thông tin chung' };\n  }\n}\n\nconst validDepts = ['TECH', 'SALES', 'FINANCE', 'GENERAL'];\nlet dept = String(aiResult.department || 'GENERAL').toUpperCase();\nif (!validDepts.includes(dept)) dept = 'GENERAL';\n\nconst categoryMap = { TECH: 'Technical', SALES: 'Sales', FINANCE: 'Finance', GENERAL: 'General' };\nconst category = categoryMap[dept] || 'General';\n\nlet priority = String(aiResult.priority || 'P3').toUpperCase();\nif (!['P1', 'P2', 'P3', 'P4'].includes(priority)) {\n  if (priority.includes('P1')) priority = 'P1';\n  else if (priority.includes('P2')) priority = 'P2';\n  else if (priority.includes('P4')) priority = 'P4';\n  else priority = 'P3';\n}\n\nlet sentiment = String(aiResult.sentiment || 'neutral').toLowerCase();\nif (!['positive', 'neutral', 'negative', 'urgent'].includes(sentiment)) sentiment = 'neutral';\n\nconst confidence = Number(aiResult.confidence) || 90;\nconst confidenceScore = parseFloat((confidence > 1 ? confidence / 100 : confidence).toFixed(2));\nconst urgencyReason = aiResult.urgency_reason || 'Được phân loại tự động bởi AI Semantic Triage Agent';\n\nreturn [{\n  json: {\n    ...payload,\n    department: dept,\n    department_code: dept,\n    category: category,\n    priority: priority,\n    sentiment: sentiment,\n    confidence: confidence,\n    confidence_score: confidenceScore,\n    urgency_reason: urgencyReason\n  }\n}];"
       }
     },
     {
       "id": "f2-node-05",
       "name": "Save Triage Log",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         1240,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO email_triage_logs (inbound_email, sender_email, sender_name, subject, body_snippet, classified_department, category, priority, sentiment, confidence_score, urgency_reason, sla_deadline, status) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW() + INTERVAL '24 hours', 'PENDING') RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [$('Output Schema Guard').first().json.sender_email, $('Output Schema Guard').first().json.sender_name || 'Khách hàng', $('Output Schema Guard').first().json.subject, String($('Output Schema Guard').first().json.body || $('Output Schema Guard').first().json.clean_body || '').substring(0, 250), $('Output Schema Guard').first().json.department, $('Output Schema Guard').first().json.category, $('Output Schema Guard').first().json.priority, $('Output Schema Guard').first().json.sentiment, $('Output Schema Guard').first().json.confidence_score, $('Output Schema Guard').first().json.urgency_reason] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/tickets/triage/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('Output Schema Guard').first().json.sender_email,\n  sender_name: $('Output Schema Guard').first().json.sender_name || 'Khách hàng',\n  subject: $('Output Schema Guard').first().json.subject,\n  body: String($('Output Schema Guard').first().json.body || $('Output Schema Guard').first().json.clean_body || '').substring(0, 250),\n  department: $('Output Schema Guard').first().json.department,\n  category: $('Output Schema Guard').first().json.category,\n  priority: $('Output Schema Guard').first().json.priority,\n  sentiment: $('Output Schema Guard').first().json.sentiment,\n  confidence_score: $('Output Schema Guard').first().json.confidence_score,\n  urgency_reason: $('Output Schema Guard').first().json.urgency_reason\n}) }}",
+        "options": {}
       }
     },
     {
@@ -187,24 +181,28 @@
     {
       "id": "f2-node-10",
       "name": "Audit Triage Success",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2490,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('flow02', 'EMAIL_TRIAGED_SUCCESSFULLY', 'flow02', 'Email triaged successfully with department and SLA deadline assigned', $1::jsonb, $1::jsonb);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($('Compute SLA Window').first().json)] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source: 'flow02',\n  event_type: 'EMAIL_TRIAGED_SUCCESSFULLY',\n  workflow_id: 'flow02',\n  description: 'Email triaged successfully with department and SLA deadline assigned',\n  payload_snapshot: $('Compute SLA Window').first().json,\n  payload: $('Compute SLA Window').first().json\n}) }}",
+        "options": {}
       }
     },
     {
@@ -232,6 +230,25 @@
       "parameters": {
         "jsCode": "const http = require('http');\n\nfunction sendWebhook(path, data) {\n  return new Promise((resolve) => {\n    try {\n      const payload = JSON.stringify(data);\n      const req = http.request({\n        hostname: '127.0.0.1',\n        port: 5678,\n        path: path,\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'Content-Length': Buffer.byteLength(payload)\n        }\n      }, (res) => resolve(res.statusCode));\n      req.on('error', (err) => resolve(500));\n      req.write(payload);\n      req.end();\n    } catch(e) {\n      resolve(500);\n    }\n  });\n}\n\nconst packet = $input.first().json;\nconst dept = String(packet.department_code || packet.department || '').toUpperCase();\n\nlet targetRoute = '';\nlet targetStatus = 200;\n\nif (dept === 'TECH') {\n  targetRoute = '/webhook/ticket-dispatch';\n  targetStatus = await sendWebhook('/webhook/ticket-dispatch', packet);\n  await sendWebhook('/webhook/m1-flow3-ticket', packet);\n} else if (dept === 'SALES') {\n  targetRoute = '/webhook/crm-lead';\n  targetStatus = await sendWebhook('/webhook/crm-lead', packet);\n  await sendWebhook('/webhook/m3-flow7-crm-lead', packet);\n} else if (dept === 'FINANCE') {\n  targetRoute = '/webhook/invoice-ocr';\n  targetStatus = await sendWebhook('/webhook/invoice-ocr', packet);\n  await sendWebhook('/webhook/m3-flow9-invoice-ocr', packet);\n} else {\n  targetRoute = 'GENERAL_QUEUE';\n}\n\nreturn [{\n  json: {\n    status: 'ROUTED',\n    department: dept,\n    target_route: targetRoute,\n    http_status: targetStatus,\n    payload: packet,\n    timestamp: new Date().toISOString()\n  }\n}];"
       }
+    },
+    {
+      "id": "f2-node-03-model",
+      "name": "Google Gemini Chat Model (Agent 1)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        740,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash"
+      }
     }
   ],
   "connections": {
@@ -250,18 +267,7 @@
       "main": [
         [
           {
-            "node": "AI Semantic Classifier",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Semantic Classifier": {
-      "main": [
-        [
-          {
-            "node": "Output Schema Guard",
+            "node": "AI Semantic Triage Agent",
             "type": "main",
             "index": 0
           }
@@ -357,6 +363,28 @@
         [
           {
             "node": "Route to Downstream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 1)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Semantic Triage Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Semantic Triage Agent": {
+      "main": [
+        [
+          {
+            "node": "Output Schema Guard",
             "type": "main",
             "index": 0
           }

@@ -22,30 +22,20 @@
     },
     {
       "id": "f3-node-02",
-      "name": "2. AI Ticket Extractor Gemini",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "name": "2. AI Email-to-Ticket Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
       "position": [
         440,
         300
       ],
       "onError": "continueRegularOutput",
       "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Bạn là AI Email-to-Ticket Agent (Agent 3) trong hệ thống Helpdesk kỹ thuật doanh nghiệp.\nĐọc nội dung sự cố sau:\nTiêu đề: ${$('1. Receive Tech Intent Trigger').first().json.subject || $('1. Receive Tech Intent Trigger').first().json.title}\nNội dung: ${$('1. Receive Tech Intent Trigger').first().json.body || $('1. Receive Tech Intent Trigger').first().json.text || $('1. Receive Tech Intent Trigger').first().json.description}\n\nHãy bóc tách chi tiết kỹ thuật và cấu trúc hóa thành vé sự cố tiêu chuẩn:\n1. cleaned_title: Tiêu đề kỹ thuật chuẩn, ngắn gọn\n2. affected_module: Phân loại module/dịch vụ bị ảnh hưởng (vd: API Gateway, Database Postgres, Authentication/OAuth, Frontend UI, Thanh toán, Network Infrastructure)\n3. reproduce_steps: Mảng danh sách các bước tái hiện sự cố (Step 1, Step 2...)\n4. error_symptoms: Các triệu chứng quan sát được (mã lỗi HTTP, thông báo lỗi)\n5. technical_summary: Bản tóm tắt kỹ thuật 2-3 câu cho kỹ sư hỗ trợ\n\nTrả về đúng định dạng JSON:\n{\n  \"cleaned_title\": \"string\",\n  \"affected_module\": \"string\",\n  \"reproduce_steps\": [\"string\"],\n  \"error_symptoms\": \"string\",\n  \"technical_summary\": \"string\"\n}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
-        "options": {}
+        "promptType": "define",
+        "text": "Bạn là Agent 3 (AI Email-to-Ticket Agent). Phân tích sự cố kỹ thuật sau: Tiêu đề: {{ $('1. Receive Tech Intent Trigger').first().json.subject || $('1. Receive Tech Intent Trigger').first().json.title }}, Nội dung: {{ $('1. Receive Tech Intent Trigger').first().json.body || $('1. Receive Tech Intent Trigger').first().json.description }}. Bóc tách cấu trúc vé sự cố và trả về đúng JSON: {\"cleaned_title\": \"string\", \"affected_module\": \"string\", \"reproduce_steps\": [\"string\"], \"error_symptoms\": \"string\", \"technical_summary\": \"string\"}",
+        "options": {
+          "systemMessage": "Bạn là AI Ticket Extractor Agent chuyên nghiệp cho hệ thống IT Helpdesk doanh nghiệp."
+        }
       }
     },
     {
@@ -58,28 +48,22 @@
         300
       ],
       "parameters": {
-        "jsCode": "const item = $('1. Receive Tech Intent Trigger').first().json;\nconst payload = item.body ? item.body : item;\nconst aiResp = $input.first().json;\n\nlet aiData = {};\nif (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  try {\n    aiData = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n  } catch(e) {}\n}\n\nconst sender = payload.sender_email || payload.customer_email || payload.from || \"guest@enterprise.com\";\nconst senderName = payload.sender_name || payload.name || sender.split('@')[0];\nconst title = aiData.cleaned_title || payload.title || payload.subject || \"Yêu cầu hỗ trợ sự cố kỹ thuật\";\nconst description = payload.body || payload.text || payload.description || \"Không có mô tả chi tiết\";\nconst affectedModule = aiData.affected_module || \"Hạ tầng Dịch vụ & API\";\nconst reproduceSteps = aiData.reproduce_steps || [\n  \"1. Khách hàng gửi yêu cầu hỗ trợ qua email\",\n  \"2. Hệ thống ghi nhận lỗi gián đoạn dịch vụ\",\n  \"3. Kỹ thuật viên kiểm tra nhật ký log server\"\n];\nconst reproduceStepsText = Array.isArray(reproduceSteps) ? reproduceSteps.join('\\n') : String(reproduceSteps);\nconst symptoms = aiData.error_symptoms || \"Gián đoạn phản hồi dịch vụ\";\nconst summary = aiData.technical_summary || description.substring(0, 200);\n\n// Sinh mã vé chuẩn định dạng doanh nghiệp: TK-YYYYMMDD-XXXX\nconst now = new Date();\nconst dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');\nconst randomNum = Math.floor(1000 + Math.random() * 9000);\nconst ticketCode = `TK-${dateStr}-${randomNum}`;\n\nreturn [{\n  json: {\n    ticket_code: ticketCode,\n    sender_email: sender,\n    customer_email: sender,\n    sender_name: senderName,\n    title: title,\n    description: description,\n    summary: summary,\n    category: payload.category || \"Technical\",\n    priority: payload.priority || \"P1 - Critical\",\n    affected_module: affectedModule,\n    reproduce_steps: reproduceSteps,\n    reproduce_steps_text: reproduceStepsText,\n    error_symptoms: symptoms,\n    technical_summary: summary,\n    generated_at: now.toISOString()\n  }\n}];"
+        "jsCode": "const item = $('1. Receive Tech Intent Trigger').first().json;\nconst payload = item.body ? item.body : item;\nconst aiResp = $input.first().json;\n\nlet aiData = {};\nlet rawText = '';\nif (aiResp && aiResp.output) {\n  rawText = String(aiResp.output);\n} else if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  rawText = aiResp.candidates[0].content.parts[0].text;\n}\n\nif (rawText) {\n  try {\n    const clean = rawText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();\n    aiData = JSON.parse(clean);\n  } catch(e) {}\n}\n\nconst sender = payload.sender_email || payload.customer_email || payload.from || \"guest@enterprise.com\";\nconst senderName = payload.sender_name || payload.name || sender.split('@')[0];\nconst title = aiData.cleaned_title || payload.title || payload.subject || \"Yêu cầu hỗ trợ sự cố kỹ thuật\";\nconst description = payload.body || payload.text || payload.description || \"Không có mô tả chi tiết\";\nconst affectedModule = aiData.affected_module || \"Hạ tầng Dịch vụ & API\";\nconst reproduceSteps = aiData.reproduce_steps || [\n  \"1. Khách hàng gửi yêu cầu hỗ trợ qua email\",\n  \"2. Hệ thống ghi nhận lỗi gián đoạn dịch vụ\",\n  \"3. Kỹ thuật viên kiểm tra nhật ký log server\"\n];\nconst reproduceStepsText = Array.isArray(reproduceSteps) ? reproduceSteps.join('\\n') : String(reproduceSteps);\nconst symptoms = aiData.error_symptoms || \"Gián đoạn phản hồi dịch vụ\";\nconst summary = aiData.technical_summary || description.substring(0, 200);\n\nconst now = new Date();\nconst dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');\nconst randomNum = Math.floor(1000 + Math.random() * 9000);\nconst ticketCode = `TK-${dateStr}-${randomNum}`;\n\nreturn [{\n  json: {\n    ticket_code: ticketCode,\n    sender_email: sender,\n    customer_email: sender,\n    sender_name: senderName,\n    title: title,\n    description: description,\n    summary: summary,\n    category: payload.category || \"Technical\",\n    priority: payload.priority || \"P1 - Critical\",\n    affected_module: affectedModule,\n    reproduce_steps: reproduceSteps,\n    reproduce_steps_text: reproduceStepsText,\n    error_symptoms: symptoms,\n    technical_summary: summary,\n    generated_at: now.toISOString()\n  }\n}];"
       }
     },
     {
       "id": "f3-node-04",
       "name": "4. Query Available Agents Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         920,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "alwaysOutputData": true,
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT id, full_name, name, email, active_tickets_count FROM support_agents WHERE (status = 'AVAILABLE' OR is_active = true) AND (category = 'Technical' OR category IS NULL) ORDER BY active_tickets_count ASC;",
+        "method": "GET",
+        "url": "http://localhost:4000/api/v1/tickets/agents?category=Technical",
         "options": {}
       }
     },
@@ -127,24 +111,28 @@
     {
       "id": "f3-node-07",
       "name": "7. Update Agent Workload Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         1640,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE support_agents SET active_tickets_count = active_tickets_count + 1 WHERE email = $1 OR id = $2;",
-        "options": {
-          "queryReplacement": "={{ [$('5. Least-Busy Load Balancer Code').first().json.agent_email, $('5. Least-Busy Load Balancer Code').first().json.assigned_agent_id] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/tickets/agents/workload",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  agent_email: $('5. Least-Busy Load Balancer Code').first().json.agent_email,\n  agent_id: $('5. Least-Busy Load Balancer Code').first().json.assigned_agent_id\n}) }}",
+        "options": {}
       }
     },
     {
@@ -202,24 +190,28 @@
     {
       "id": "f3-node-10",
       "name": "10. Audit SLA Dispatch Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2360,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('m1-flow3', 'TICKET_DISPATCHED_TO_AGENT', 'flow03_ticket_sla_dispatch', 'Vé sự cố kỹ thuật đã được phân phối tự động cho KTV và kích hoạt SLA', $1::jsonb, $1::jsonb);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($('5. Least-Busy Load Balancer Code').first().json)] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source: 'm1-flow3',\n  event_type: 'TICKET_DISPATCHED_TO_AGENT',\n  workflow_id: 'flow03_ticket_sla_dispatch',\n  description: 'Vé sự cố kỹ thuật đã được phân phối tự động cho KTV và kích hoạt SLA',\n  payload_snapshot: $('5. Least-Busy Load Balancer Code').first().json,\n  payload: $('5. Least-Busy Load Balancer Code').first().json\n}) }}",
+        "options": {}
       }
     },
     {
@@ -247,6 +239,25 @@
       "parameters": {
         "jsCode": "const http = require('http');\n\nfunction sendWebhook(path, data) {\n  return new Promise((resolve) => {\n    try {\n      const payload = JSON.stringify(data);\n      const req = http.request({\n        hostname: '127.0.0.1',\n        port: 5678,\n        path: path,\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'Content-Length': Buffer.byteLength(payload)\n        }\n      }, (res) => resolve(res.statusCode));\n      req.on('error', () => resolve(500));\n      req.write(payload);\n      req.end();\n    } catch(e) {\n      resolve(500);\n    }\n  });\n}\n\nconst current = $input.first().json;\nconst ticketGen = $('3. Generate Ticket Code ID Code').first().json;\n\n// Chuẩn bị Bridge Packet cho Luồng 4 (Thành viên 2 - RAG Knowledge Base & Thư nháp)\nconst bridgePayload = {\n  ticket_code: current.ticket_code,\n  title: current.title,\n  subject: current.title,\n  customer_email: ticketGen.customer_email || current.customer_email || current.sender_email || \"trangltk.24it@vku.udn.vn\",\n  priority: current.priority,\n  issue_description: current.reproduce_steps || current.technical_summary || current.title,\n  technical_summary: current.technical_summary,\n  search_query: current.search_query,\n  affected_module: current.affected_module,\n  ready_for_member2: true,\n  status: \"QUEUED_FOR_TV2_RAG\"\n};\n\nawait sendWebhook('/webhook/m2-flow4-rag-draft', bridgePayload);\n\nreturn [{\n  json: {\n    status: \"COMPLETED\",\n    message: \"Quy trình tạo vé và điều phối SLA của Thành viên 1 hoàn tất thành công. Đã tự động kích hoạt Luồng 4 RAG Draft.\",\n    ticket_code: current.ticket_code,\n    assigned_agent: current.assigned_to,\n    priority: current.priority,\n    sla_deadline: current.sla_deadline,\n    downstream_bridge: bridgePayload,\n    dispatched_at: new Date().toISOString()\n  }\n}];"
       }
+    },
+    {
+      "id": "f3-node-02-model",
+      "name": "Google Gemini Chat Model (Agent 3)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        440,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash"
+      }
     }
   ],
   "connections": {
@@ -254,18 +265,7 @@
       "main": [
         [
           {
-            "node": "2. AI Ticket Extractor Gemini",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "2. AI Ticket Extractor Gemini": {
-      "main": [
-        [
-          {
-            "node": "3. Generate Ticket Code ID Code",
+            "node": "2. AI Email-to-Ticket Agent",
             "type": "main",
             "index": 0
           }
@@ -365,6 +365,28 @@
         [
           {
             "node": "12. Trigger Luong 4 Sub-Workflow Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 3)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "2. AI Email-to-Ticket Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. AI Email-to-Ticket Agent": {
+      "main": [
+        [
+          {
+            "node": "3. Generate Ticket Code ID Code",
             "type": "main",
             "index": 0
           }

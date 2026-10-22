@@ -29,6 +29,8 @@ interface DashboardStats {
   crmLeads: number;
 }
 
+import { API_BASE_URL } from '../lib/api';
+
 export default function HomePage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalEmails: 0,
@@ -43,9 +45,9 @@ export default function HomePage() {
     setLoading(true);
     try {
       const [analyticsRes, slaRes, crmRes] = await Promise.allSettled([
-        fetch('http://localhost:4000/api/v1/analytics/stats'),
-        fetch('http://localhost:4000/api/v1/tickets/stats/sla'),
-        fetch('http://localhost:4000/api/v1/crm/customers'),
+        fetch(`${API_BASE_URL}/api/v1/analytics/stats`),
+        fetch(`${API_BASE_URL}/api/v1/tickets/stats/sla`),
+        fetch(`${API_BASE_URL}/api/v1/crm/customers`),
       ]);
 
       let emailCount = 0;

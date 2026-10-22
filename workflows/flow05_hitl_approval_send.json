@@ -50,24 +50,16 @@
     {
       "id": "f5-node-03",
       "name": "3. Fetch Final Draft Content Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         680,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT d.*, t.id AS t_id, t.ticket_code AS t_code, t.created_at AS ticket_created_at, t.sla_due_at, t.first_response_sla FROM email_drafts d LEFT JOIN tickets t ON (d.ticket_id = t.id OR d.ticket_code = t.ticket_code) WHERE d.id = $1 LIMIT 1;",
-        "options": {
-          "queryReplacement": "={{ [Number($('1. Human Action Webhook Trigger').first().json.body?.draft_id || $('1. Human Action Webhook Trigger').first().json.draft_id || 1)] }}"
-        }
+        "method": "GET",
+        "url": "={{ 'http://localhost:4000/api/v1/drafts/' + Number($('1. Human Action Webhook Trigger').first().json.body?.draft_id || $('1. Human Action Webhook Trigger').first().json.draft_id || 1) }}",
+        "options": {}
       }
     },
     {
@@ -184,24 +176,28 @@
     {
       "id": "f5-node-09",
       "name": "9. Append Resolution Comment Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2120,
         220
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO ticket_comments (ticket_id, author_type, content) VALUES ((SELECT id FROM tickets WHERE ticket_code = $1 LIMIT 1), 'HUMAN_AGENT', $2) RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [$('4. Email Address Validation Code').first().json.ticket_code, $('4. Email Address Validation Code').first().json.final_subject + ' | Đã gửi phản hồi thành công qua SMTP'] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/tickets/comments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n  author_type: 'HUMAN_AGENT',\n  content: $('4. Email Address Validation Code').first().json.final_subject + ' | Đã gửi phản hồi thành công qua SMTP'\n}) }}",
+        "options": {}
       }
     },
     {
@@ -220,47 +216,55 @@
     {
       "id": "f5-node-11",
       "name": "11. Log SLA Compliance Metric Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2600,
         220
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot) VALUES ($1, 'flow05_hitl_approval_send', $2, $3::jsonb) RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [\n  $('10. Calculate Resolution Time Code').first().json.sla_status,\n  'Đánh giá SLA cho vé ' + $('4. Email Address Validation Code').first().json.ticket_code + ': ' + $('10. Calculate Resolution Time Code').first().json.sla_status,\n  JSON.stringify({\n    ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n    resolution_time_ms: $('10. Calculate Resolution Time Code').first().json.resolution_time_ms,\n    resolution_time_minutes: $('10. Calculate Resolution Time Code').first().json.resolution_time_minutes,\n    sla_status: $('10. Calculate Resolution Time Code').first().json.sla_status,\n    reviewer_email: $('4. Email Address Validation Code').first().json.reviewer_email\n  })\n] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_type: $('10. Calculate Resolution Time Code').first().json.sla_status || 'SLA_MET',\n  workflow_id: 'flow05_hitl_approval_send',\n  description: 'Đánh giá SLA cho vé ' + $('4. Email Address Validation Code').first().json.ticket_code + ': ' + $('10. Calculate Resolution Time Code').first().json.sla_status,\n  payload_snapshot: {\n    ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n    resolution_time_ms: $('10. Calculate Resolution Time Code').first().json.resolution_time_ms,\n    resolution_time_minutes: $('10. Calculate Resolution Time Code').first().json.resolution_time_minutes,\n    sla_status: $('10. Calculate Resolution Time Code').first().json.sla_status,\n    reviewer_email: $('4. Email Address Validation Code').first().json.reviewer_email\n  }\n}) }}",
+        "options": {}
       }
     },
     {
       "id": "f5-node-12",
       "name": "12. Audit Log Email Dispatched Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2840,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot) VALUES ('OUTBOUND_EMAIL_SUCCESSFULLY_SENT', 'flow05_hitl_approval_send', 'Email phản hồi khách hàng đã được gửi thành công sau khi phê duyệt HITL', $1::jsonb) RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify({\n  draft_id: $('4. Email Address Validation Code').first().json.draft_id,\n  ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n  recipient_email: $('4. Email Address Validation Code').first().json.recipient_email,\n  reviewer_email: $('4. Email Address Validation Code').first().json.reviewer_email,\n  final_subject: $('4. Email Address Validation Code').first().json.final_subject,\n  status: 'RESOLVED',\n  dispatched_at: new Date().toISOString()\n})] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_type: 'OUTBOUND_EMAIL_SUCCESSFULLY_SENT',\n  workflow_id: 'flow05_hitl_approval_send',\n  description: 'Email phản hồi khách hàng đã được gửi thành công sau khi phê duyệt HITL',\n  payload_snapshot: {\n    draft_id: $('4. Email Address Validation Code').first().json.draft_id,\n    ticket_code: $('4. Email Address Validation Code').first().json.ticket_code,\n    recipient_email: $('4. Email Address Validation Code').first().json.recipient_email,\n    reviewer_email: $('4. Email Address Validation Code').first().json.reviewer_email,\n    final_subject: $('4. Email Address Validation Code').first().json.final_subject,\n    status: 'RESOLVED',\n    dispatched_at: new Date().toISOString()\n  }\n}) }}",
+        "options": {}
       }
     }
   ],

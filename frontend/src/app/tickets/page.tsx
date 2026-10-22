@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { API_BASE_URL } from '../../lib/api';
 import {
   RefreshCw,
   Search,
@@ -127,8 +128,8 @@ export default function TicketsPage() {
       if (triagePriority !== 'All') q.append('priority', triagePriority);
 
       const [logsRes, statsRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/v1/triage/logs?${q.toString()}`).catch(() => null),
-        fetch('http://localhost:4000/api/v1/triage/stats').catch(() => null),
+        fetch(`${API_BASE_URL}/api/v1/triage/logs?${q.toString()}`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/v1/triage/stats`).catch(() => null),
       ]);
       if (logsRes && logsRes.ok) setTriageLogs(await logsRes.json());
       if (statsRes && statsRes.ok) setTriageStats(await statsRes.json());
@@ -144,8 +145,8 @@ export default function TicketsPage() {
       if (ticketPriority !== 'All') q.append('priority', ticketPriority);
 
       const [res, slaRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/v1/tickets?${q.toString()}`).catch(() => null),
-        fetch('http://localhost:4000/api/v1/tickets/stats/sla').catch(() => null),
+        fetch(`${API_BASE_URL}/api/v1/tickets?${q.toString()}`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/v1/tickets/stats/sla`).catch(() => null),
       ]);
       if (res && res.ok) setTickets(await res.json());
       if (slaRes && slaRes.ok) setSlaStats(await slaRes.json());
@@ -156,7 +157,7 @@ export default function TicketsPage() {
 
   const loadAgentsData = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/v1/tickets/agents').catch(() => null);
+      const res = await fetch(`${API_BASE_URL}/api/v1/tickets/agents`).catch(() => null);
       if (res && res.ok) setAgents(await res.json());
     } catch (e) {
       console.warn('Error fetching agents:', e);
@@ -165,7 +166,7 @@ export default function TicketsPage() {
 
   const loadQuarantineData = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/v1/triage/quarantine').catch(() => null);
+      const res = await fetch(`${API_BASE_URL}/api/v1/triage/quarantine`).catch(() => null);
       if (res && res.ok) setQuarantineLogs(await res.json());
     } catch (e) {
       console.warn('Error fetching quarantine logs:', e);
@@ -192,7 +193,7 @@ export default function TicketsPage() {
   // Update Triage Status
   const handleUpdateTriageStatus = async (id: number, status: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/v1/triage/logs/${id}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/triage/logs/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -212,7 +213,7 @@ export default function TicketsPage() {
   // Resolve Ticket
   const handleResolveTicket = async (code: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/v1/tickets/${code}/resolve`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/tickets/${code}/resolve`, {
         method: 'PATCH',
       });
       if (res.ok) {

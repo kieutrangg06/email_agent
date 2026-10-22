@@ -240,4 +240,49 @@ export class TicketsService {
     `);
     return res.rows;
   }
+
+  async saveTriageLog(data: any) {
+    const inbound = data.inbound_email || data.sender_email || 'client@enterprise.com';
+    const sender = data.sender_email || inbound;
+    const name = data.sender_name || 'Khách hàng';
+    const subject = data.subject || 'Không có tiêu đề';
+    const bodySnippet = String(data.body || data.clean_body || data.body_snippet || '').substring(0, 250);
+    const department = data.department || data.classified_department || 'TECH';
+    const category = data.category || 'Technical';
+    const priority = data.priority || 'P2 - High';
+    const sentiment = data.sentiment || 'Trung tinh';
+    const confidence = Number(data.confidence_score || data.confidence || 0.95);
+    const urgency = data.urgency_reason || 'AI Triage Auto';
+
+    const res = await this.db.query(
+      `INSERT INTO email_triage_logs (
+        inbound_email, sender_email, sender_name, subject, body_snippet, 
+        classified_department, category, priority, sentiment, 
+        confidence_score, urgency_reason, sla_deadline, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW() + INTERVAL '24 hours', 'PENDING')
+      RETURNING *;`,
+      [inbound, sender, name, subject, bodySnippet, department, category, priority, sentiment, confidence, urgency],
+    );
+    return res.rows[0];
+  }
+
+  async updateAgentWorkload(agentEmail?: string, agentId?: number) {
+    const res = await this.db.query(
+      `UPDATE support_agents 
+       SET active_tickets_count = active_tickets_count + 1 
+       WHERE email = $1 OR id = $2
+       RETURNING *;`,
+      [agentEmail || '', agentId || -1],
+    );
+    return res.rows[0] || { success: true };
+  }
+
+  async linkDraftToTicket(ticketCode: string, draftId: number) {
+    const res = await this.db.query(
+      `UPDATE tickets SET draft_id = $1 WHERE ticket_code = $2 RETURNING id, ticket_code, draft_id;`,
+      [draftId, ticketCode],
+    );
+    return res.rows[0] || { ticket_code: ticketCode, draft_id: draftId };
+  }
 }
+

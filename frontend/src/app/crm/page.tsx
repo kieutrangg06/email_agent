@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../lib/api';
 import { Users, DollarSign, TrendingUp, Send, RefreshCw, Plus, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface Customer {
@@ -48,8 +49,8 @@ export default function CrmPage() {
     setLoading(true);
     try {
       const [cRes, dRes] = await Promise.all([
-        fetch('http://localhost:4000/api/v1/crm/customers').then((r) => (r.ok ? r.json() : [])),
-        fetch('http://localhost:4000/api/v1/crm/deals').then((r) => (r.ok ? r.json() : [])),
+        fetch(`${API_BASE_URL}/api/v1/crm/customers`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`${API_BASE_URL}/api/v1/crm/deals`).then((r) => (r.ok ? r.json() : [])),
       ]);
       setCustomers(Array.isArray(cRes) ? cRes : []);
       setDeals(Array.isArray(dRes) ? dRes : []);

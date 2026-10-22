@@ -49,53 +49,35 @@
     {
       "id": "f1-node-04",
       "name": "Check Sender Reputation",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         990,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "alwaysOutputData": true,
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT reputation_score, failed_attempts, is_blocked FROM email_senders_reputation WHERE sender_email = $1;",
-        "options": {
-          "queryReplacement": "={{ [$('Payload Normalization').first().json.sender_email] }}"
-        }
+        "method": "GET",
+        "url": "={{ 'http://localhost:4000/api/v1/audit/reputation?email=' + encodeURIComponent($('Payload Normalization').first().json.sender_email) }}",
+        "options": {}
       }
     },
     {
       "id": "f1-node-05",
-      "name": "AI Spam & Phishing Classifier",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "name": "AI Spam & Phishing Classifier Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
       "position": [
         1240,
         300
       ],
       "onError": "continueRegularOutput",
       "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + ($env.GEMINI_API_KEY || '') }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: `Analyze this email. Is it spam, phishing, or legitimate? Respond JSON: {is_spam: boolean, is_phishing: boolean, spam_confidence: 0-100, reason: string}. Email from: ${$('Payload Normalization').first().json.sender_email}, Subject: ${$('Payload Normalization').first().json.subject}, Body: ${$('Payload Normalization').first().json.body}`\n    }]\n  }],\n  generationConfig: {\n    response_mime_type: \"application/json\"\n  }\n}) }}",
-        "options": {}
+        "promptType": "define",
+        "text": "Analyze this inbound email for spam, phishing, malicious intent, or legitimate business inquiry. Respond strictly in JSON: {\"is_spam\": boolean, \"is_phishing\": boolean, \"spam_confidence\": number, \"reason\": \"string\"}. Email from: {{ $('Payload Normalization').first().json.sender_email }}, Subject: {{ $('Payload Normalization').first().json.subject }}, Body: {{ $('Payload Normalization').first().json.body }}",
+        "options": {
+          "systemMessage": "You are Agent 9 (AI Classification & Phishing Agent) in an enterprise email gateway. You must classify emails into spam, phishing, or legitimate inquiries and output strictly valid JSON."
+        }
       }
     },
     {
@@ -111,7 +93,7 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ (function() {\n  const norm = $('Payload Normalization').first().json;\n  const sysFilter = $('System/No-Reply Filter').first().json;\n  const rep = $('Check Sender Reputation').first().json;\n  const aiResp = $json;\n\n  // 1. If system email -> False\n  if (sysFilter.is_system_email === true) return false;\n\n  // 2. Parse AI response\n  let isSpam = false;\n  let isPhishing = false;\n  if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n    try {\n      const parsed = JSON.parse(aiResp.candidates[0].content.parts[0].text);\n      isSpam = Boolean(parsed.is_spam);\n      isPhishing = Boolean(parsed.is_phishing);\n    } catch(e) {}\n  } else {\n    const text = (norm.subject + ' ' + norm.body).toLowerCase();\n    isSpam = text.includes('crypto') || text.includes('trúng thưởng') || text.includes('lừa đảo') || text.includes('phishing');\n  }\n\n  // 3. Sender reputation score & blocked status\n  const repScore = (rep.reputation_score !== undefined && rep.reputation_score !== null) ? Number(rep.reputation_score) : 100;\n  const isBlocked = rep.is_blocked === true;\n\n  // Rule: reputation_score >= 20 AND is_spam == false AND is_phishing == false AND is_blocked == false\n  return (repScore >= 20) && (isSpam === false) && (isPhishing === false) && (isBlocked === false);\n})() }}",
+              "value1": "={{ (function() {\n  const norm = $('Payload Normalization').first().json;\n  const sysFilter = $('System/No-Reply Filter').first().json;\n  const rep = $('Check Sender Reputation').first().json;\n  const aiResp = $json;\n\n  if (sysFilter.is_system_email === true) return false;\n\n  let isSpam = false;\n  let isPhishing = false;\n  let aiText = '';\n\n  if (aiResp && aiResp.output) {\n    aiText = String(aiResp.output);\n  } else if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n    aiText = aiResp.candidates[0].content.parts[0].text;\n  }\n\n  if (aiText) {\n    try {\n      const cleanJson = aiText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();\n      const parsed = JSON.parse(cleanJson);\n      isSpam = Boolean(parsed.is_spam);\n      isPhishing = Boolean(parsed.is_phishing);\n    } catch(e) {}\n  } else {\n    const text = (norm.subject + ' ' + (norm.body || '')).toLowerCase();\n    isSpam = text.includes('crypto') || text.includes('trúng thưởng') || text.includes('lừa đảo') || text.includes('phishing');\n  }\n\n  const repScore = (rep.reputation_score !== undefined && rep.reputation_score !== null) ? Number(rep.reputation_score) : 100;\n  const isBlocked = rep.is_blocked === true;\n\n  return (repScore >= 20) && (isSpam === false) && (isPhishing === false) && (isBlocked === false);\n})() }}",
               "value2": true
             }
           ]
@@ -121,24 +103,28 @@
     {
       "id": "f1-node-07",
       "name": "Quarantine Vault",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         1740,
         440
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO email_quarantine_vault (sender_email, subject, raw_payload, quarantine_reason) VALUES ($1, $2, $3::jsonb, $4);",
-        "options": {
-          "queryReplacement": "={{ [$('Payload Normalization').first().json.sender_email, $('Payload Normalization').first().json.subject, JSON.stringify($('Payload Normalization').first().json.raw_payload || $('Payload Normalization').first().json), $('System/No-Reply Filter').first().json.is_system_email ? 'System/No-reply email rejected' : 'Quarantined by AI Spam & Phishing Classifier / Sender strike'] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/quarantine",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('Payload Normalization').first().json.sender_email,\n  subject: $('Payload Normalization').first().json.subject,\n  raw_payload: $('Payload Normalization').first().json.raw_payload || $('Payload Normalization').first().json,\n  quarantine_reason: $('System/No-Reply Filter').first().json.is_system_email ? 'System/No-reply email rejected' : 'Quarantined by AI Spam & Phishing Classifier / Sender strike'\n}) }}",
+        "options": {}
       }
     },
     {
@@ -169,24 +155,28 @@
     {
       "id": "f1-node-09",
       "name": "Update Sender Strike Score",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         1740,
         600
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO email_senders_reputation (sender_email, email, reputation_score, failed_attempts, is_blocked, status, notes) VALUES ($1, $1, 85, 1, false, 'suspicious', 'Quarantined strike') ON CONFLICT (sender_email) DO NOTHING; UPDATE email_senders_reputation SET failed_attempts = failed_attempts + 1, reputation_score = GREATEST(reputation_score - 15, 0) WHERE sender_email = $1;",
-        "options": {
-          "queryReplacement": "={{ [$('Payload Normalization').first().json.sender_email] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/reputation/strike",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('Payload Normalization').first().json.sender_email\n}) }}",
+        "options": {}
       }
     },
     {
@@ -205,24 +195,28 @@
     {
       "id": "f1-node-11",
       "name": "Audit Ingest Pass",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         1990,
         180
       ],
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (source, event_type, workflow_id, description, payload, payload_snapshot) VALUES ('flow01', 'INBOUND_CLEAN_EMAIL_ACCEPTED', 'flow01', 'Inbound clean email accepted and verified through anti-spam filter', $1::jsonb, $1::jsonb);",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify($('Format Clean Payload').first().json)] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source: 'flow01',\n  event_type: 'INBOUND_CLEAN_EMAIL_ACCEPTED',\n  workflow_id: 'flow01',\n  description: 'Inbound clean email accepted and verified through anti-spam filter',\n  payload_snapshot: $('Format Clean Payload').first().json,\n  payload: $('Format Clean Payload').first().json\n}) }}",
+        "options": {}
       }
     },
     {
@@ -251,6 +245,25 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Format Clean Payload').first().json) }}",
         "options": {}
+      }
+    },
+    {
+      "id": "f1-node-05-model",
+      "name": "Google Gemini Chat Model (Agent 9)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash"
       }
     }
   ],
@@ -292,18 +305,7 @@
       "main": [
         [
           {
-            "node": "AI Spam & Phishing Classifier",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Spam & Phishing Classifier": {
-      "main": [
-        [
-          {
-            "node": "IF Clean & High Reputation",
+            "node": "AI Spam & Phishing Classifier Agent",
             "type": "main",
             "index": 0
           }
@@ -360,6 +362,28 @@
         [
           {
             "node": "Trigger Workflow 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 9)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Spam & Phishing Classifier Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Spam & Phishing Classifier Agent": {
+      "main": [
+        [
+          {
+            "node": "IF Clean & High Reputation",
             "type": "main",
             "index": 0
           }
