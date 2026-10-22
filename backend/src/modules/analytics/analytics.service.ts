@@ -70,4 +70,48 @@ export class AnalyticsService {
       generated_at: new Date().toISOString(),
     };
   }
+
+  async getInboundVolume() {
+    const res = await this.db.query(
+      `SELECT 
+         (SELECT COUNT(*) FROM email_triage_logs WHERE created_at >= CURRENT_DATE)::int AS total_emails_today,
+         (SELECT COUNT(*) FROM email_quarantine_vault WHERE created_at >= CURRENT_DATE)::int AS spam_blocked_today;`
+    );
+    return res.rows[0] || { total_emails_today: 0, spam_blocked_today: 0 };
+  }
+
+  async getTicketStats() {
+    const res = await this.db.query(
+      `SELECT 
+         COUNT(*)::int AS total_tickets, 
+         COUNT(*) FILTER (WHERE status = 'RESOLVED' OR status = 'CLOSED')::int AS resolved_tickets, 
+         COUNT(*) FILTER (WHERE priority ILIKE '%P1%')::int AS p1_count, 
+         COUNT(*) FILTER (WHERE status = 'PENDING' OR status = 'IN_PROGRESS')::int AS pending_tickets, 
+         COALESCE(ROUND((COUNT(*) FILTER (WHERE status = 'RESOLVED' OR status = 'CLOSED')::numeric / NULLIF(COUNT(*), 0)::numeric) * 100, 2), 100.0)::float AS sla_compliance_rate, 
+         (SELECT COUNT(*) FROM tickets WHERE priority ILIKE '%P1%' AND created_at >= NOW() - INTERVAL '7 days' AND created_at < CURRENT_DATE)::int AS p1_past_7_days 
+       FROM tickets 
+       WHERE created_at >= NOW() - INTERVAL '24 hours';`
+    );
+    return res.rows[0] || {
+      total_tickets: 0,
+      resolved_tickets: 0,
+      p1_count: 0,
+      pending_tickets: 0,
+      sla_compliance_rate: 100.0,
+      p1_past_7_days: 0,
+    };
+  }
+
+  async getDigestRecipients() {
+    const res = await this.db.query(
+      `SELECT id, director_name, COALESCE(email, recipient_email) AS email 
+       FROM daily_digest_recipients 
+       WHERE is_active = true;`
+    );
+    if (res.rows.length === 0) {
+      return [{ id: 1, director_name: 'Ban Giám Đốc', email: 'tranngo170770@gmail.com' }];
+    }
+    return res.rows;
+  }
 }
+

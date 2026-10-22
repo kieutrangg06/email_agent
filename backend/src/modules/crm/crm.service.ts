@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../core/database/database.service';
 
-export interface CrmCustomerDto {
+export class CrmCustomerDto {
+  email: string;
+  sender_email?: string;
+  customer_email?: string;
   fullName?: string;
   full_name?: string;
-  email: string;
   phone?: string;
   companyName?: string;
   company_name?: string;
@@ -15,10 +17,11 @@ export interface CrmCustomerDto {
   is_unsubscribed?: boolean;
 }
 
-export interface CrmDealDto {
+export class CrmDealDto {
   customerId?: number;
   customer_id?: number;
   email?: string;
+  sender_email?: string;
   dealName?: string;
   deal_name?: string;
   expectedBudget?: number;
@@ -32,6 +35,8 @@ export interface CrmDealDto {
 
 @Injectable()
 export class CrmService {
+  private readonly logger = new Logger(CrmService.name);
+
   constructor(private readonly db: DatabaseService) {}
 
   async getAllCustomers() {
@@ -52,8 +57,15 @@ export class CrmService {
   }
 
   async upsertCustomer(dto: CrmCustomerDto) {
-    const email = dto.email;
-    if (!email) throw new Error('Email is required');
+    if (!dto || typeof dto !== 'object') {
+      throw new BadRequestException('Request body is required');
+    }
+
+    const rawEmail = dto.email || dto.sender_email || dto.customer_email;
+    if (!rawEmail || typeof rawEmail !== 'string' || !rawEmail.trim()) {
+      throw new BadRequestException('Email is required and must be a valid non-empty string');
+    }
+    const email = rawEmail.trim().toLowerCase();
 
     const fullName = dto.fullName || dto.full_name || 'Khách hàng tiềm năng';
     const phone = dto.phone || null;
@@ -90,10 +102,19 @@ export class CrmService {
 
   async createDeal(dto: CrmDealDto) {
     let customerId = dto.customerId || dto.customer_id;
+    const rawEmail = dto.email || dto.sender_email;
 
-    if (!customerId && dto.email) {
-      const cust = await this.upsertCustomer({ email: dto.email });
+    if (!customerId && rawEmail) {
+      const cust = await this.upsertCustomer({ email: rawEmail });
       customerId = cust.id;
+    }
+
+    if (!customerId) {
+      const defaultCust = await this.upsertCustomer({
+        email: 'trangltk.24it@vku.udn.vn',
+        fullName: 'Khách hàng tiềm năng',
+      });
+      customerId = defaultCust.id;
     }
 
     const dealName = dto.dealName || dto.deal_name || 'Cơ hội tư vấn giải pháp CRM';
@@ -125,4 +146,40 @@ export class CrmService {
     );
     return res.rows[0];
   }
+
+  async getCustomerByEmail(email: string) {
+    if (!email) return { id: null, email: '', full_name: null, lead_score: 50 };
+    const cleanEmail = email.trim().toLowerCase();
+    const res = await this.db.query(
+      `SELECT id, email, full_name, lead_score FROM crm_customers WHERE LOWER(email) = $1 LIMIT 1;`,
+      [cleanEmail],
+    );
+    if (res.rows.length === 0) {
+      return { id: null, email: cleanEmail, full_name: null, lead_score: 50 };
+    }
+    return res.rows[0];
+  }
+
+  async getStaleDeals(limit = 10) {
+    const res = await this.db.query(
+      `SELECT d.id as deal_id, d.deal_name, d.expected_budget, d.stage, d.followup_count, d.last_contacted_at,
+              c.id as customer_id, c.full_name, c.email, c.phone, c.company_name, c.is_unsubscribed 
+       FROM crm_deals d 
+       JOIN crm_customers c ON d.customer_id = c.id 
+       WHERE d.stage IN ('QUOTED', 'NEW_INQUIRY') 
+       ORDER BY d.last_contacted_at ASC 
+       LIMIT $1;`,
+      [limit],
+    );
+    return res.rows;
+  }
+
+  async getDealById(id: number) {
+    const res = await this.db.query(
+      `SELECT deal_name, expected_budget, campaign_tag FROM crm_deals WHERE id = $1 LIMIT 1;`,
+      [id],
+    );
+    return res.rows[0] || null;
+  }
 }
+

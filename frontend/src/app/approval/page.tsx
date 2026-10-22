@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { API_BASE_URL } from '../../lib/api';
 import {
   CheckCircle2,
   XCircle,
@@ -65,7 +66,7 @@ export default function ApprovalPage() {
 
   const fetchDrafts = () => {
     setLoading(true);
-    fetch('http://localhost:4000/api/v1/drafts')
+    fetch(`${API_BASE_URL}/api/v1/drafts`)
       .then((res) => {
         if (!res.ok) throw new Error('API request failed');
         return res.json();
@@ -108,7 +109,7 @@ export default function ApprovalPage() {
   useEffect(() => {
     let eventSource: EventSource | null = null;
     try {
-      eventSource = new EventSource('http://localhost:4000/api/v1/events');
+      eventSource = new EventSource(`${API_BASE_URL}/api/v1/events`);
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -183,7 +184,7 @@ export default function ApprovalPage() {
       }
 
       // 2. Call NestJS backend PATCH /api/v1/drafts/:id/status
-      const patchRes = await fetch(`http://localhost:4000/api/v1/drafts/${draft.id}/status`, {
+      const patchRes = await fetch(`${API_BASE_URL}/api/v1/drafts/${draft.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -219,7 +220,7 @@ export default function ApprovalPage() {
   const handleReject = async (draft: Draft) => {
     setActionLoading(draft.id);
     try {
-      const res = await fetch(`http://localhost:4000/api/v1/drafts/${draft.id}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/drafts/${draft.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -22,22 +22,17 @@
     {
       "id": "f8-node-02",
       "name": "2. Query Stale Sales Deals Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         440,
         300
       ],
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT d.id as deal_id, d.deal_name, d.expected_budget, d.stage, d.followup_count, d.last_contacted_at,\n       c.id as customer_id, c.full_name, c.email, c.phone, c.company_name, c.is_unsubscribed\nFROM crm_deals d\nJOIN crm_customers c ON d.customer_id = c.id\nWHERE d.stage IN ('QUOTED', 'NEW_INQUIRY')\nORDER BY d.last_contacted_at ASC\nLIMIT 10;"
+        "method": "GET",
+        "url": "http://localhost:4000/api/v1/crm/deals/stale",
+        "options": {}
       }
     },
     {
@@ -56,25 +51,17 @@
     {
       "id": "f8-node-04",
       "name": "4. Fetch Previous Chat Context Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         920,
         300
       ],
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT deal_name, expected_budget, campaign_tag FROM crm_deals WHERE id = $1 LIMIT 1;",
-        "options": {
-          "queryReplacement": "={{ [$json.deal_id] }}"
-        }
+        "method": "GET",
+        "url": "={{ 'http://localhost:4000/api/v1/crm/deals/' + $json.deal_id }}",
+        "options": {}
       }
     },
     {
@@ -92,16 +79,21 @@
     },
     {
       "id": "f8-node-06",
-      "name": "6. AI Personalized Follow-up Drafter Code",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "6. AI Follow-up Nurturing Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
       "position": [
         1400,
         300
       ],
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst name = item.full_name || 'Quý khách';\nconst comp = item.company_name || 'Doanh nghiệp đối tác';\n\nconst bodyText = `Kính gửi ${name} (${comp}),\n\nĐội ngũ NovaCRM xin phép liên hệ lại để kiểm tra xem Quý khách đã nhận được bộ tài liệu giải pháp và hồ sơ năng lực kỹ thuật mà chúng tôi đã gửi hay chưa.\n\nHiện tại chúng tôi đang có chương trình hỗ trợ demo thực tế hệ thống theo quy mô ngân sách ${Number(item.expected_budget || 0).toLocaleString('vi-VN')} VNĐ. Nếu Quý khách cần đặt lịch trao đổi nhanh 15 phút, xin vui lòng phản hồi email này.\n\nTrân trọng,\nBan Chăm Sóc Khách Hàng NovaCRM`;\n\nreturn [{\n  json: {\n    ...item,\n    email_subject: `[NovaCRM] ${item.email_topic} - Hỗ trợ ${comp}`,\n    email_body_html: bodyText.replace(/\\n/g, '<br/>')\n  }\n}];"
-      }
+        "promptType": "define",
+        "text": "Bạn là Agent 6 (AI Follow-up Nurturing Agent). Hãy tạo email hỏi thăm chăm sóc deal: {{ $('5. Check Follow-up Stage Code').first().json.deal_name }}, Khách hàng: {{ $('5. Check Follow-up Stage Code').first().json.full_name }} ({{ $('5. Check Follow-up Stage Code').first().json.company_name }}), Ngân sách: {{ $('5. Check Follow-up Stage Code').first().json.expected_budget }} VNĐ, Giai đoạn: {{ $('5. Check Follow-up Stage Code').first().json.stage_name }}. Trả về đúng JSON: {\"email_subject\": \"string\", \"email_body_html\": \"string\"}",
+        "options": {
+          "systemMessage": "Bạn là AI Sales Nurturing Agent chuyên viết email chăm sóc khách hàng sau báo giá lịch thiệp, cá nhân hóa."
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "f8-node-07",
@@ -123,8 +115,8 @@
       "parameters": {
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "={{ $json.email }}",
-        "subject": "={{ $json.email_subject }}",
-        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; background: #fff5f7; padding: 24px; color: #1e293b;\">\n  <div style=\"max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fecdd3; padding: 24px;\">\n    <h3 style=\"color: #be123c; margin-top: 0;\">{{ $json.email_subject }}</h3>\n    <div style=\"line-height: 1.6; font-size: 14px;\">\n      {{ $json.email_body_html }}\n    </div>\n  </div>\n</body>\n</html>",
+        "subject": "={{ (function() { try { const p = JSON.parse(String($json.output || '').replace(/```json/g,'').replace(/```/g,'').trim()); if (p.email_subject) return p.email_subject; } catch(e){} return '[NovaCRM] Chăm sóc giải pháp - ' + $('5. Check Follow-up Stage Code').first().json.deal_name; })() }}",
+        "html": "={{ (function() { try { const p = JSON.parse(String($json.output || '').replace(/```json/g,'').replace(/```/g,'').trim()); if (p.email_body_html) return p.email_body_html; } catch(e){} return '<p>Kính gửi ' + ($('5. Check Follow-up Stage Code').first().json.full_name || 'Quý khách') + ',<br/>Đội ngũ NovaCRM xin phép liên hệ lại để hỗ trợ trao đổi giải pháp.</p>'; })() }}",
         "options": {}
       }
     },
@@ -195,25 +187,29 @@
     {
       "id": "f8-node-11",
       "name": "11. Audit Follow-up Sent Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2600,
         300
       ],
       "continueOnFail": true,
-      "credentials": {
-        "postgres": {
-          "id": "CaIms8Oqvb0ztig0",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO system_audit_logs (event_type, workflow_id, description, payload_snapshot, created_at)\nVALUES (\n  'SALES_FOLLOWUP_DISPATCHED',\n  'flow08_automated_followup',\n  'Đã gửi email chăm sóc cho deal #' || $1,\n  $2::jsonb,\n  NOW()\n);",
-        "options": {
-          "queryReplacement": "={{ [$('5. Check Follow-up Stage Code').first().json.deal_id, JSON.stringify($('5. Check Follow-up Stage Code').first().json)] }}"
-        }
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_type: 'SALES_FOLLOWUP_DISPATCHED',\n  workflow_id: 'flow08_automated_followup',\n  description: 'Đã gửi email chăm sóc cho deal #' + $('5. Check Follow-up Stage Code').first().json.deal_id,\n  payload_snapshot: $('5. Check Follow-up Stage Code').first().json\n}) }}",
+        "options": {}
       }
     },
     {
@@ -227,6 +223,25 @@
       ],
       "parameters": {
         "jsCode": "return [{\n  json: {\n    status: \"FOLLOWUP_CYCLE_COMPLETED\",\n    executed_at: new Date().toISOString(),\n    message: \"Chu kỳ rà soát và gửi email follow-up Luồng 8 hoàn tất thành công.\"\n  }\n}];"
+      }
+    },
+    {
+      "id": "f8-node-06-model",
+      "name": "Google Gemini Chat Model (Agent 6)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash"
       }
     }
   ],
@@ -279,18 +294,7 @@
       "main": [
         [
           {
-            "node": "6. AI Personalized Follow-up Drafter Code",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "6. AI Personalized Follow-up Drafter Code": {
-      "main": [
-        [
-          {
-            "node": "7. Send Follow-up Email SMTP",
+            "node": "6. AI Follow-up Nurturing Agent",
             "type": "main",
             "index": 0
           }
@@ -353,6 +357,28 @@
         [
           {
             "node": "12. Complete Follow-up Cycle Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 6)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "6. AI Follow-up Nurturing Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. AI Follow-up Nurturing Agent": {
+      "main": [
+        [
+          {
+            "node": "7. Send Follow-up Email SMTP",
             "type": "main",
             "index": 0
           }

@@ -6,12 +6,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool;
 
   onModuleInit() {
+    const config: any = process.env.DATABASE_URL
+      ? {
+          connectionString: process.env.DATABASE_URL,
+          ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+        }
+      : {
+          host: process.env.DB_HOST || '127.0.0.1',
+          port: parseInt(process.env.DB_PORT || '5432', 10),
+          user: process.env.DB_USER || 'admin',
+          password: process.env.DB_PASSWORD || 'SecretPassword123!',
+          database: process.env.DB_DATABASE || process.env.POSTGRES_DB || 'email_automation_db',
+        };
+
     this.pool = new Pool({
-      host: process.env.DB_HOST || '127.0.0.1',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      user: process.env.DB_USER || 'admin',
-      password: process.env.DB_PASSWORD || 'SecretPassword123!',
-      database: process.env.DB_DATABASE || process.env.POSTGRES_DB || 'email_automation_db',
+      ...config,
       max: 20,
       idleTimeoutMillis: 30000,
     });

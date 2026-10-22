@@ -124,4 +124,54 @@ export class AuditService implements OnModuleInit {
       items: groupRes.rows,
     };
   }
+
+  async getSenderReputation(senderEmail: string) {
+    if (!senderEmail) {
+      return { reputation_score: 85, failed_attempts: 0, is_blocked: false };
+    }
+    const cleanEmail = senderEmail.trim().toLowerCase();
+    const res = await this.db.query(
+      'SELECT reputation_score, failed_attempts, is_blocked FROM email_senders_reputation WHERE sender_email = $1 OR email = $1 LIMIT 1;',
+      [cleanEmail],
+    );
+    if (res.rows.length === 0) {
+      return { reputation_score: 85, failed_attempts: 0, is_blocked: false };
+    }
+    return {
+      reputation_score: Number(res.rows[0].reputation_score ?? 85),
+      failed_attempts: Number(res.rows[0].failed_attempts ?? 0),
+      is_blocked: Boolean(res.rows[0].is_blocked),
+    };
+  }
+
+  async saveQuarantine(dto: { sender_email: string; subject?: string; raw_payload?: any; quarantine_reason?: string }) {
+    const rawPayload = dto.raw_payload ? (typeof dto.raw_payload === 'string' ? dto.raw_payload : JSON.stringify(dto.raw_payload)) : '{}';
+    const res = await this.db.query(
+      `INSERT INTO email_quarantine_vault (sender_email, subject, raw_payload, quarantine_reason)
+       VALUES ($1, $2, $3::jsonb, $4)
+       RETURNING *;`,
+      [dto.sender_email, dto.subject || 'Không có tiêu đề', rawPayload, dto.quarantine_reason || 'Quarantined'],
+    );
+    return res.rows[0];
+  }
+
+  async updateSenderStrike(dto: { sender_email: string }) {
+    const email = (dto.sender_email || '').trim().toLowerCase();
+    await this.db.query(
+      `INSERT INTO email_senders_reputation (sender_email, email, reputation_score, failed_attempts, is_blocked, status, notes)
+       VALUES ($1, $1, 85, 1, false, 'suspicious', 'Quarantined strike')
+       ON CONFLICT (sender_email) DO NOTHING;`,
+      [email],
+    );
+    const res = await this.db.query(
+      `UPDATE email_senders_reputation 
+       SET failed_attempts = failed_attempts + 1, 
+           reputation_score = GREATEST(reputation_score - 15, 0) 
+       WHERE sender_email = $1 OR email = $1
+       RETURNING *;`,
+      [email],
+    );
+    return res.rows[0] || { success: true };
+  }
 }
+

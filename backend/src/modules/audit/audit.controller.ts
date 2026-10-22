@@ -33,4 +33,20 @@ export class AuditController {
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     return this.auditService.getLogs(workflowId, eventType, limitNum, offsetNum);
   }
+
+  @Get('reputation')
+  async getReputation(@Query('email') email: string) {
+    return this.auditService.getSenderReputation(email);
+  }
+
+  @Post('quarantine')
+  async quarantineEmail(@Body() body: { sender_email: string; subject?: string; raw_payload?: any; quarantine_reason?: string }) {
+    return this.auditService.saveQuarantine(body);
+  }
+
+  @Post('reputation/strike')
+  async strikeSender(@Body() body: { sender_email: string }) {
+    return this.auditService.updateSenderStrike(body);
+  }
 }
+

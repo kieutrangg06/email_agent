@@ -107,5 +107,29 @@ export class TicketsController {
   async resolveTicket(@Param('code') code: string) {
     return this.ticketsService.resolveTicket(code);
   }
+
+  @Post('triage/logs')
+  async createTriageLog(@Body() body: any) {
+    return this.ticketsService.saveTriageLog(body);
+  }
+
+  @Post('tickets/triage/logs')
+  async createTriageLogAlias(@Body() body: any) {
+    return this.ticketsService.saveTriageLog(body);
+  }
+
+  @Post('tickets/agents/workload')
+  async updateAgentWorkload(@Body() body: { agent_email?: string; agent_id?: number }) {
+    return this.ticketsService.updateAgentWorkload(body.agent_email, body.agent_id);
+  }
+
+  @Patch('tickets/:code/link-draft')
+  async linkDraft(
+    @Param('code') code: string,
+    @Body('draft_id') draftId: number,
+  ) {
+    return this.ticketsService.linkDraftToTicket(code, draftId);
+  }
 }
+
 

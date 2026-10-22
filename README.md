@@ -50,18 +50,18 @@ Toàn bộ 9 workflows n8n, API backend, dữ liệu khởi tạo (seed) và k�
 └── Human Review & Outbound
 ```
 
-| STT | Tên AI Agent | Mô hình & Công nghệ | Nằm trong Luồng n8n | Chức năng cụ thể |
+| STT | Tên AI Agent | Kiểu Node n8n & Mô hình | Vị trí trong Luồng n8n | Chức năng cụ thể |
 |:---:|:---|:---|:---:|:---|
-| **1** | **AI Email Triage Agent** | Gemini 1.5/2.0 Flash | Luồng 2 (Node 3) | Phân tích ngữ cảnh tiếng Việt, định tuyến 4 phòng ban (TECH, SALES, FINANCE, GENERAL), gán nhãn độ khẩn cấp P1–P4, trích xuất sắc thái và lý do. |
-| **2** | **AI Email Reply Agent** | Gemini + RAG (Vector) | Luồng 4 (Node 6) | Kết hợp kết quả tra cứu vector cosine similarity (pgvector) trên `knowledge_base` để sinh dự thảo trả lời kỹ thuật chuẩn xác. |
-| **3** | **AI Email-to-Ticket Agent** | Gemini 1.5/2.0 Flash | Luồng 3 (Node 2) | Bóc tách tiêu đề sự cố ngắn gọn, xác định phân hệ lỗi (`affected_module`), trích xuất các bước tái hiện lỗi (`reproduce_steps`). |
-| **4** | **AI Email-to-CRM Agent** | Gemini 1.5/2.0 Flash | Luồng 7 (Node 2) | Bóc tách cấu trúc thực thể kinh doanh từ thư phi cấu trúc: Tên liên hệ, SĐT (+84), Doanh nghiệp, Nhu cầu giải pháp, Ngân sách dự kiến. |
-| **5** | **AI Email Summarization Agent** | Gemini 1.5/2.0 Flash | Luồng 6 (Node 5) | Tóm tắt tổng thể email và vé sự cố trong 24h, phân tích sắc thái chung và chỉ ra 3 vấn đề trọng tâm gửi Ban Giám Đốc. |
-| **6** | **AI Email Follow-up Agent** | Gemini 1.5/2.0 Flash | Luồng 8 (Node 6) | Đọc lịch sử trao đổi của các deal báo giá > 48h, tự động tạo email hỏi thăm cá nhân hóa theo 3 giai đoạn (Lần 1, Lần 2, Lần 3). |
-| **7** | **AI Campaign Agent** | Gemini 1.5/2.0 Flash | Luồng 7 (Node 3) | Định vị phân khúc khách hàng (`ENTERPRISE_HIGH_VALUE` vs `SME_RETAIL`) và gắn nhãn chiến dịch tiếp thị tương ứng. |
-| **8** | **AI Deliverability Monitor** | Rule Engine + Gemini | Luồng 1 (Node 4) & Luồng 6 (Node 4) | Kiểm soát chỉ số uy tín người gửi (`reputation_score`), phát hiện tỷ lệ bounce/spam và cảnh báo spike số lượng lỗi P1 tăng đột biến > 20%. |
-| **9** | **AI Classification Agent** | Gemini 1.5/2.0 Flash | Luồng 1 (Node 5) | Cửa ngõ phòng vệ đầu tiên: Phân tích phát hiện thư rác (Spam), thư lừa đảo tài chính (Phishing), mã độc hoặc nội dung không hợp lệ. |
-| **10** | **AI Attachment Processing Agent** | Gemini Multimodal Vision | Luồng 9 (Node 4) | Đọc file PDF/ảnh hóa đơn, bóc tách Số hóa đơn, MST, Ngày lập, Tiền hàng, Thuế VAT, Tổng tiền thanh toán. |
+| **1** | **AI Semantic Triage Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 2 (Node 3) | Phân tích ngữ cảnh tiếng Việt, định tuyến 4 phòng ban (TECH, SALES, FINANCE, GENERAL), gán nhãn độ khẩn cấp P1–P4, trích xuất sắc thái và lý do. |
+| **2** | **AI RAG Response Drafter Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 4 (Node 6) | Kết hợp kết quả tra cứu vector cosine similarity (pgvector) từ NestJS RAG API để sinh dự thảo trả lời kỹ thuật chuẩn xác. |
+| **3** | **AI Email-to-Ticket Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 3 (Node 2) | Bóc tách tiêu đề sự cố ngắn gọn, xác định phân hệ lỗi (`affected_module`), trích xuất các bước tái hiện lỗi (`reproduce_steps`). |
+| **4** | **AI Email-to-CRM Lead Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 7 (Node 2) | Bóc tách cấu trúc thực thể kinh doanh từ thư phi cấu trúc: Tên liên hệ, SĐT (+84), Doanh nghiệp, Nhu cầu giải pháp, Ngân sách dự kiến. |
+| **5** | **AI Executive Summarizer Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 6 (Node 5) | Tóm tắt tổng thể email và vé sự cố trong 24h, phân tích sắc thái chung và chỉ ra 3 vấn đề trọng tâm gửi Ban Giám Đốc. |
+| **6** | **AI Follow-up Nurturing Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 8 (Node 6) | Đọc lịch sử trao đổi của các deal báo giá > 48h, tự động tạo email hỏi thăm cá nhân hóa theo 3 giai đoạn (Lần 1, Lần 2, Lần 3). |
+| **7** | **AI Campaign Categorizer Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 7 (Node 3) | Định vị phân khúc khách hàng (`ENTERPRISE_HIGH_VALUE` vs `SME_RETAIL`) và gắn nhãn chiến dịch tiếp thị tương ứng. |
+| **8** | **AI Deliverability Monitor** | Rule Engine + Gemini Audit | Luồng 1 (Node 4) & Luồng 6 (Node 4) | Kiểm soát chỉ số uy tín người gửi (`reputation_score`), phát hiện tỷ lệ bounce/spam và cảnh báo spike số lượng lỗi P1 tăng đột biến > 20%. |
+| **9** | **AI Spam & Phishing Classifier Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 1 (Node 5) | Cửa ngõ phòng vệ đầu tiên: Phân tích phát hiện thư rác (Spam), thư lừa đảo tài chính (Phishing), mã độc hoặc nội dung không hợp lệ. |
+| **10** | **Multimodal Invoice Vision OCR Agent** | `@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash | Luồng 9 (Node 4) | Đọc file PDF/ảnh hóa đơn, bóc tách Số hóa đơn, MST, Ngày lập, Tiền hàng, Thuế VAT, Tổng tiền thanh toán. |
 
 ---
 
@@ -74,28 +74,28 @@ Mỗi workflow được thiết kế đúng **12 nodes DAG**; các dây nối (c
 - **Node 1 (Webhook Ingest Trigger):** Tiếp nhận payload email qua `POST /webhook/m1-flow1-ingest`.
 - **Node 2 (Payload Normalization Code):** Dùng Regex bóc tách email gốc, làm sạch mã HTML body, chuẩn hóa chuỗi đầu vào.
 - **Node 3 (System/No-Reply Filter Code):** Phát hiện email tự sinh (no-reply, mailer-daemon, bounce). Nếu là email hệ thống, đẩy sang nhánh cách ly.
-- **Node 4 (Check Sender Reputation Postgres):** Truy vấn bảng `email_senders_reputation` lấy điểm `reputation_score`.
-- **Node 5 (AI Spam & Phishing Classifier):** Gọi Gemini phân tích nội dung có chứa dấu hiệu lừa đảo, phát tán mã độc hay không.
+- **Node 4 (Check Sender Reputation HTTP API):** Gọi NestJS API `GET /api/v1/audit/reputation` kiểm tra điểm `reputation_score` và trạng thái chặn của người gửi.
+- **Node 5 (AI Spam & Phishing Classifier Agent):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) phân tích nội dung có chứa dấu hiệu lừa đảo, phát tán mã độc hay không.
 - **Node 6 (IF Clean & High Reputation):** Rẽ nhánh: Nếu `is_spam == false` và `reputation_score >= 20` -> Đi vào Nhánh True (Sạch); Ngược lại -> Đi vào Nhánh False (Độc hại).
-- **Node 7 (Quarantine Vault Postgres - Nhánh False):** Lưu trữ email vi phạm vào bảng `email_quarantine_vault`.
+- **Node 7 (Quarantine Vault HTTP API - Nhánh False):** Gọi NestJS API `POST /api/v1/audit/quarantine` lưu trữ an toàn email vi phạm vào bảng cách ly.
 - **Node 8 (Security Alert Mailer - Nhánh False):** Gửi email SMTP cảnh báo khẩn cấp cho Quản trị viên (`tranngo170770@gmail.com`).
-- **Node 9 (Update Sender Strike Score Postgres - Nhánh False):** Tăng `failed_attempts + 1` và trừ 50 điểm tín nhiệm trong bảng reputation.
+- **Node 9 (Update Sender Strike Score HTTP API - Nhánh False):** Gọi NestJS API `POST /api/v1/audit/reputation/strike` tăng `failed_attempts + 1` và trừ điểm tín nhiệm.
 - **Node 10 (Format Clean Verified Payload Code - Nhánh True):** Đóng gói payload email sạch, gắn cờ `IS_CLEAN_VERIFIED = true`.
-- **Node 11 (Audit Ingest Pass Postgres):** Ghi sự kiện `INBOUND_CLEAN_EMAIL_ACCEPTED` vào bảng `system_audit_logs`.
+- **Node 11 (Audit Ingest Pass HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi sự kiện `INBOUND_CLEAN_EMAIL_ACCEPTED` vào hệ thống audit.
 - **Node 12 (Trigger Workflow 2 Sub-workflow):** Bắn HTTP POST chuyển tiếp toàn bộ payload sang Luồng 2 (`/webhook/m1-flow2-triage`).
 
 #### [Luồng 2] AI Multi-Department Triage & Acknowledgment (12 Nodes)
 *File: `workflows/flow02_department_triage.json`*
 - **Node 1 (Sub-Workflow Trigger):** Tiếp nhận email sạch từ Luồng 1 tại path `m1-flow2-triage`.
 - **Node 2 (Fetch Departments HTTP):** Gọi NestJS API `GET /api/v1/departments` lấy danh sách 4 phòng ban hoạt động.
-- **Node 3 (AI Semantic Classifier / Gemini - Agent 1):** Phân tích ngữ nghĩa tiếng Việt: xác định phòng ban (TECH, SALES, FINANCE, GENERAL), mức ưu tiên (P1 đến P4), sắc thái khách hàng.
+- **Node 3 (AI Semantic Triage Agent - Agent 1):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) phân tích ngữ nghĩa tiếng Việt: xác định phòng ban (TECH, SALES, FINANCE, GENERAL), mức ưu tiên (P1 đến P4), sắc thái khách hàng.
 - **Node 4 (Output Schema Guard Code):** Kiểm tra và ép kiểu JSON chặt chẽ, thiết lập giá trị dự phòng nếu AI phản hồi thiếu trường.
-- **Node 5 (Save Triage Log Postgres):** Lưu bản ghi phân loại vào bảng `email_triage_logs`.
+- **Node 5 (Save Triage Log HTTP API):** Gọi NestJS API `POST /api/v1/tickets/triage/logs` lưu bản ghi phân loại và nhận `triage_id`.
 - **Node 6 (Compute SLA Window Code):** Tính toán thời hạn SLA cam kết (P1: 1h, P2: 4h, P3: 24h, P4: 48h).
 - **Node 7 (IF Critical Priority P1):** Rẽ nhánh kiểm tra sự cố khẩn cấp mức P1.
 - **Node 8 (Escalate Emergency Alert Email - Nhánh True):** Gửi email cảnh báo đỏ lập tức cho Kỹ thuật viên trực nhật (`tranngo170770@gmail.com`).
 - **Node 9 (Send Customer Confirmation Email):** Gửi email phản hồi tự động cho khách hàng (`trangltk.24it@vku.udn.vn`) kèm mã tra cứu và thời hạn SLA.
-- **Node 10 (Audit Triage Success Postgres):** Ghi nhận sự kiện `EMAIL_TRIAGED_SUCCESSFULLY` vào `system_audit_logs`.
+- **Node 10 (Audit Triage Success HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi nhận sự kiện `EMAIL_TRIAGED_SUCCESSFULLY`.
 - **Node 11 (Format Routing Packet Code):** Chuẩn hóa gói dữ liệu điều phối theo mã `department_code`.
 - **Node 12 (Route to Downstream Workflows Code):** Định tuyến tự động:
   - `TECH` -> Bắn Webhook Luồng 3 (`/webhook/m1-flow3-ticket`).
@@ -105,15 +105,15 @@ Mỗi workflow được thiết kế đúng **12 nodes DAG**; các dây nối (c
 #### [Luồng 3] AI-Driven Ticket Generation & SLA Dispatcher (12 Nodes)
 *File: `workflows/flow03_ticket_sla_dispatch.json`*
 - **Node 1 (Receive Tech Intent Trigger):** Tiếp nhận sự kiện kỹ thuật tại path `m1-flow3-ticket`.
-- **Node 2 (AI Ticket Extractor / Gemini - Agent 3):** Bóc tách tóm tắt lỗi, phân loại module bị ảnh hưởng, trích xuất reproduce steps.
+- **Node 2 (AI Email-to-Ticket Agent - Agent 3):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) bóc tách tóm tắt lỗi, phân loại module bị ảnh hưởng, trích xuất reproduce steps.
 - **Node 3 (Generate Ticket Code ID Code):** Tạo mã vé chuẩn doanh nghiệp `TK-YYYYMMDD-XXXX`.
-- **Node 4 (Query Available Agents Postgres):** Lấy danh sách kỹ thuật viên đang trực (`is_active = true`).
+- **Node 4 (Query Available Agents HTTP API):** Gọi NestJS API `GET /api/v1/tickets/agents?category=Technical` lấy danh sách kỹ thuật viên trực nhật.
 - **Node 5 (Least-Busy Load Balancer Code):** Thuật toán tìm KTV có `active_tickets_count` thấp nhất để giao việc công bằng.
 - **Node 6 (Create Ticket Master HTTP):** Gọi NestJS `POST /api/v1/tickets` tạo vé trạng thái `PENDING`.
-- **Node 7 (Update Agent Workload Postgres):** Tăng `active_tickets_count + 1` của KTV được phân công.
+- **Node 7 (Update Agent Workload HTTP API):** Gọi NestJS API `POST /api/v1/tickets/agents/workload` tăng `active_tickets_count + 1` của KTV được phân công.
 - **Node 8 (Initial System Comment HTTP):** Lưu chi tiết phân tích lỗi gốc của AI vào bảng `ticket_comments`.
 - **Node 9 (Notify Support Agent Email):** Gửi email thông báo phân công vé cho KTV (`tranngo170770@gmail.com`).
-- **Node 10 (Audit SLA Dispatch Postgres):** Ghi log `TICKET_DISPATCHED_TO_AGENT` vào `system_audit_logs`.
+- **Node 10 (Audit SLA Dispatch HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi log `TICKET_DISPATCHED_TO_AGENT`.
 - **Node 11 (Format Ticket Packet Code):** Đóng gói payload vé kỹ thuật.
 - **Node 12 (Trigger Luồng 4 Sub-Workflow Code):** Bắn HTTP POST kích hoạt ngay Luồng 4 (`/webhook/m2-flow4-rag-draft`).
 
@@ -125,45 +125,45 @@ Mỗi workflow được thiết kế đúng **12 nodes DAG**; các dây nối (c
 - **Node 1 (Ticket Created Trigger):** Đón nhận thông tin vé từ Luồng 3 tại `m2-flow4-rag-draft`.
 - **Node 2 (Extract Search Query Keywords Code):** Trích lọc từ khóa kỹ thuật cốt lõi và loại bỏ stopwords.
 - **Node 3 (Generate Query Embedding / Gemini):** Gọi mô hình `text-embedding-004` mã hóa câu hỏi thành vector 768 chiều.
-- **Node 4 (Query Knowledge Base pgvector Postgres):** Thực hiện cosine similarity search trên `knowledge_base` (`ORDER BY embedding <=> $1 LIMIT 3`).
+- **Node 4 (Query Knowledge Base Vector Search HTTP API):** Gọi NestJS API `POST /api/v1/knowledge/search` thực hiện cosine similarity search trên pgvector.
 - **Node 5 (Check Knowledge Relevance Code):** Lọc bài viết có độ tương đồng đạt chuẩn (> 0.75).
-- **Node 6 (AI RAG Response Drafter / Gemini - Agent 2):** Kết hợp tri thức nội bộ để tạo nội dung trả lời kỹ thuật chuẩn mực.
+- **Node 6 (AI RAG Response Drafter Agent - Agent 2):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) kết hợp tri thức kỹ thuật từ RAG API để sinh dự thảo trả lời kỹ thuật chuẩn mực.
 - **Node 7 (Draft Quality & HTML Polish Code):** Định dạng HTML email chuyên nghiệp, thêm header và chữ ký hỗ trợ.
 - **Node 8 (Insert Draft to Database HTTP):** Gọi NestJS `POST /api/v1/drafts` lưu thư nháp với trạng thái `PENDING_APPROVAL`.
-- **Node 9 (Link Draft to Ticket Postgres):** Liên kết `draft_id` vào vé tương ứng trong bảng `tickets`.
+- **Node 9 (Link Draft to Ticket HTTP API):** Gọi NestJS API `PATCH /api/v1/tickets/:code/link-draft` liên kết `draft_id` vào vé tương ứng.
 - **Node 10 (Push Real-time Notification HTTP):** Bắn tín hiệu WebSocket/SSE lên giao diện Next.js (`/approval`).
-- **Node 11 (Audit Draft Creation Postgres):** Ghi log `AI_REPLY_DRAFT_GENERATED` vào `system_audit_logs`.
+- **Node 11 (Audit Draft Creation HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi log `AI_REPLY_DRAFT_GENERATED`.
 - **Node 12 (Dispatch to Luồng 5 Bridge Code):** Đóng gói dữ liệu sẵn sàng đón nhận thao tác phê duyệt từ con người.
 
 #### [Luồng 5] Human-in-the-Loop Web Approval & Outbound Dispatch (12 Nodes)
 *File: `workflows/flow05_hitl_approval_send.json`*
 - **Node 1 (Human Action Webhook Trigger):** Lắng nghe lệnh từ giao diện Next.js khi người dùng bấm "Duyệt & Gửi" (`/webhook/m2-flow5-approval`).
 - **Node 2 (Validate Reviewer Permission HTTP):** Gọi NestJS API xác thực quyền hạn của `reviewer_email`.
-- **Node 3 (Fetch Final Draft Content Postgres):** Lấy nội dung thư nháp đã được chuyên viên chỉnh sửa/hoàn thiện từ `email_drafts`.
+- **Node 3 (Fetch Final Draft Content HTTP API):** Gọi NestJS API `GET /api/v1/drafts/:id` lấy nội dung bản nháp và thông tin vé/SLA tương ứng.
 - **Node 4 (Email Address Validation Code):** Kiểm tra tính hợp lệ cú pháp của địa chỉ người nhận.
 - **Node 5 (Send Outbound Email SMTP):** Gửi email chính thức từ `kieutrangg06123@gmail.com` tới khách hàng (`trangltk.24it@vku.udn.vn`).
 - **Node 6 (IF Send Success):** Bắt lỗi kết nối SMTP / timeout.
 - **Node 7 (Update Draft Sent Status HTTP):** Cập nhật trạng thái bản nháp thành `SENT` và ghi nhận `sent_at = NOW()`.
 - **Node 8 (Update Ticket Status HTTP):** Đổi trạng thái vé sang `RESOLVED`.
-- **Node 9 (Append Resolution Comment Postgres):** Ghi lại toàn bộ nội dung thư đã gửi vào lịch sử trao đổi của vé (`ticket_comments`).
+- **Node 9 (Append Resolution Comment HTTP API):** Gọi NestJS API `POST /api/v1/tickets/comments` ghi lại toàn bộ nội dung thư đã gửi vào lịch sử trao đổi của vé.
 - **Node 10 (Calculate Resolution Time Code):** Tính toán thời gian xử lý thực tế so với hạn mức cam kết SLA ban đầu.
-- **Node 11 (Log SLA Compliance Metric Postgres):** Lưu chỉ số tuân thủ SLA (`MET_SLA` / `BREACHED_SLA`).
-- **Node 12 (Audit Log Email Dispatched Postgres):** Ghi log `OUTBOUND_EMAIL_SUCCESSFULLY_SENT` vào `system_audit_logs`.
+- **Node 11 (Log SLA Compliance Metric HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` lưu chỉ số tuân thủ SLA (`MET_SLA` / `BREACHED_SLA`).
+- **Node 12 (Audit Log Email Dispatched HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi log `OUTBOUND_EMAIL_SUCCESSFULLY_SENT`.
 
 #### [Luồng 6] Daily Executive Intelligence & Incident Spike Alert (12 Nodes)
 *File: `workflows/flow06_executive_digest.json`*
 - **Node 1 (Daily Executive Digest Trigger):** Kích hoạt qua Cron định kỳ lúc 18h00 hoặc gọi Webhook test (`m2-flow6-digest-trigger`).
-- **Node 2 (Fetch Daily Inbound Volume Postgres):** Thống kê tổng số email đến, tỷ lệ spam bị chặn trong 24h.
-- **Node 3 (Fetch Ticket & SLA Stats Postgres):** Tổng hợp số vé sự cố đã mở, tỷ lệ tuân thủ SLA, số vé P1.
+- **Node 2 (Fetch Daily Inbound Volume HTTP API):** Gọi NestJS API `GET /api/v1/digest/inbound-volume` thống kê tổng số email đến và spam bị chặn.
+- **Node 3 (Fetch Ticket & SLA Stats HTTP API):** Gọi NestJS API `GET /api/v1/digest/ticket-stats` tổng hợp số vé sự cố, tỷ lệ SLA, số vé P1.
 - **Node 4 (Detect Incident Spike Code):** Thuật toán phát hiện dị thường: cảnh báo đỏ nếu số lỗi P1 tăng trên 20% so với trung bình 7 ngày.
-- **Node 5 (AI Executive Summarizer / Gemini - Agent 5):** Phân tích sắc thái, chỉ ra 3 điểm nghẽn nghiêm trọng nhất trong ngày và đề xuất giải pháp cho Ban Giám Đốc.
+- **Node 5 (AI Executive Summarizer Agent - Agent 5):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) phân tích sắc thái, chỉ ra 3 điểm nghẽn nghiêm trọng nhất trong ngày và đề xuất giải pháp cho Ban Giám Đốc.
 - **Node 6 (Format Executive HTML Report Code):** Biên tập báo cáo trực quan với biểu đồ chỉ số, bảng xếp hạng KTV xuất sắc.
-- **Node 7 (Query Recipient Directors Postgres):** Lấy danh sách email Ban Lãnh Đạo (`tranngo170770@gmail.com`).
+- **Node 7 (Query Recipient Directors HTTP API):** Gọi NestJS API `GET /api/v1/digest/recipients` lấy danh sách email Ban Lãnh Đạo.
 - **Node 8 (Save Daily Summary Record HTTP):** Gọi NestJS lưu bản ghi báo cáo vào bảng `daily_summaries`.
 - **Node 9 (Send Executive Digest Email):** Gửi email báo cáo điều hành tổng thể tới Ban Giám Đốc.
 - **Node 10 (IF Critical Spike Detected):** Rẽ nhánh kiểm tra có xảy ra spike sự cố P1 bất thường hay không.
 - **Node 11 (Emergency Director Alert Mailer - Nhánh True):** Gửi thêm email cảnh báo đỏ khẩn cấp cho Tổng giám đốc.
-- **Node 12 (Audit Digest Generation Postgres):** Ghi nhận sự kiện `EXECUTIVE_DIGEST_COMPILED` vào `system_audit_logs`.
+- **Node 12 (Audit Digest Generation HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi nhận sự kiện `EXECUTIVE_DIGEST_COMPILED`.
 
 ---
 
@@ -171,31 +171,31 @@ Mỗi workflow được thiết kế đúng **12 nodes DAG**; các dây nối (c
 #### [Luồng 7] AI Entity Extraction & CRM Lead Scoring (12 Nodes)
 *File: `workflows/flow07_crm_lead_scoring.json`*
 - **Node 1 (Sales Intent Ingest Trigger):** Tiếp nhận dữ liệu hỏi mua hàng từ Luồng 2 tại path `m3-flow7-crm-lead`.
-- **Node 2 (AI Lead Entity Extractor Code - Agent 4):** Bóc tách Tên, SĐT (+84), Doanh nghiệp, Nhu cầu, Ngân sách dự kiến.
-- **Node 3 (AI Campaign Categorizer Code - Agent 7):** Định vị phân khúc (`ENTERPRISE_HIGH_VALUE` vs `SME_RETAIL`).
+- **Node 2 (AI Email-to-CRM Lead Agent - Agent 4):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) bóc tách Tên, SĐT (+84), Doanh nghiệp, Nhu cầu, Ngân sách dự kiến.
+- **Node 3 (AI Campaign Categorizer Agent - Agent 7):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) định vị phân khúc (`ENTERPRISE_HIGH_VALUE` vs `SME_RETAIL`).
 - **Node 4 (Sanitize Extracted Entities Code):** Chuẩn hóa định dạng số điện thoại Việt Nam, viết hoa tên doanh nghiệp, làm sạch chuỗi.
-- **Node 5 (Query Existing Customer Postgres):** Kiểm tra khách hàng đã có trong bảng `crm_customers` hay chưa.
+- **Node 5 (Query Existing Customer HTTP API):** Gọi NestJS API `GET /api/v1/crm/customers/by-email` kiểm tra khách hàng đã có trong bảng `crm_customers`.
 - **Node 6 (AI Lead Scoring Engine Code):** Tính toán Lead Score (0–100) theo độ rõ ràng của ngân sách và vai trò người liên hệ.
 - **Node 7 (Upsert CRM Customer Record HTTP):** Ghi hoặc cập nhật thông tin khách hàng vào `crm_customers`.
 - **Node 8 (Create Sales Deal Opportunity HTTP):** Tạo cơ hội bán hàng mới trong `crm_deals` với trạng thái `NEW_INQUIRY`.
 - **Node 9 (Assign Sales Representative Code):** Phân bổ cơ hội cho chuyên viên phụ trách (`tranngo170770@gmail.com`).
 - **Node 10 (Internal Sales Alert Email):** Gửi email thông báo kèm Lead Score và tóm tắt nhu cầu cho chuyên viên Sales.
-- **Node 11 (Audit CRM Creation Postgres):** Ghi log `CRM_LEAD_QUALIFIED_AND_STORED` vào `system_audit_logs`.
+- **Node 11 (Audit CRM Creation HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi log `CRM_LEAD_QUALIFIED_AND_STORED`.
 - **Node 12 (Enqueue Follow-up Tracker Code):** Đăng ký mã deal vào quy trình rà soát tự động của Luồng 8.
 
 #### [Luồng 8] Automated Multi-Stage Follow-up & Nurturing (12 Nodes)
 *File: `workflows/flow08_automated_followup.json`*
 - **Node 1 (Follow-up Check Schedule Trigger):** Kích hoạt định kỳ 09h00 sáng mỗi ngày hoặc gọi Webhook `m3-flow8-followup-trigger`.
-- **Node 2 (Query Stale Sales Deals Postgres):** Quét các deal có trạng thái `QUOTED` đã quá 48 giờ chưa có phản hồi.
+- **Node 2 (Query Stale Sales Deals HTTP API):** Gọi NestJS API `GET /api/v1/crm/deals/stale` quét các deal `QUOTED` đã quá 48 giờ chưa có phản hồi.
 - **Node 3 (Filter Blacklisted Leads Code):** Loại bỏ khách hàng đã chọn `is_unsubscribed = true`.
-- **Node 4 (Fetch Previous Chat Context Postgres):** Đọc lại nội dung trao đổi gần nhất giữa sales và khách hàng.
+- **Node 4 (Fetch Previous Chat Context HTTP API):** Gọi NestJS API `GET /api/v1/crm/deals/:id` lấy thông tin chi tiết và campaign của deal.
 - **Node 5 (Check Follow-up Stage Code):** Xác định giai đoạn nhắc nhở (Lần 1: Thân mật; Lần 2: Mời dùng thử; Lần 3: Đề xuất ưu đãi có hạn).
-- **Node 6 (AI Personalized Follow-up Drafter Code - Agent 6):** Sinh nội dung email hỏi thăm lịch sự, nhấn mạnh giá trị sản phẩm.
+- **Node 6 (AI Follow-up Nurturing Agent - Agent 6):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) sinh nội dung email hỏi thăm lịch sự, nhấn mạnh giá trị sản phẩm.
 - **Node 7 (Send Follow-up Email SMTP):** Gửi email chăm sóc tự động tới `trangltk.24it@vku.udn.vn` từ `kieutrangg06123@gmail.com`.
 - **Node 8 (Update Deal Activity Timestamp HTTP):** Cập nhật `last_contacted_at = NOW()` và tăng `followup_count + 1`.
 - **Node 9 (IF Max Attempts Reached):** Kiểm tra nếu đã vượt quá 3 lần gửi thư mà khách chưa hồi âm.
 - **Node 10 (Mark Deal Stale & Task Sales HTTP - Nhánh True):** Đổi trạng thái sang `COLD_LEAD` và tạo nhiệm vụ gọi điện trực tiếp trên CRM.
-- **Node 11 (Audit Follow-up Sent Postgres):** Ghi log `SALES_FOLLOWUP_DISPATCHED` vào `system_audit_logs`.
+- **Node 11 (Audit Follow-up Sent HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi log `SALES_FOLLOWUP_DISPATCHED`.
 - **Node 12 (Complete Follow-up Cycle Code):** Đóng gói báo cáo thống kê chu kỳ gửi và kết thúc tiến trình.
 
 #### [Luồng 9] Multi-Modal Invoice OCR & Accounting Audit (12 Nodes)
@@ -203,15 +203,16 @@ Mỗi workflow được thiết kế đúng **12 nodes DAG**; các dây nối (c
 - **Node 1 (Finance Intent Ingest Trigger):** Tiếp nhận email hóa đơn từ Luồng 2 tại path `m3-flow9-invoice-ocr`.
 - **Node 2 (Check Attachment Format Code):** Kiểm tra định dạng tệp (PDF, PNG, JPG).
 - **Node 3 (Download & Convert File to Base64 Code):** Mã hóa file đính kèm sang base64 để nạp cho mô hình Vision.
-- **Node 4 (Vision AI Invoice OCR Code - Agent 10):** Bóc tách Số hóa đơn, Mã số thuế, Ngày lập, Tiền hàng, Thuế VAT, Tổng tiền thanh toán.
+- **Node 4 (Multimodal Invoice Vision OCR Agent - Agent 10):** Node Native AI Agent (`@n8n/n8n-nodes-langchain.agent` + Chat Model Gemini 1.5 Flash) bóc tách Số hóa đơn, Mã số thuế, Ngày lập, Tiền hàng, Thuế VAT, Tổng tiền thanh toán.
 - **Node 5 (Mathematical Integrity Verifier Code):** Đối soát logic số học: $|Tiền hàng + VAT - Tổng tiền| \le 1$ VNĐ.
 - **Node 6 (IF Math Verification Passed):** Rẽ nhánh: Nếu khớp số học -> Nhánh True (`VALIDATED`); Nếu sai lệch -> Nhánh False (`DISCREPANCY_FLAGGED`).
 - **Node 7 (Store Verified Invoice HTTP - Nhánh True):** Lưu hóa đơn hợp lệ vào `finance_invoices` với trạng thái `VALIDATED`.
 - **Node 8 (Flag Invoice Discrepancy HTTP - Nhánh False):** Lưu hóa đơn vào `finance_invoices` với trạng thái `DISCREPANCY_FLAGGED`.
-- **Node 9 (Email Chief Accountant Notice):** Gửi email tóm tắt đối soát kèm bảng chi tiết số học cho Kế toán trưởng (`tranngo170770@gmail.com`).
-- **Node 10 (Archive Invoice Document Storage Code):** Đổi tên file chuẩn hóa (`INV_MST_YYYYMMDD_SOHD.pdf`) và lưu vào volume Docker.
-- **Node 11 (Audit Accounting Log Postgres):** Ghi log `INVOICE_OCR_PROCESSED` hoặc `INVOICE_DISCREPANCY_FLAGGED` vào `system_audit_logs`.
-- **Node 12 (Close Finance Ingest Cycle Code):** Phản hồi tín hiệu hoàn thành tác vụ cho cổng giám sát hệ thống.
+- **Node 9 (Push Accounting Real-time Alert HTTP):** Bắn thông báo theo thời gian thực tới bộ phận Kế toán.
+- **Node 10 (Archive Invoice Document Storage Code):** Đặt tên tệp theo chuẩn lưu trữ hóa đơn điện tử.
+- **Node 11 (Audit Accounting Log HTTP API):** Gọi NestJS API `POST /api/v1/audit/logs` ghi log `INVOICE_OCR_PROCESSED`.
+- **Node 12 (Close Finance Ingest Cycle Code):** Đóng gói trạng thái hoàn tất chu kỳ đối soát tài chính.
+
 
 ---
 

@@ -22,28 +22,103 @@ export class DraftsService {
   constructor(private readonly db: DatabaseService) {}
 
   async createDraft(payload: any) {
-    this.logger.log(`Creating new email draft for ticket ${payload.ticket_code}`);
+    const ticketCode = payload.ticket_code || payload.ticketCode || null;
+    let ticketId = payload.ticket_id ? Number(payload.ticket_id) : null;
+    let ticketData: any = null;
+
+    // 1. Fetch ticket information if ticket_code or ticket_id is provided
+    if (ticketCode || ticketId) {
+      try {
+        const ticketRes = await this.db.query(
+          `SELECT id, ticket_code, sender_email, customer_email, title, subject 
+           FROM tickets 
+           WHERE ticket_code = $1 OR id = $2 
+           LIMIT 1`,
+          [ticketCode || '', ticketId || 0],
+        );
+        if (ticketRes.rows.length > 0) {
+          ticketData = ticketRes.rows[0];
+          if (!ticketId) ticketId = ticketData.id;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Could not lookup ticket details for draft creation: ${err.message}`);
+      }
+    }
+
+    // 2. Resolve recipient_email with robust cascading fallback
+    let recipientEmail =
+      payload.recipient_email ||
+      payload.recipient ||
+      payload.sender_email ||
+      payload.customer_email ||
+      payload.client_email ||
+      payload.email ||
+      payload.toEmail ||
+      payload.to ||
+      ticketData?.sender_email ||
+      ticketData?.customer_email;
+
+    if (!recipientEmail || typeof recipientEmail !== 'string' || !recipientEmail.trim()) {
+      recipientEmail = 'trangltk.24it@vku.udn.vn'; // Fallback client email as per project specification
+    }
+    recipientEmail = recipientEmail.trim().toLowerCase();
+
+    // 3. Resolve subject and proposed subject
+    const subject =
+      payload.subject ||
+      payload.proposed_subject ||
+      (ticketData?.title ? `Phản hồi yêu cầu hỗ trợ: ${ticketData.title}` : null) ||
+      (ticketCode ? `Phản hồi yêu cầu hỗ trợ [${ticketCode}]` : 'Phản hồi yêu cầu hỗ trợ từ Enterprise Helpdesk');
+
+    const proposedSubject = payload.proposed_subject || subject;
+    const proposedBody = payload.proposed_body || payload.body || payload.content || '';
+    const htmlContent =
+      payload.html_content ||
+      `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <p>${proposedBody.replace(/\n/g, '<br/>') || 'Kính gửi Quý khách, chúng tôi đã tiếp nhận và đang xử lý yêu cầu của bạn.'}</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;"/>
+        <p style="font-size: 13px; color: #777;">Trân trọng,<br/><strong>Enterprise Support Team</strong></p>
+      </div>`;
+
+    const confidenceScore = Number(payload.confidence_score) || 95.0;
+    const status = payload.status || 'PENDING_APPROVAL';
+
+    this.logger.log(`Creating new email draft for ticket ${ticketCode || 'N/A'}, recipient: ${recipientEmail}`);
+
     const query = `
       INSERT INTO email_drafts (
-        ticket_code, recipient_email, subject, proposed_subject, 
+        ticket_id, ticket_code, recipient_email, subject, proposed_subject, 
         proposed_body, html_content, confidence_score, status, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       RETURNING *;
     `;
     const values = [
-      payload.ticket_code,
-      payload.recipient_email,
-      payload.subject || payload.proposed_subject,
-      payload.proposed_subject || payload.subject,
-      payload.proposed_body || payload.body || payload.content || '',
-      payload.html_content || `<p>${payload.proposed_body || payload.body || ''}</p>`,
-      payload.confidence_score || 95.0,
-      payload.status || 'PENDING_APPROVAL',
+      ticketId,
+      ticketCode,
+      recipientEmail,
+      subject,
+      proposedSubject,
+      proposedBody,
+      htmlContent,
+      confidenceScore,
+      status,
     ];
 
     const res = await this.db.query(query, values);
     const created = res.rows[0];
+
+    // Auto-link draft_id to ticket if ticket exists and draft_id is not set
+    if (ticketCode) {
+      try {
+        await this.db.query(
+          `UPDATE tickets SET draft_id = $1 WHERE ticket_code = $2 AND (draft_id IS NULL OR draft_id = 0)`,
+          [created.id, ticketCode],
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not auto-link draft_id to ticket: ${err.message}`);
+      }
+    }
 
     // Emit notification event
     this.notifications$.next({
@@ -97,9 +172,17 @@ export class DraftsService {
 
   async getDraftById(id: number) {
     const res = await this.db.query(
-      `SELECT d.*, t.priority, t.assigned_to, t.title as ticket_title 
+      `SELECT d.*, 
+              t.id AS t_id, 
+              t.ticket_code AS t_code, 
+              t.created_at AS ticket_created_at, 
+              t.sla_due_at, 
+              t.first_response_sla, 
+              t.priority, 
+              t.assigned_to, 
+              t.title as ticket_title 
        FROM email_drafts d 
-       LEFT JOIN tickets t ON d.ticket_code = t.ticket_code 
+       LEFT JOIN tickets t ON (d.ticket_code = t.ticket_code OR d.ticket_id = t.id)
        WHERE d.id = $1;`,
       [id]
     );

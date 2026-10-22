@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../lib/api';
 import {
   BarChart3,
   RefreshCw,
@@ -295,11 +296,11 @@ export default function AnalyticsPage() {
 
     try {
       const [digestRes, statsRes, slaRes, agentsRes, ticketsRes] = await Promise.allSettled([
-        fetch('http://localhost:4000/api/v1/digest'),
-        fetch('http://localhost:4000/api/v1/analytics/stats'),
-        fetch('http://localhost:4000/api/v1/tickets/stats/sla'),
-        fetch('http://localhost:4000/api/v1/tickets/agents'),
-        fetch('http://localhost:4000/api/v1/tickets'),
+        fetch(`${API_BASE_URL}/api/v1/digest`),
+        fetch(`${API_BASE_URL}/api/v1/analytics/stats`),
+        fetch(`${API_BASE_URL}/api/v1/tickets/stats/sla`),
+        fetch(`${API_BASE_URL}/api/v1/tickets/agents`),
+        fetch(`${API_BASE_URL}/api/v1/tickets`),
       ]);
 
       // 1. Digest Summaries

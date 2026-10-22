@@ -36,6 +36,7 @@ export class KnowledgeController {
     return this.knowledgeService.searchByVector(
       body.query_embedding,
       body.top_k,
+      body.query_text || body.query,
     );
   }
 
