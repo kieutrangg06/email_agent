@@ -32,7 +32,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 3 (AI Email-to-Ticket Agent). Phân tích sự cố kỹ thuật sau: Tiêu đề: {{ $('1. Receive Tech Intent Trigger').first().json.subject || $('1. Receive Tech Intent Trigger').first().json.title }}, Nội dung: {{ $('1. Receive Tech Intent Trigger').first().json.body || $('1. Receive Tech Intent Trigger').first().json.description }}. Bóc tách cấu trúc vé sự cố và trả về đúng JSON: {\"cleaned_title\": \"string\", \"affected_module\": \"string\", \"reproduce_steps\": [\"string\"], \"error_symptoms\": \"string\", \"technical_summary\": \"string\"}",
+        "text": "={{ `Bạn là Agent 3 (AI Email-to-Ticket Agent). Phân tích sự cố kỹ thuật sau: Tiêu đề: ${$('1. Receive Tech Intent Trigger').first().json.subject || $('1. Receive Tech Intent Trigger').first().json.title}, Nội dung: ${$('1. Receive Tech Intent Trigger').first().json.body || $('1. Receive Tech Intent Trigger').first().json.description}. Bóc tách cấu trúc vé sự cố và trả về đúng JSON: {\"cleaned_title\": \"string\", \"affected_module\": \"string\", \"reproduce_steps\": [\"string\"], \"error_symptoms\": \"string\", \"technical_summary\": \"string\"}` }}",
         "options": {
           "systemMessage": "Bạn là AI Ticket Extractor Agent chuyên nghiệp cho hệ thống IT Helpdesk doanh nghiệp."
         }

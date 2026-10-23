@@ -30,7 +30,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 4 (AI Email-to-CRM Agent). Bóc tách cấu trúc khách hàng tiềm năng: Tên liên hệ, SĐT, Doanh nghiệp, Ngân sách dự kiến (VNĐ), Nhu cầu giải pháp. Trả về đúng JSON: {\"extracted_name\": \"string\", \"extracted_phone\": \"string\", \"extracted_company\": \"string\", \"extracted_budget\": number, \"solution_need\": \"string\"}. Email from: {{ $('1. Sales Intent Ingest Trigger').first().json.sender_email }}, Subject: {{ $('1. Sales Intent Ingest Trigger').first().json.subject }}, Body: {{ $('1. Sales Intent Ingest Trigger').first().json.body }}",
+        "text": "={{ `Bạn là Agent 4 (AI Email-to-CRM Agent). Bóc tách cấu trúc khách hàng tiềm năng: Tên liên hệ, SĐT, Doanh nghiệp, Ngân sách dự kiến (VNĐ), Nhu cầu giải pháp. Trả về đúng JSON: {\"extracted_name\": \"string\", \"extracted_phone\": \"string\", \"extracted_company\": \"string\", \"extracted_budget\": number, \"solution_need\": \"string\"}. Email from: ${$('1. Sales Intent Ingest Trigger').first().json.sender_email}, Subject: ${$('1. Sales Intent Ingest Trigger').first().json.subject}, Body: ${$('1. Sales Intent Ingest Trigger').first().json.body}` }}",
         "options": {
           "systemMessage": "Bạn là AI CRM Extraction Agent chuyên bóc tách thông tin B2B từ email khách hàng."
         }
@@ -48,7 +48,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 7 (AI Campaign Agent). Dựa trên thông tin khách hàng, hãy phân loại phân khúc: \"ENTERPRISE_HIGH_VALUE\" hoặc \"SME_RETAIL\". Trả về đúng JSON: {\"campaign_tag\": \"string\", \"segment\": \"string\"}. Dữ liệu: {{ JSON.stringify($json) }}",
+        "text": "={{ `Bạn là Agent 7 (AI Campaign Agent). Dựa trên thông tin khách hàng, hãy phân loại phân khúc: \"ENTERPRISE_HIGH_VALUE\" hoặc \"SME_RETAIL\". Trả về đúng JSON: {\"campaign_tag\": \"string\", \"segment\": \"string\"}. Dữ liệu: ${JSON.stringify($json)}` }}",
         "options": {
           "systemMessage": "Bạn là AI Campaign Agent phân loại phân khúc khách hàng B2B."
         }

@@ -88,7 +88,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 6 (AI Follow-up Nurturing Agent). Hãy tạo email hỏi thăm chăm sóc deal: {{ $('5. Check Follow-up Stage Code').first().json.deal_name }}, Khách hàng: {{ $('5. Check Follow-up Stage Code').first().json.full_name }} ({{ $('5. Check Follow-up Stage Code').first().json.company_name }}), Ngân sách: {{ $('5. Check Follow-up Stage Code').first().json.expected_budget }} VNĐ, Giai đoạn: {{ $('5. Check Follow-up Stage Code').first().json.stage_name }}. Trả về đúng JSON: {\"email_subject\": \"string\", \"email_body_html\": \"string\"}",
+        "text": "={{ `Bạn là Agent 6 (AI Follow-up Nurturing Agent). Hãy tạo email hỏi thăm chăm sóc deal: ${$('5. Check Follow-up Stage Code').first().json.deal_name}, Khách hàng: ${$('5. Check Follow-up Stage Code').first().json.full_name} (${$('5. Check Follow-up Stage Code').first().json.company_name}), Ngân sách: ${$('5. Check Follow-up Stage Code').first().json.expected_budget} VNĐ, Giai đoạn: ${$('5. Check Follow-up Stage Code').first().json.stage_name}. Trả về đúng JSON: {\"email_subject\": \"string\", \"email_body_html\": \"string\"}` }}",
         "options": {
           "systemMessage": "Bạn là AI Sales Nurturing Agent chuyên viết email chăm sóc khách hàng sau báo giá lịch thiệp, cá nhân hóa."
         }

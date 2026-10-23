@@ -45,7 +45,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là AI Knowledge Query Optimizer Agent. Phân tích nội dung sự cố kỹ thuật sau và trích xuất các từ khóa truy vấn tri thức chính xác nhất. Trả về JSON: {\"query_keywords\": [\"keyword1\", \"keyword2\"], \"search_phrase\": \"câu truy vấn\", \"category\": \"TECH\"}. Tiêu đề: {{ $('2. Extract Search Query Keywords Code').first().json.subject }}, Mô tả: {{ $('2. Extract Search Query Keywords Code').first().json.issue_description }}",
+        "text": "={{ `Bạn là AI Knowledge Query Optimizer Agent. Phân tích nội dung sự cố kỹ thuật sau và trích xuất các từ khóa truy vấn tri thức chính xác nhất. Trả về JSON: {\"query_keywords\": [\"keyword1\", \"keyword2\"], \"search_phrase\": \"câu truy vấn\", \"category\": \"TECH\"}. Tiêu đề: ${$('2. Extract Search Query Keywords Code').first().json.subject}, Mô tả: ${$('2. Extract Search Query Keywords Code').first().json.issue_description}` }}",
         "options": {
           "systemMessage": "Bạn là AI Knowledge Query Optimizer Agent chuyên tối ưu hóa truy vấn tra cứu cơ sở tri thức cho hệ thống Helpdesk."
         }
@@ -123,7 +123,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 2 (AI Email Reply Agent - RAG). Hãy tạo thư trả lời giải quyết vấn đề kỹ thuật cho vé sự cố {{ $('5. Check Knowledge Relevance Code').first().json.ticket_code }}. Khách hàng: {{ $('5. Check Knowledge Relevance Code').first().json.customer_email }}. Dựa trên ngữ cảnh tài liệu: {{ JSON.stringify($('5. Check Knowledge Relevance Code').first().json.knowledge_context) }}. Trả về đúng JSON: {\"proposed_subject\": \"string\", \"proposed_body\": \"string\", \"confidence_score\": number}",
+        "text": "={{ `Bạn là Agent 2 (AI Email Reply Agent - RAG). Hãy tạo thư trả lời giải quyết vấn đề kỹ thuật cho vé sự cố ${$('5. Check Knowledge Relevance Code').first().json.ticket_code}. Khách hàng: ${$('5. Check Knowledge Relevance Code').first().json.customer_email}. Dựa trên ngữ cảnh tài liệu: ${JSON.stringify($('5. Check Knowledge Relevance Code').first().json.knowledge_context)}. Trả về đúng JSON: {\"proposed_subject\": \"string\", \"proposed_body\": \"string\", \"confidence_score\": number}` }}",
         "options": {
           "systemMessage": "Bạn là AI RAG Response Drafter Agent chuyên nghiệp, tích hợp tri thức Vector pgvector để sinh dự thảo trả lời kỹ thuật chuẩn mực."
         }

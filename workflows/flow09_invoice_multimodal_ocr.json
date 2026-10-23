@@ -56,7 +56,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 10 (Multimodal Invoice Vision OCR Agent). Hãy đọc hóa đơn điện tử VAT và bóc tách cấu trúc số học: Số hóa đơn, MST người bán, Tên đơn vị bán, Ngày lập, Tiền hàng trước thuế (subtotal), Tiền thuế GTGT (vat_amount), Tổng tiền thanh toán (total_amount). Trả về đúng JSON: {\"invoice_number\": \"string\", \"seller_tax_id\": \"string\", \"seller_name\": \"string\", \"buyer_name\": \"string\", \"issue_date\": \"string\", \"subtotal\": number, \"vat_amount\": number, \"total_amount\": number}. Tiêu đề: {{ $('1. Finance Intent Ingest Trigger').first().json.subject }}, Nội dung: {{ $('1. Finance Intent Ingest Trigger').first().json.body }}",
+        "text": "={{ `Bạn là Agent 10 (Multimodal Invoice Vision OCR Agent). Hãy đọc hóa đơn điện tử VAT và bóc tách cấu trúc số học: Số hóa đơn, MST người bán, Tên đơn vị bán, Ngày lập, Tiền hàng trước thuế (subtotal), Tiền thuế GTGT (vat_amount), Tổng tiền thanh toán (total_amount). Trả về đúng JSON: {\"invoice_number\": \"string\", \"seller_tax_id\": \"string\", \"seller_name\": \"string\", \"buyer_name\": \"string\", \"issue_date\": \"string\", \"subtotal\": number, \"vat_amount\": number, \"total_amount\": number}. Tiêu đề: ${$('1. Finance Intent Ingest Trigger').first().json.subject}, Nội dung: ${$('1. Finance Intent Ingest Trigger').first().json.body}` }}",
         "options": {
           "systemMessage": "Bạn là AI Multimodal Document Processing Agent chuyên bóc tách số liệu hóa đơn tài chính chuẩn xác."
         }

@@ -48,7 +48,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "promptType": "define",
-        "text": "Bạn là Agent 1 (AI Semantic Triage Agent). Phân tích email sau và phân loại vào 1 trong 4 phòng ban (TECH, SALES, FINANCE, GENERAL), gán nhãn mức ưu tiên (P1, P2, P3, P4) và sắc thái cảm xúc (urgent, positive, negative, neutral). Trả về đúng JSON: {\"department\": \"TECH|SALES|FINANCE|GENERAL\", \"category\": \"Technical|Sales|Finance|General\", \"priority\": \"P1|P2|P3|P4\", \"sentiment\": \"urgent|positive|neutral|negative\", \"confidence\": number, \"urgency_reason\": \"string\"}. Email from: {{ $('Sub-Workflow Trigger').first().json.sender_email }}, Tiêu đề: {{ $('Sub-Workflow Trigger').first().json.subject }}, Nội dung: {{ $('Sub-Workflow Trigger').first().json.body || $('Sub-Workflow Trigger').first().json.clean_body }}",
+        "text": "={{ `Bạn là Agent 1 (AI Semantic Triage Agent). Phân tích email sau và phân loại vào 1 trong 4 phòng ban (TECH, SALES, FINANCE, GENERAL), gán nhãn mức ưu tiên (P1, P2, P3, P4) và sắc thái cảm xúc (urgent, positive, negative, neutral). Trả về đúng JSON: {\"department\": \"TECH|SALES|FINANCE|GENERAL\", \"category\": \"Technical|Sales|Finance|General\", \"priority\": \"P1|P2|P3|P4\", \"sentiment\": \"urgent|positive|neutral|negative\", \"confidence\": number, \"urgency_reason\": \"string\"}. Email from: ${$('Sub-Workflow Trigger').first().json.sender_email}, Tiêu đề: ${$('Sub-Workflow Trigger').first().json.subject}, Nội dung: ${$('Sub-Workflow Trigger').first().json.body || $('Sub-Workflow Trigger').first().json.clean_body}` }}",
         "options": {
           "systemMessage": "Bạn là AI Semantic Triage Agent chuyên trách phân loại và định tuyến email tự động cho doanh nghiệp."
         }

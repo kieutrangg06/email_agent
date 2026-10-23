@@ -74,7 +74,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "promptType": "define",
-        "text": "Analyze this inbound email for spam, phishing, malicious intent, or legitimate business inquiry. Respond strictly in JSON: {\"is_spam\": boolean, \"is_phishing\": boolean, \"spam_confidence\": number, \"reason\": \"string\"}. Email from: {{ $('Payload Normalization').first().json.sender_email }}, Subject: {{ $('Payload Normalization').first().json.subject }}, Body: {{ $('Payload Normalization').first().json.body }}",
+        "text": "={{ `Analyze this inbound email for spam, phishing, malicious intent, or legitimate business inquiry. Respond strictly in JSON: {\"is_spam\": boolean, \"is_phishing\": boolean, \"spam_confidence\": number, \"reason\": \"string\"}. Email from: ${$('Payload Normalization').first().json.sender_email}, Subject: ${$('Payload Normalization').first().json.subject}, Body: ${$('Payload Normalization').first().json.body}` }}",
         "options": {
           "systemMessage": "You are Agent 9 (AI Classification & Phishing Agent) in an enterprise email gateway. You must classify emails into spam, phishing, or legitimate inquiries and output strictly valid JSON."
         }
