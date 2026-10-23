@@ -16,17 +16,12 @@ docker compose up -d
 
 echo ""
 echo "======================================================================"
-echo "🚀 [2/3] Dọn dẹp cổng cũ & Đồng bộ 9 Micro-Workflows vào n8n..."
+echo "🚀 [2/3] Dọn dẹp cổng cũ & Chuẩn bị môi trường..."
 echo "======================================================================"
 # Giải phóng cổng 3000 và 4000 nếu đang có tiến trình cũ chiếm giữ
 fuser -k 3000/tcp 2>/dev/null || true
 fuser -k 4000/tcp 2>/dev/null || true
 sleep 1
-
-# Đồng bộ 9 micro-workflows vào cơ sở dữ liệu
-if [ -f "sync_9_workflows.js" ]; then
-  node sync_9_workflows.js || true
-fi
 echo "✅ Các cổng 3000 và 4000 đã sẵn sàng."
 
 echo ""

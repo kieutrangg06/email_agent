@@ -240,8 +240,7 @@ Tại thư mục gốc `/home/kieu-trang/email-automation`:
 # Khởi chạy Docker Services (Postgres 16 + pgvector & n8n)
 docker compose up -d
 
-# Đồng bộ 9 Workflows và Credentials vào n8n
-node sync_9_workflows.js
+# Thiết lập Credentials cho n8n (Postgres & SMTP)
 bash credentials/setup_credentials.sh
 
 # Khởi chạy Backend NestJS
@@ -378,8 +377,9 @@ email-automation/
 ├── .env / .env.example             # Cấu hình biến môi trường (DB, Port, Gemini API Key)
 ├── run_all.sh                      # Script 1 chạm khởi động: DB + n8n + Sync + NestJS + Next.js
 ├── stop_all.sh                     # Script 1 chạm tắt an toàn toàn bộ hệ thống
-├── sync_9_workflows.js             # Đồng bộ 9 file JSON workflow trực tiếp vào Database n8n
-├── test_all_9_flows_e2e.js         # Bộ 20 test suite kiểm thử E2E tự động (100% Pass)
+├── run_all_flows_test_scenarios.js # Bộ 25 kịch bản kiểm thử tự động 9 luồng & E2E liên hoàn
+├── seed_multi_day_demo_data.js     # Khởi tạo bộ dữ liệu mẫu đa ngày (7 ngày) phục vụ demo
+├── test_all_9_flows_e2e.js         # Bộ 20 test suite kiểm thử REST API & Web Routes (100% Pass)
 ├── view_db_stats.sh                # Script xem nhanh số lượng và nội dung 14 bảng CSDL
 ├── reset_test_data.sh              # Script làm sạch data test, bảo lưu cấu hình gốc & Seed Data
 │

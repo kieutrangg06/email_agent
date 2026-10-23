@@ -1,4 +1,9 @@
-const { Client } = require('pg');
+let Client;
+try {
+  Client = require('pg').Client;
+} catch {
+  Client = require('./backend/node_modules/pg').Client;
+}
 
 async function seedData() {
   console.log('======================================================================');
@@ -302,6 +307,19 @@ async function seedData() {
     ('m3-system', 'CRM_LEAD_QUALIFIED_AND_STORED', 'flow07_crm_lead_scoring', '2026-10-17 04:00:00+07', 'AI trích xuất Lead VKU Global 95 triệu, gán ENTERPRISE_HIGH_VALUE, Lead Score 100/100', '{"score": 100}'::jsonb, '{"lead_score": 100, "deal_name": "Email Automation 300 nhân sự"}'::jsonb),
     ('m3-system', 'INVOICE_OCR_PROCESSED', 'flow09_invoice_multimodal_ocr', '2026-10-17 04:30:00+07', 'Đối soát hóa đơn INV-VKU-2026-01: 50tr + 5tr = 55tr, kết luận VALIDATED khớp 100%', '{"invoice": "INV-VKU-2026-01"}'::jsonb, '{"invoice": "INV-VKU-2026-01", "math_status": "VALIDATED"}'::jsonb),
     ('m3-system', 'INVOICE_DISCREPANCY_FLAGGED', 'flow09_invoice_multimodal_ocr', '2026-10-17 04:35:00+07', 'Đối soát hóa đơn INV-FLAG-SAI-LECH-02: 45tr + 4.5tr != 52tr (lệch 2.500.000 đ), gắn cờ đỏ DISCREPANCY_FLAGGED', '{"diff": 2500000}'::jsonb, '{"invoice": "INV-FLAG-SAI-LECH-02", "math_status": "DISCREPANCY_FLAGGED"}'::jsonb);
+  `);
+
+  // Đồng bộ PostgreSQL Sequences để tránh lỗi duplicate key pkey
+  await client.query(`
+    SELECT setval('crm_customers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM crm_customers));
+    SELECT setval('crm_deals_id_seq', (SELECT COALESCE(MAX(id), 1) FROM crm_deals));
+    SELECT setval('tickets_id_seq', (SELECT COALESCE(MAX(id), 1) FROM tickets));
+    SELECT setval('ticket_comments_id_seq', (SELECT COALESCE(MAX(id), 1) FROM ticket_comments));
+    SELECT setval('email_drafts_id_seq', (SELECT COALESCE(MAX(id), 1) FROM email_drafts));
+    SELECT setval('email_triage_logs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM email_triage_logs));
+    SELECT setval('finance_invoices_id_seq', (SELECT COALESCE(MAX(id), 1) FROM finance_invoices));
+    SELECT setval('daily_summaries_id_seq', (SELECT COALESCE(MAX(id), 1) FROM daily_summaries));
+    SELECT setval('system_audit_logs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM system_audit_logs));
   `);
 
   await client.end();

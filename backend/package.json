@@ -1,18 +1,16 @@
 {
-  "name": "email-automation-member1-backend",
+  "name": "email-automation-backend",
   "version": "1.0.0",
-  "description": "Member 1: AI Email Triage & Helpdesk SLA Core API",
-  "author": "Member 1 Engineering",
+  "description": "Enterprise AI Email Automation & Helpdesk CRM Core API",
+  "author": "Enterprise Engineering Team",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
+    "start:prod": "node dist/main"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

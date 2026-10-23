@@ -1,12 +1,11 @@
 {
-  "name": "email-automation-member1-frontend",
+  "name": "email-automation-frontend",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
     "lucide-react": "^0.309.0",
