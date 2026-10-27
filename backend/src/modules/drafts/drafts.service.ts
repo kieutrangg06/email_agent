@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../core/database/database.service';
+import { MailService } from '../../core/mail/mail.service';
 import { Subject, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -19,7 +20,10 @@ export class DraftsService {
   private readonly logger = new Logger(DraftsService.name);
   private readonly notifications$ = new Subject<any>();
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly mailService: MailService,
+  ) {}
 
   async createDraft(payload: any) {
     const ticketCode = payload.ticket_code || payload.ticketCode || null;
@@ -216,6 +220,13 @@ export class DraftsService {
     ]);
 
     const updated = res.rows[0];
+
+    // Gửi email thật qua SMTP khi trạng thái là SENT (Phê duyệt)
+    if (updated && isSent) {
+      this.mailService.sendApprovedReplyToCustomer(updated).catch((e) => {
+        this.logger.warn(`Could not dispatch approved reply to customer: ${e.message}`);
+      });
+    }
 
     // If status is SENT, update ticket status to RESOLVED
     if (updated && updated.ticket_code && isSent) {

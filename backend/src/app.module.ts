@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './core/database/database.module';
+import { MailModule } from './core/mail/mail.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { DraftsModule } from './modules/drafts/drafts.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -15,6 +16,7 @@ import { AppController } from './app.controller';
 @Module({
   imports: [
     DatabaseModule,
+    MailModule,
     // Member 1: Triage & Helpdesk SLA
     TicketsModule,
     // Member 2: Knowledge RAG & Executive Analytics

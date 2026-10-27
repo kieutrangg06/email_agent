@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../core/database/database.service';
+import { MailService } from '../../core/mail/mail.service';
 
 @Injectable()
 export class TicketsService {
   private readonly logger = new Logger(TicketsService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly mailService: MailService,
+  ) {}
 
   async getDepartments() {
     const res = await this.db.query(
@@ -130,7 +134,18 @@ export class TicketsService {
       }).catch((e) => this.logger.warn(`Could not insert initial AI comment: ${e.message}`));
     }
 
-    return { status: 'created', ticket: res.rows[0] };
+    // Gửi email thật qua SMTP
+    const savedTicket = res.rows[0];
+    if (savedTicket) {
+      this.mailService.notifyEnterpriseNewTicket(savedTicket).catch((e) => {
+        this.logger.warn(`Could not send real email to enterprise: ${e.message}`);
+      });
+      this.mailService.confirmCustomerTicketReceived(savedTicket).catch((e) => {
+        this.logger.warn(`Could not send real confirmation to customer: ${e.message}`);
+      });
+    }
+
+    return { status: 'created', ticket: savedTicket };
   }
 
   async addTicketComment(data: { ticket_code?: string; ticket_id?: number; author_type: string; content: string }) {
