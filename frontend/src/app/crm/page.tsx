@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../lib/api';
-import { Users, DollarSign, TrendingUp, Send, RefreshCw, Plus, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Users, DollarSign, TrendingUp, Send, RefreshCw, Plus, Clock, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 
 interface Customer {
   id: number;
@@ -40,9 +40,71 @@ export default function CrmPage() {
   const [activeTab, setActiveTab] = useState<'deals' | 'customers'>('deals');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Add Lead Modal State
+  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+  const [leadFullName, setLeadFullName] = useState('Trần Văn Giám Đốc');
+  const [leadCompany, setLeadCompany] = useState('Tập đoàn Công nghệ ABC');
+  const [leadEmail, setLeadEmail] = useState('trangltk.24it@vku.udn.vn');
+  const [leadPhone, setLeadPhone] = useState('+84 905 123 456');
+  const [dealName, setDealName] = useState('Hợp đồng giải pháp Email Automation Enterprise');
+  const [dealBudget, setDealBudget] = useState(250000000);
+  const [dealStage, setDealStage] = useState('PROPOSAL');
+  const [leadScore, setLeadScore] = useState(95);
+  const [dealNotes, setDealNotes] = useState('Khách hàng có ngân sách lớn, yêu cầu triển khai trong tháng tới.');
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadFullName || !leadEmail) {
+      showToast('Vui lòng điền họ tên và email!');
+      return;
+    }
+    setIsSubmittingLead(true);
+    try {
+      // 1. Tạo Customer
+      const custRes = await fetch(`${API_BASE_URL}/api/v1/crm/customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: leadFullName,
+          email: leadEmail,
+          phone: leadPhone,
+          company_name: leadCompany,
+          lead_score: Number(leadScore),
+        }),
+      });
+      const custData = await custRes.json();
+
+      // 2. Tạo Deal
+      await fetch(`${API_BASE_URL}/api/v1/crm/deals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: custData?.id,
+          customer_name: leadFullName,
+          customer_email: leadEmail,
+          deal_name: dealName,
+          expected_budget: Number(dealBudget),
+          stage: dealStage,
+          campaign_tag: 'Inbound VIP',
+          assigned_sales_rep: 'Lê Thị Bích',
+          note: dealNotes,
+        }),
+      });
+
+      showToast(`Đã thêm Lead VIP: ${leadFullName} (${Number(dealBudget).toLocaleString('vi-VN')} đ)`);
+      setShowAddLeadModal(false);
+      await fetchData();
+    } catch {
+      showToast('Lỗi khi thêm Lead vào hệ thống');
+    } finally {
+      setIsSubmittingLead(false);
+    }
   };
 
   const fetchData = async () => {
@@ -91,6 +153,15 @@ export default function CrmPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddLeadModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-rose-200"
+            title="Mở form thêm cơ hội kinh doanh / Lead mới"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Thêm Lead Bán Hàng (Test Thật)</span>
+          </button>
+
           <button
             onClick={fetchData}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
@@ -314,6 +385,180 @@ export default function CrmPage() {
           </div>
         )}
       </div>
+
+      {/* MODAL THÊM LEAD MỚI */}
+      {showAddLeadModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-rose-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+              <div>
+                <span className="text-[11px] font-mono font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 uppercase">
+                  CRM Inbound Test
+                </span>
+                <h3 className="text-lg font-bold text-slate-800 mt-1">Thêm Khách Hàng &amp; Cơ Hội Bán Hàng</h3>
+              </div>
+              <button
+                onClick={() => setShowAddLeadModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Fill Button */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLeadFullName('Trần Văn Giám Đốc');
+                  setLeadCompany('Tập đoàn Công nghệ ABC');
+                  setLeadEmail('trangltk.24it@vku.udn.vn');
+                  setLeadPhone('+84 905 123 456');
+                  setDealName('Hợp đồng giải pháp Email Automation Enterprise');
+                  setDealBudget(250000000);
+                  setDealStage('PROPOSAL');
+                  setLeadScore(95);
+                  setDealNotes('Khách hàng VIP cần triển khai gấp trong tháng 11.');
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <span>⚡ Nạp Mẫu Lead VIP (250.000.000 đ - Score 95)</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLead} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Họ &amp; Tên Khách Hàng</label>
+                  <input
+                    type="text"
+                    required
+                    value={leadFullName}
+                    onChange={(e) => setLeadFullName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                    placeholder="VD: Trần Văn Giám Đốc"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Doanh Nghiệp / Công Ty</label>
+                  <input
+                    type="text"
+                    required
+                    value={leadCompany}
+                    onChange={(e) => setLeadCompany(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                    placeholder="VD: Tập đoàn ABC"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Email Liên Hệ</label>
+                  <input
+                    type="email"
+                    required
+                    value={leadEmail}
+                    onChange={(e) => setLeadEmail(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                    placeholder="trangltk.24it@vku.udn.vn"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Số Điện Thoại (+84)</label>
+                  <input
+                    type="text"
+                    value={leadPhone}
+                    onChange={(e) => setLeadPhone(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                    placeholder="+84 905 123 456"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-slate-600 font-bold mb-1">Tên Hợp Đồng / Deal</label>
+                  <input
+                    type="text"
+                    required
+                    value={dealName}
+                    onChange={(e) => setDealName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                    placeholder="Tên gói sản phẩm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Điểm Lead Score</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={leadScore}
+                    onChange={(e) => setLeadScore(Number(e.target.value))}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs font-bold text-amber-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Quy Mô Ngân Sách (VNĐ)</label>
+                  <input
+                    type="number"
+                    required
+                    step="1000000"
+                    value={dealBudget}
+                    onChange={(e) => setDealBudget(Number(e.target.value))}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Giai Đoạn Pipeline</label>
+                  <select
+                    value={dealStage}
+                    onChange={(e) => setDealStage(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                  >
+                    <option value="PROPOSAL">Proposal / Báo Giá</option>
+                    <option value="QUOTED">Quoted / Đàm Phán</option>
+                    <option value="DISCOVERY">Discovery / Tìm Hiểu</option>
+                    <option value="CLOSED_WON">Closed Won / Chốt Thành Công</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-bold mb-1">Ghi Chú Nhu Cầu</label>
+                <textarea
+                  rows={2}
+                  value={dealNotes}
+                  onChange={(e) => setDealNotes(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-rose-500 text-xs"
+                  placeholder="Ghi chú chi tiết về nhu cầu mua hàng..."
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddLeadModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingLead}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-bold shadow-md shadow-rose-200 disabled:opacity-50"
+                >
+                  {isSubmittingLead ? 'Đang Lưu...' : 'Lưu Lead & Tạo Deal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

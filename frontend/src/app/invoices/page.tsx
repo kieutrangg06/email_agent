@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../lib/api';
-import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search, Plus, X } from 'lucide-react';
 
 interface Invoice {
   id: number;
@@ -40,9 +40,51 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Add Invoice Modal State
+  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
+  const [isSubmittingInvoice, setIsSubmittingInvoice] = useState(false);
+  const [invNumber, setInvNumber] = useState('HD-2026-001');
+  const [invSellerName, setInvSellerName] = useState('Công ty CP Phần Mềm VKU');
+  const [invSellerTaxId, setInvSellerTaxId] = useState('0402123456');
+  const [invBuyerName, setInvBuyerName] = useState('Công ty TNHH Giải Pháp Số');
+  const [invBuyerEmail, setInvBuyerEmail] = useState('trangltk.24it@vku.udn.vn');
+  const [invSubtotal, setInvSubtotal] = useState(10000000);
+  const [invVat, setInvVat] = useState(1000000);
+  const [invTotal, setInvTotal] = useState(11000000);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleCreateInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingInvoice(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/finance/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_number: invNumber,
+          seller_name: invSellerName,
+          seller_tax_id: invSellerTaxId,
+          buyer_name: invBuyerName,
+          buyer_email: invBuyerEmail,
+          subtotal: Number(invSubtotal),
+          vat_amount: Number(invVat),
+          total_amount: Number(invTotal),
+        }),
+      });
+      const data = await res.json();
+      const statusText = data?.math_status === 'VALIDATED' ? 'Hợp lệ (VALIDATED)' : 'Cảnh báo lệch số học (DISCREPANCY_FLAGGED)';
+      showToast(`Đã thêm Hóa đơn ${invNumber}: ${statusText}`);
+      setShowAddInvoiceModal(false);
+      await fetchData();
+    } catch {
+      showToast('Lỗi khi lưu hóa đơn');
+    } finally {
+      setIsSubmittingInvoice(false);
+    }
   };
 
   const fetchData = async () => {
@@ -103,6 +145,15 @@ export default function InvoicesPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddInvoiceModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-purple-200"
+            title="Mở form tạo hóa đơn VAT để kiểm tra đối soát số học"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Tạo Hóa Đơn VAT (Test OCR &amp; Đối Soát)</span>
+          </button>
+
           <button
             onClick={fetchData}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
@@ -313,6 +364,188 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
+
+      {/* MODAL TẠO HÓA ĐƠN VAT */}
+      {showAddInvoiceModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-purple-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-purple-100 pb-3">
+              <div>
+                <span className="text-[11px] font-mono font-bold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 uppercase">
+                  Finance OCR &amp; Math Test
+                </span>
+                <h3 className="text-lg font-bold text-slate-800 mt-1">Tạo Hóa Đơn &amp; Kiểm Tra Đối Soát</h3>
+              </div>
+              <button
+                onClick={() => setShowAddInvoiceModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Fill Buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setInvNumber('HD-2026-001');
+                  setInvSellerName('Công ty CP Phần Mềm VKU');
+                  setInvSellerTaxId('0402123456');
+                  setInvBuyerName('Công ty TNHH Giải Pháp Số');
+                  setInvBuyerEmail('trangltk.24it@vku.udn.vn');
+                  setInvSubtotal(10000000);
+                  setInvVat(1000000);
+                  setInvTotal(11000000);
+                }}
+                className="py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <span>⚡ Mẫu Hợp Lệ (VALIDATED)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setInvNumber('HD-FAKE-002');
+                  setInvSellerName('Nhà cung cấp lạ');
+                  setInvSellerTaxId('0109999999');
+                  setInvBuyerName('Công ty TNHH Giải Pháp Số');
+                  setInvBuyerEmail('trangltk.24it@vku.udn.vn');
+                  setInvSubtotal(10000000);
+                  setInvVat(1000000);
+                  setInvTotal(15000000);
+                }}
+                className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <span>⚡ Mẫu Lệch Tiền (DISCREPANCY)</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateInvoice} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Số Hóa Đơn (Invoice Number)</label>
+                  <input
+                    type="text"
+                    required
+                    value={invNumber}
+                    onChange={(e) => setInvNumber(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs font-mono"
+                    placeholder="HD-2026-001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Mã Số Thuế Bên Bán</label>
+                  <input
+                    type="text"
+                    required
+                    value={invSellerTaxId}
+                    onChange={(e) => setInvSellerTaxId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs font-mono"
+                    placeholder="0402123456"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Tên Đơn Vị Bán (Seller)</label>
+                  <input
+                    type="text"
+                    required
+                    value={invSellerName}
+                    onChange={(e) => setInvSellerName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs"
+                    placeholder="Công ty CP Phần Mềm VKU"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Tên Đơn Vị Mua (Buyer)</label>
+                  <input
+                    type="text"
+                    required
+                    value={invBuyerName}
+                    onChange={(e) => setInvBuyerName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs"
+                    placeholder="Công ty TNHH Giải Pháp Số"
+                  />
+                </div>
+              </div>
+
+              {/* Math Check Section */}
+              <div className="p-3 bg-purple-50/50 rounded-2xl border border-purple-100 space-y-2">
+                <span className="text-[11px] font-bold text-purple-900 block">Kiểm Tra Đối Soát Số Học: Tiền Hàng + VAT = Tổng Tiền</span>
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-slate-500 text-[11px] mb-1">1. Tiền hàng (Subtotal)</label>
+                    <input
+                      type="number"
+                      required
+                      value={invSubtotal}
+                      onChange={(e) => setInvSubtotal(Number(e.target.value))}
+                      className="w-full p-2 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 text-[11px] mb-1">2. Tiền thuế VAT</label>
+                    <input
+                      type="number"
+                      required
+                      value={invVat}
+                      onChange={(e) => setInvVat(Number(e.target.value))}
+                      className="w-full p-2 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 text-[11px] mb-1">3. Tổng thanh toán</label>
+                    <input
+                      type="number"
+                      required
+                      value={invTotal}
+                      onChange={(e) => setInvTotal(Number(e.target.value))}
+                      className={`w-full p-2 rounded-xl border text-xs font-extrabold focus:outline-purple-500 ${
+                        Number(invSubtotal) + Number(invVat) === Number(invTotal)
+                          ? 'border-emerald-300 text-emerald-700 bg-emerald-50/30'
+                          : 'border-rose-300 text-rose-700 bg-rose-50/30'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="text-[11px] pt-1">
+                  {Number(invSubtotal) + Number(invVat) === Number(invTotal) ? (
+                    <span className="text-emerald-700 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Khớp chính xác 100% ➜ Sẽ gắn huy hiệu VALIDATED
+                    </span>
+                  ) : (
+                    <span className="text-rose-700 font-bold flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" /> Lệch {Math.abs(Number(invSubtotal) + Number(invVat) - Number(invTotal)).toLocaleString('vi-VN')} đ ➜ Sẽ gắn cờ đỏ DISCREPANCY_FLAGGED
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddInvoiceModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingInvoice}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold shadow-md shadow-purple-200 disabled:opacity-50"
+                >
+                  {isSubmittingInvoice ? 'Đang Xử Lý...' : 'Lưu & Bóc Tách Đối Soát'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

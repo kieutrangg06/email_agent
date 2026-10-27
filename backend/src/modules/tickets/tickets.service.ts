@@ -258,6 +258,22 @@ export class TicketsService {
     return res.rows;
   }
 
+  async saveQuarantineLog(data: any) {
+    const sender = data.sender_email || data.email || 'unknown@phishing.com';
+    const subject = data.subject || 'Spam / Phishing Suspicious Email';
+    const reason = data.quarantine_reason || data.reason || 'DMARC/SPF Fail & Phishing keywords detected';
+    const rawPayload = data.payload || data.raw_payload || { note: 'Captured by AI Antispam Agent' };
+    const payloadStr = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(rawPayload);
+
+    const res = await this.db.query(
+      `INSERT INTO email_quarantine_vault (sender_email, subject, raw_payload, quarantine_reason)
+       VALUES ($1, $2, $3::jsonb, $4)
+       RETURNING *;`,
+      [sender, subject, payloadStr, reason]
+    );
+    return res.rows[0];
+  }
+
   async saveTriageLog(data: any) {
     const inbound = data.inbound_email || data.sender_email || 'client@enterprise.com';
     const sender = data.sender_email || inbound;
