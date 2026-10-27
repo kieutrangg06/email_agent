@@ -478,11 +478,22 @@ export default function ApprovalPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <Mail className="w-3.5 h-3.5 text-rose-500" />
                       <span>
-                        Gửi tới:{' '}
-                        <strong className="text-slate-800 font-mono">{draft.recipient_email}</strong>
+                        Người nhận (Khách hàng):{' '}
+                        <strong className="text-slate-800 font-mono font-bold">{draft.recipient_email}</strong>
                       </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Hòm thư tiếp nhận DN:</span>
+                      <strong className="text-rose-700 font-mono bg-rose-50 px-2 py-0.5 rounded border border-rose-200">tranngo170770@gmail.com</strong>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Send className="w-3.5 h-3.5 text-indigo-500" />
+                      <span className="text-slate-400">SMTP Phản hồi:</span>
+                      <strong className="text-indigo-700 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">kieutrangg06123@gmail.com</strong>
                     </div>
                   </div>
                 </div>

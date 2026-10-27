@@ -289,7 +289,7 @@ export default function TicketsPage() {
           recipient_email: custEmail,
           subject: `[TIẾP NHẬN] ${custSubject} - Mã: ${code}`,
           proposed_subject: `[TIẾP NHẬN] ${custSubject} - Mã: ${code}`,
-          proposed_body: `<p>Kính gửi quý khách <b>${custName}</b>,</p><p>Hệ thống AI Helpdesk đã tiếp nhận yêu cầu với mức độ <b>${custPriority}</b> (Mã vé: <b>${code}</b>). Đội ngũ kỹ thuật viên đang khẩn trương xử lý.</p><p>Trân trọng,<br/><b>Enterprise Support Team</b></p>`,
+          proposed_body: `<p>Kính gửi quý khách <b>${custName}</b>,</p><p>Hệ thống Doanh nghiệp (<b>tranngo170770@gmail.com</b>) đã tiếp nhận yêu cầu hỗ trợ với mức độ <b>${custPriority}</b> (Mã vé: <b>${code}</b>).</p><p>Đội ngũ kỹ sư đang khẩn trương xử lý sự cố để đảm bảo thời hạn cam kết SLA.</p><p style="margin-top:14px;color:#64748b;font-size:12px;"><i>(Thư phản hồi tự động gửi từ máy chủ SMTP doanh nghiệp: <b>kieutrangg06123@gmail.com</b>)</i></p><p>Trân trọng,<br/><b>Enterprise Support Team</b></p>`,
           confidence_score: 98.8,
           status: 'PENDING_APPROVAL',
         }),
@@ -1020,9 +1020,9 @@ export default function TicketsPage() {
               </div>
 
               <div className="bg-rose-50/40 p-3 rounded-xl border border-rose-100">
-                <span className="text-slate-400">Kỹ thuật viên phụ trách:</span>
+                <span className="text-slate-400">Kỹ thuật viên &amp; Hòm thư DN:</span>
                 <p className="font-bold text-slate-800">{selectedTicket.assigned_to}</p>
-                <p className="font-mono text-slate-400">{selectedTicket.agent_email || 'support@enterprise.com'}</p>
+                <p className="font-mono text-slate-600 font-semibold">{selectedTicket.agent_email || 'tranngo170770@gmail.com'}</p>
               </div>
 
               <div className="bg-rose-50/40 p-3 rounded-xl border border-rose-100 col-span-2">
@@ -1067,20 +1067,44 @@ export default function TicketsPage() {
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-rose-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-rose-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold shadow-xs">
                   <Send className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-800 text-base">Cổng Gửi Thư Khách Hàng (Customer Portal)</h3>
-                  <p className="text-xs text-slate-400">Đóng vai Khách hàng/Sinh viên gửi email thật vào hệ thống</p>
+                  <p className="text-xs text-slate-400">Khách hàng gửi yêu cầu hỗ trợ đến Doanh nghiệp</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowCustomerModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition"
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Enterprise Mail Routing Badge */}
+            <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-3 text-xs text-slate-700 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-rose-800 flex items-center gap-1">
+                    <Building className="w-3.5 h-3.5 text-rose-600" />
+                    Hòm thư nhận (Doanh nghiệp):
+                  </span>
+                  <span className="font-mono bg-white px-2 py-0.5 rounded-md border border-rose-200 text-rose-950 font-bold">
+                    tranngo170770@gmail.com
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-600 flex items-center gap-1">
+                    <Send className="w-3.5 h-3.5 text-slate-500" />
+                    Máy chủ SMTP phản hồi:
+                  </span>
+                  <span className="font-mono bg-white px-2 py-0.5 rounded-md border border-slate-200 text-slate-800 font-semibold">
+                    kieutrangg06123@gmail.com
+                  </span>
+                </div>
+              </div>
             </div>
 
             <form onSubmit={handleSendCustomerEmail} className="space-y-3 text-xs">
@@ -1092,33 +1116,36 @@ export default function TicketsPage() {
                     required
                     value={custName}
                     onChange={(e) => setCustName(e.target.value)}
+                    placeholder="Ví dụ: Lê Thị Kiều Trang"
                     className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email gửi đến:</label>
+                  <label className="font-bold text-slate-700 block mb-1">Email người gửi (Khách hàng):</label>
                   <input
                     type="email"
                     required
                     value={custEmail}
                     onChange={(e) => setCustEmail(e.target.value)}
+                    placeholder="trangltk.24it@vku.udn.vn"
                     className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
                   />
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Nhận thư trả lời từ kieutrangg06123@gmail.com</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Phòng ban liên hệ:</label>
+                  <label className="font-bold text-slate-700 block mb-1">Phòng ban tiếp nhận:</label>
                   <select
                     value={custCategory}
                     onChange={(e) => setCustCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
                   >
-                    <option value="Technical">Technical (Kỹ thuật)</option>
-                    <option value="Sales">Sales (Kinh doanh)</option>
-                    <option value="Finance">Finance (Tài chính)</option>
-                    <option value="General">General (Chung)</option>
+                    <option value="Technical">Technical (Kỹ thuật - tranngo170770@gmail.com)</option>
+                    <option value="Sales">Sales (Kinh doanh - tranngo170770@gmail.com)</option>
+                    <option value="Finance">Finance (Tài chính - tranngo170770@gmail.com)</option>
+                    <option value="General">General (Chung - tranngo170770@gmail.com)</option>
                   </select>
                 </div>
                 <div>
@@ -1169,10 +1196,10 @@ export default function TicketsPage() {
                 <button
                   type="submit"
                   disabled={isSubmittingCustEmail}
-                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold shadow-md shadow-rose-200 transition disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold shadow-md shadow-rose-200 transition disabled:opacity-60"
                 >
                   <Send className={`w-3.5 h-3.5 ${isSubmittingCustEmail ? 'animate-pulse' : ''}`} />
-                  <span>{isSubmittingCustEmail ? 'Đang gửi...' : 'Gửi Thư Vào Hệ Thống'}</span>
+                  <span>{isSubmittingCustEmail ? 'Đang gửi...' : 'Gửi Thư Đến Doanh Nghiệp (tranngo170770@gmail.com)'}</span>
                 </button>
               </div>
             </form>
