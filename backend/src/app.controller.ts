@@ -1,9 +1,13 @@
 import { Controller, Get, Post } from '@nestjs/common';
 import { DatabaseService } from './core/database/database.service';
+import { MailService } from './core/mail/mail.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly mailService: MailService,
+  ) {}
 
   @Get()
   getRoot() {
@@ -26,6 +30,29 @@ export class AppController {
   @Get('health')
   getHealth() {
     return { status: 'healthy', timestamp: Date.now() };
+  }
+
+  @Get('api/v1/admin/test-smtp')
+  async testSmtp() {
+    try {
+      const res1 = await this.mailService.sendMail(
+        'tranngo170770@gmail.com',
+        '[RENDER CLOUD TEST] Kiem tra hop thu den tranngo170770',
+        '<p>Test direct from Render Cloud Host to tranngo170770</p>'
+      );
+      const res2 = await this.mailService.sendMail(
+        'trangltk.24it@vku.udn.vn',
+        '[RENDER CLOUD TEST] Kiem tra hop thu den trangltk.24it',
+        '<p>Test direct from Render Cloud Host to trangltk.24it</p>'
+      );
+      return {
+        status: 'executed',
+        to_enterprise: res1 ? { messageId: res1.messageId, response: res1.response } : 'FAILED_OR_BLOCKED',
+        to_customer: res2 ? { messageId: res2.messageId, response: res2.response } : 'FAILED_OR_BLOCKED',
+      };
+    } catch (err: any) {
+      return { status: 'error', error: err.message };
+    }
   }
 
   @Post('api/v1/admin/reset-database')
