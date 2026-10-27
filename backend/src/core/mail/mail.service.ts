@@ -17,15 +17,75 @@ export class MailService {
   }
 
   async sendMail(to: string, subject: string, html: string, fromName = 'Enterprise AI Helpdesk') {
+    const fromEmail = process.env.SMTP_USER || 'kieutrangg06123@gmail.com';
+    const brevoApiKey = process.env.BREVO_API_KEY;
+
+    // 1. Nếu có BREVO_API_KEY: Bắn qua giao thức HTTPS API (Port 443 - Không bao giờ bị Render chặn)
+    if (brevoApiKey) {
+      try {
+        const payload = JSON.stringify({
+          sender: { name: fromName, email: fromEmail },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        });
+
+        const res = await new Promise<any>((resolve, reject) => {
+          const https = require('https');
+          const req = https.request(
+            {
+              hostname: 'api.brevo.com',
+              port: 443,
+              path: '/v3/smtp/email',
+              method: 'POST',
+              headers: {
+                'api-key': brevoApiKey,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload),
+              },
+              timeout: 10000,
+            },
+            (resp: any) => {
+              let data = '';
+              resp.on('data', (c: any) => (data += c));
+              resp.on('end', () => {
+                try {
+                  resolve({ status: resp.statusCode, body: JSON.parse(data) });
+                } catch {
+                  resolve({ status: resp.statusCode, body: data });
+                }
+              });
+            }
+          );
+          req.on('error', reject);
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Brevo API timeout'));
+          });
+          req.write(payload);
+          req.end();
+        });
+
+        if (res.status === 201 || res.status === 200) {
+          this.logger.log(`[Brevo HTTPS 443] Real email dispatched to ${to} (MessageId: ${res.body?.messageId})`);
+          return { messageId: res.body?.messageId, response: '250 OK via Brevo HTTPS API' };
+        } else {
+          this.logger.warn(`Brevo API returned status ${res.status}: ${JSON.stringify(res.body)}`);
+        }
+      } catch (err: any) {
+        this.logger.error(`Brevo HTTPS dispatch failed: ${err.message}`);
+      }
+    }
+
+    // 2. Fallback: Gửi qua Google SMTP Socket (Port 465)
     try {
-      const fromEmail = process.env.SMTP_USER || 'kieutrangg06123@gmail.com';
       const info = await this.transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to,
         subject,
         html,
       });
-      this.logger.log(`Real email dispatched successfully to ${to} (MessageId: ${info.messageId})`);
+      this.logger.log(`[Google SMTP Socket] Real email dispatched successfully to ${to} (MessageId: ${info.messageId})`);
       return info;
     } catch (err: any) {
       this.logger.error(`Failed to send real email to ${to}: ${err.message}`);
