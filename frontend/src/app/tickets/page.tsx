@@ -111,6 +111,16 @@ export default function TicketsPage() {
   const [selectedMail, setSelectedMail] = useState<TriageLog | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
 
+  // Customer Email Ingest Modal state
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [custName, setCustName] = useState('Lê Thị Kiều Trang');
+  const [custEmail, setCustEmail] = useState('trangltk.24it@vku.udn.vn');
+  const [custSubject, setCustSubject] = useState('[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504');
+  const [custCategory, setCustCategory] = useState('Technical');
+  const [custPriority, setCustPriority] = useState('P1 - Critical');
+  const [custBody, setCustBody] = useState('Kính gửi ban kỹ thuật, hệ thống đăng ký học phần bị nghẽn mạng quá tải cơ sở dữ liệu, đề nghị nâng cấp máy chủ khẩn cấp.');
+  const [isSubmittingCustEmail, setIsSubmittingCustEmail] = useState(false);
+
   // Feedback & Loading states
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -228,6 +238,73 @@ export default function TicketsPage() {
     }
   };
 
+  // Giả lập Khách hàng gửi email thật vào hệ thống
+  const handleSendCustomerEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!custName || !custEmail || !custSubject || !custBody) {
+      showToast('Thiếu thông tin', 'Vui lòng điền đầy đủ các trường', 'error');
+      return;
+    }
+    setIsSubmittingCustEmail(true);
+    try {
+      const code = `TK-VKU-${Date.now().toString().slice(-4)}`;
+      // 1. Tạo bản ghi Hộp Thư Triage
+      await fetch(`${API_BASE_URL}/api/v1/triage/logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender_name: custName,
+          sender_email: custEmail,
+          subject: custSubject,
+          body_snippet: custBody,
+          category: custCategory,
+          priority: custPriority,
+          sentiment: custPriority.includes('P1') ? 'Khan cap' : 'Tieu cuc',
+          urgency_reason: custPriority.includes('P1') ? 'Sự cố P1 đe dọa gián đoạn dịch vụ toàn trường' : 'Yêu cầu hỗ trợ kỹ thuật định kỳ',
+          status: 'PENDING',
+        }),
+      });
+
+      // 2. Tạo Vé Kỹ thuật & Điều phối KTV
+      await fetch(`${API_BASE_URL}/api/v1/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_code: code,
+          customer_email: custEmail,
+          sender_email: custEmail,
+          title: custSubject,
+          description: custBody,
+          category: custCategory,
+          priority: custPriority,
+        }),
+      });
+
+      // 3. Tạo Bản nháp phản hồi AI RAG
+      await fetch(`${API_BASE_URL}/api/v1/drafts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_code: code,
+          recipient_email: custEmail,
+          subject: `[TIẾP NHẬN] ${custSubject} - Mã: ${code}`,
+          proposed_subject: `[TIẾP NHẬN] ${custSubject} - Mã: ${code}`,
+          proposed_body: `<p>Kính gửi quý khách <b>${custName}</b>,</p><p>Hệ thống AI Helpdesk đã tiếp nhận yêu cầu với mức độ <b>${custPriority}</b> (Mã vé: <b>${code}</b>). Đội ngũ kỹ thuật viên đang khẩn trương xử lý.</p><p>Trân trọng,<br/><b>Enterprise Support Team</b></p>`,
+          confidence_score: 98.8,
+          status: 'PENDING_APPROVAL',
+        }),
+      });
+
+      showToast('Tiếp nhận thành công!', `AI đã tiếp nhận email từ ${custName} và cấp vé ${code}`, 'success');
+      setShowCustomerModal(false);
+      await reloadAll();
+    } catch (err) {
+      showToast('Lỗi gửi thư', 'Không thể kết nối đến Backend', 'error');
+    } finally {
+      setIsSubmittingCustEmail(false);
+    }
+  };
+
   // Filtered lists
   const filteredTriage = useMemo(() => {
     return triageLogs.filter((l) => {
@@ -294,6 +371,15 @@ export default function TicketsPage() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setShowCustomerModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-rose-200"
+            title="Mở form gửi email với vai trò Khách hàng / Sinh viên thực tế"
+          >
+            <Send className="w-4 h-4" />
+            <span>+ Gửi Email Khách Hàng (Test Thật)</span>
+          </button>
+
           <button
             onClick={reloadAll}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
@@ -971,6 +1057,125 @@ export default function TicketsPage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Email Simulation Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-rose-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+                  <Send className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-base">Cổng Gửi Thư Khách Hàng (Customer Portal)</h3>
+                  <p className="text-xs text-slate-400">Đóng vai Khách hàng/Sinh viên gửi email thật vào hệ thống</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCustomerModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendCustomerEmail} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Họ và tên khách hàng:</label>
+                  <input
+                    type="text"
+                    required
+                    value={custName}
+                    onChange={(e) => setCustName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Email gửi đến:</label>
+                  <input
+                    type="email"
+                    required
+                    value={custEmail}
+                    onChange={(e) => setCustEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Phòng ban liên hệ:</label>
+                  <select
+                    value={custCategory}
+                    onChange={(e) => setCustCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                  >
+                    <option value="Technical">Technical (Kỹ thuật)</option>
+                    <option value="Sales">Sales (Kinh doanh)</option>
+                    <option value="Finance">Finance (Tài chính)</option>
+                    <option value="General">General (Chung)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Mức độ ưu tiên yêu cầu:</label>
+                  <select
+                    value={custPriority}
+                    onChange={(e) => setCustPriority(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                  >
+                    <option value="P1 - Critical">P1 - Critical (Sự cố khẩn cấp SLA 1h)</option>
+                    <option value="P2 - High">P2 - High (Ưu tiên cao SLA 4h)</option>
+                    <option value="P3 - Medium">P3 - Medium (Bình thường SLA 8h)</option>
+                    <option value="P4 - Low">P4 - Low (Hỏi thông tin SLA 24h)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Tiêu đề email:</label>
+                <input
+                  type="text"
+                  required
+                  value={custSubject}
+                  onChange={(e) => setCustSubject(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Nội dung thư phản ánh:</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={custBody}
+                  onChange={(e) => setCustBody(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-rose-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCustEmail}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold shadow-md shadow-rose-200 transition disabled:opacity-60"
+                >
+                  <Send className={`w-3.5 h-3.5 ${isSubmittingCustEmail ? 'animate-pulse' : ''}`} />
+                  <span>{isSubmittingCustEmail ? 'Đang gửi...' : 'Gửi Thư Vào Hệ Thống'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

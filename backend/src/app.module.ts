@@ -10,6 +10,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 
+import { AppController } from './app.controller';
+
 @Module({
   imports: [
     DatabaseModule,
@@ -27,7 +29,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     KnowledgeModule,
     NotificationsModule,
   ],
-  controllers: [],
+  controllers: [AppController],
   providers: [],
 })
 export class AppModule {}
