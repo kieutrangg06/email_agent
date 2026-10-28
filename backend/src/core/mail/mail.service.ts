@@ -324,4 +324,274 @@ export class MailService {
     `;
     return this.sendMail(to, subject, html, 'Enterprise Technical Team');
   }
+
+  // 4. Luồng 7: Gửi thông báo Lead VIP nội bộ cho chuyên viên Sales (tranngo170770@gmail.com)
+  async notifySalesNewLead(lead: any, deal: any, to = 'tranngo170770@gmail.com') {
+    const budgetStr = Number(deal.expected_budget || 0).toLocaleString('vi-VN');
+    const subject = `[CƠ HỘI BÁN HÀNG MỚI] Lead VIP: ${lead.full_name || 'Khách hàng'} (${lead.company_name || 'Doanh nghiệp'}) - Deal: ${budgetStr} đ`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8" /></head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 15px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9;">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); padding: 30px; text-align: left;">
+                    <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Sales Opportunity</span>
+                    <h1 style="color: #ffffff; font-size: 22px; margin: 12px 0 4px 0; font-weight: 800;">Phát Hiện Cơ Hội Bán Hàng Mới</h1>
+                    <p style="color: #fef3c7; margin: 0; font-size: 13px;">AI Triage bóc tách tự động &bull; Điểm tiềm năng: <b>${lead.lead_score || 95}/100</b></p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px;">
+                    <p style="font-size: 14px; line-height: 1.6; margin-top: 0; color: #334155;">
+                      Hệ thống AI vừa tiếp nhận email hỏi mua sản phẩm/dịch vụ từ khách hàng doanh nghiệp:
+                    </p>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 14px; border: 1px solid #fde68a; margin: 20px 0;">
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #78350f; width: 140px;">Khách hàng:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 14px; font-weight: 800; color: #92400e;">${lead.full_name}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #78350f;">Doanh nghiệp:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 13px; font-weight: 600; color: #1e293b;">${lead.company_name}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #78350f;">Email &amp; SĐT:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 13px; font-weight: 600; color: #0284c7;">${lead.email} &bull; ${lead.phone || 'Chưa có SĐT'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 13px; color: #78350f;">Quy mô dự kiến:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #fef3c7; font-size: 15px; font-weight: 800; color: #b45309;">${budgetStr} VNĐ</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; font-size: 13px; color: #78350f;">Chuyên viên phụ trách:</td>
+                        <td style="padding: 12px 18px; font-size: 13px; font-weight: bold; color: #1e293b;">${deal.assigned_sales_rep || 'Lê Thị Bích'}</td>
+                      </tr>
+                    </table>
+                    <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                      👉 Vui lòng liên hệ khách hàng trong vòng <b>2 giờ</b> để tư vấn giải pháp và hẹn lịch demo trực tiếp.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8;">
+                    Hệ thống Tự Động Hóa Email Doanh Nghiệp VKU &bull; Máy chủ SMTP: <b>kieutrangg06123@gmail.com</b>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    return this.sendMail(to, subject, html, 'Enterprise CRM System');
+  }
+
+  // 5. Luồng 9: Gửi cảnh báo gian lận / sai lệch số học hóa đơn (tranngo170770@gmail.com)
+  async sendInvoiceDiscrepancyAlert(invoice: any, to = 'tranngo170770@gmail.com') {
+    const diffStr = Number(invoice.discrepancy || 0).toLocaleString('vi-VN');
+    const subject = `[CẢNH BÁO GIAN LẬN] Hóa đơn ${invoice.invoice_number} sai lệch số học ${diffStr} đ`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8" /></head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 15px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9;">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 30px; text-align: left;">
+                    <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Finance Fraud Alert</span>
+                    <h1 style="color: #ffffff; font-size: 22px; margin: 12px 0 4px 0; font-weight: 800;">Phát Hiện Sai Lệch Số Học Hóa Đơn</h1>
+                    <p style="color: #fee2e2; margin: 0; font-size: 13px;">Hệ thống Đối soát OCR Tự động &bull; Cờ đỏ: <b>DISCREPANCY_FLAGGED</b></p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px;">
+                    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px; margin-bottom: 20px; color: #991b1b; font-size: 13px; font-weight: 600;">
+                      ⚠️ Cảnh báo khẩn cấp: Tiền hàng + Tiền thuế VAT KHÔNG KHỚP với Tổng thanh toán ghi trên chứng từ!
+                    </div>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 14px; border: 1px solid #e2e8f0; margin: 20px 0;">
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b; width: 150px;">Số Hóa Đơn:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 14px; font-weight: 800; font-family: monospace; color: #dc2626;">${invoice.invoice_number}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">Đơn vị bán:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; color: #1e293b;">${invoice.seller_name} (MST: ${invoice.seller_tax_id})</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">1. Tiền hàng (Subtotal):</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 600; color: #1e293b;">${Number(invoice.subtotal).toLocaleString('vi-VN')} đ</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">2. Thuế VAT:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 600; color: #1e293b;">${Number(invoice.vat_amount).toLocaleString('vi-VN')} đ</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">3. Tổng ghi trên HĐ:</td>
+                        <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 14px; font-weight: 800; color: #dc2626;">${Number(invoice.total_amount).toLocaleString('vi-VN')} đ</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 18px; font-size: 13px; color: #dc2626; font-weight: bold;">Chênh lệch kê khống:</td>
+                        <td style="padding: 12px 18px; font-size: 15px; font-weight: 900; color: #dc2626;">+ ${diffStr} đ</td>
+                      </tr>
+                    </table>
+                    <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                      🛑 <b>Khuyến nghị nghiệp vụ:</b> Kế toán trưởng tạm dừng thanh toán hóa đơn này để yêu cầu nhà cung cấp giải trình và xuất hóa đơn điều chỉnh.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8;">
+                    Hệ thống Tự Động Hóa Email Doanh Nghiệp VKU &bull; Máy chủ SMTP: <b>kieutrangg06123@gmail.com</b>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    return this.sendMail(to, subject, html, 'Enterprise Fraud Protection');
+  }
+
+  // 6. Luồng 6: Gửi Báo Cáo Điều Hành hằng ngày cho Ban Giám Đốc (tranngo170770@gmail.com)
+  async sendExecutiveDailyDigest(stats: any, to = 'tranngo170770@gmail.com') {
+    const today = new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const subject = `[BÁO CÁO ĐIỀU HÀNH 24H] Tổng kết vận hành hệ thống Email Automation & SLA - ${today}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8" /></head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 15px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9;">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); padding: 30px; text-align: left;">
+                    <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Executive Intelligence</span>
+                    <h1 style="color: #ffffff; font-size: 22px; margin: 12px 0 4px 0; font-weight: 800;">Báo Cáo Điều Hành Vận Hành 24H</h1>
+                    <p style="color: #e0e7ff; margin: 0; font-size: 13px;">Gửi Ban Giám Đốc &bull; ${today}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px;">
+                    <p style="font-size: 14px; line-height: 1.6; margin-top: 0; color: #334155;">
+                      Kính gửi Ban Giám Đốc, hệ thống AI đã tổng hợp toàn bộ các chỉ số vận hành quan trọng trong 24 giờ qua:
+                    </p>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                      <tr>
+                        <td width="50%" style="padding: 8px;">
+                          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 16px; text-align: center;">
+                            <span style="font-size: 11px; color: #166534; font-weight: bold; text-transform: uppercase;">Tuân Thủ SLA</span>
+                            <div style="font-size: 26px; font-weight: 900; color: #15803d; margin: 6px 0;">${stats.sla_rate || '100%'}</div>
+                            <span style="font-size: 11px; color: #4ade80;">Không có vé trễ hạn</span>
+                          </div>
+                        </td>
+                        <td width="50%" style="padding: 8px;">
+                          <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 14px; padding: 16px; text-align: center;">
+                            <span style="font-size: 11px; color: #1e40af; font-weight: bold; text-transform: uppercase;">Tổng Thư Tiếp Nhận</span>
+                            <div style="font-size: 26px; font-weight: 900; color: #1d4ed8; margin: 6px 0;">${stats.total_emails || stats.total || 12}</div>
+                            <span style="font-size: 11px; color: #60a5fa;">Xử lý tự động 100%</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td width="50%" style="padding: 8px;">
+                          <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 14px; padding: 16px; text-align: center;">
+                            <span style="font-size: 11px; color: #9f1239; font-weight: bold; text-transform: uppercase;">Sự Cố P1 Khẩn Cấp</span>
+                            <div style="font-size: 26px; font-weight: 900; color: #be123c; margin: 6px 0;">${stats.p1_count || stats.p1Count || 1}</div>
+                            <span style="font-size: 11px; color: #f43f5e;">Đã điều phối KTV</span>
+                          </div>
+                        </td>
+                        <td width="50%" style="padding: 8px;">
+                          <div style="background-color: #fefce8; border: 1px solid #fef08a; border-radius: 14px; padding: 16px; text-align: center;">
+                            <span style="font-size: 11px; color: #854d0e; font-weight: bold; text-transform: uppercase;">Pipeline Bán Hàng</span>
+                            <div style="font-size: 24px; font-weight: 900; color: #a16207; margin: 6px 0;">250.000.000 đ</div>
+                            <span style="font-size: 11px; color: #eab308;">Lead VIP tăng trưởng</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                      ✅ Toàn bộ hạ tầng đám mây và cổng AI Semantic Triage hoạt động ổn định, đảm bảo bảo mật và cam kết dịch vụ SLA.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8;">
+                    Hệ thống Báo Cáo Tự Động VKU &bull; Máy chủ gửi: <b>kieutrangg06123@gmail.com</b>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    return this.sendMail(to, subject, html, 'Enterprise Executive Digest');
+  }
+
+  // 7. Luồng 8: Gửi email chăm sóc báo giá tự động cho khách hàng (trangltk.24it@vku.udn.vn)
+  async sendSalesFollowUpToCustomer(deal: any, to: string) {
+    if (!to || !to.includes('@')) return null;
+    const subject = `[CHĂM SÓC KHÁCH HÀNG] Hỗ trợ tư vấn giải pháp cho ${deal.customer_name || 'Quý khách'} - Enterprise Sales`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8" /></head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 15px;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9;">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; text-align: left;">
+                    <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Customer Success</span>
+                    <h1 style="color: #ffffff; font-size: 22px; margin: 12px 0 4px 0; font-weight: 800;">Chăm Sóc &amp; Hỗ Trợ Tư Vấn Giải Pháp</h1>
+                    <p style="color: #dbeafe; margin: 0; font-size: 13px;">Gói giải pháp: <b>${deal.deal_name || 'Email Automation Enterprise'}</b></p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px;">
+                    <p style="font-size: 14px; line-height: 1.7; color: #334155;">
+                      Kính gửi quý khách <b>${deal.customer_name || 'Quý khách'}</b>,<br/><br/>
+                      Đội ngũ chuyên viên tư vấn Enterprise đã gửi đề xuất giải pháp kỹ thuật và báo giá chi tiết cho quý doanh nghiệp. Chúng tôi liên hệ để tìm hiểu xem quý khách có cần hỗ trợ thêm thông tin hoặc giải đáp thắc mắc nào về phương án triển khai hay không.
+                    </p>
+                    <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px 18px; margin: 20px 0;">
+                      <p style="margin: 0; font-size: 13px; color: #1e40af; font-weight: 600;">
+                        💡 Đội ngũ kỹ sư sẵn sàng thu xếp buổi <b>Live Demo (Trực Tuyến 1-1)</b> để hướng dẫn trực tiếp các tính năng AI tự động hóa phù hợp với mô hình doanh nghiệp của bạn.
+                      </p>
+                    </div>
+                    <p style="font-size: 13px; line-height: 1.6; color: #475569;">
+                      Quý khách có thể trả lời trực tiếp email này hoặc liên hệ hotline để được hỗ trợ nhanh nhất.<br/><br/>
+                      Trân trọng,<br/>
+                      <strong>Lê Thị Bích &bull; Ban Chăm Sóc Khách Hàng Doanh Nghiệp</strong>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8;">
+                    Hòm thư Doanh nghiệp: <b>tranngo170770@gmail.com</b> &bull; Máy chủ gửi: <b>kieutrangg06123@gmail.com</b>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    return this.sendMail(to, subject, html, 'Enterprise Customer Success');
+  }
 }

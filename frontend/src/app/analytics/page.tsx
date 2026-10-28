@@ -25,6 +25,7 @@ import {
   UserCheck,
   Check,
   ArrowUpRight,
+  Send,
 } from 'lucide-react';
 
 interface DailySummary {
@@ -290,6 +291,32 @@ export default function AnalyticsPage() {
   const [ticketsList, setTicketsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSummary, setSelectedSummary] = useState<DailySummary | null>(null);
+  const [isSendingDigest, setIsSendingDigest] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4500);
+  };
+
+  const handleSendDailyDigest = async () => {
+    setIsSendingDigest(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/analytics/send-daily-digest`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('🚀 Đã gửi Báo Cáo Điều Hành 24H gửi Ban Giám Đốc (tranngo170770@gmail.com) thành công!');
+      } else {
+        showToast('Không thể gửi báo cáo điều hành');
+      }
+    } catch {
+      showToast('Lỗi kết nối khi gửi báo cáo');
+    } finally {
+      setIsSendingDigest(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -525,6 +552,17 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            disabled={isSendingDigest}
+            onClick={handleSendDailyDigest}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-indigo-200 cursor-pointer disabled:opacity-50"
+            title="Kích hoạt Luồng 6: Gửi Báo Cáo Điều Hành 24H gửi Ban Giám Đốc"
+          >
+            <Send className="w-4 h-4" />
+            <span>{isSendingDigest ? 'Đang gửi...' : '🚀 Gửi Báo Cáo 24H (Ban Giám Đốc)'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={fetchData}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs cursor-pointer"
             title="Làm mới dữ liệu từ Database"
@@ -534,6 +572,14 @@ export default function AnalyticsPage() {
           </button>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-2xl shadow-2xl border border-indigo-500/40 flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* Incident Spike Banner if detected */}
       {latest && (latest.anomaly_detected || latest.incident_spike) && (

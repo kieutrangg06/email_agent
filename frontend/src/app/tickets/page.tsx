@@ -19,6 +19,7 @@ import {
   Users,
   Shield,
   Plus,
+  Paperclip,
 } from 'lucide-react';
 
 interface TriageLog {
@@ -114,9 +115,8 @@ export default function TicketsPage() {
   const [custName, setCustName] = useState('Lê Thị Kiều Trang');
   const [custEmail, setCustEmail] = useState('trangltk.24it@vku.udn.vn');
   const [custSubject, setCustSubject] = useState('[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504');
-  const [custCategory, setCustCategory] = useState('Technical');
-  const [custPriority, setCustPriority] = useState('P1 - Critical');
   const [custBody, setCustBody] = useState('Kính gửi ban kỹ thuật, hệ thống đăng ký học phần bị nghẽn mạng quá tải cơ sở dữ liệu, đề nghị nâng cấp máy chủ khẩn cấp.');
+  const [custAttachment, setCustAttachment] = useState('');
   const [isSubmittingCustEmail, setIsSubmittingCustEmail] = useState(false);
 
   // Quarantine Modal state
@@ -243,67 +243,46 @@ export default function TicketsPage() {
     }
   };
 
-  // Giả lập Khách hàng gửi email thật vào hệ thống
+  // Khách hàng gửi email thật vào hệ thống (AI Inbound Pipeline)
   const handleSendCustomerEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!custName || !custEmail || !custSubject || !custBody) {
-      showToast('Thiếu thông tin', 'Vui lòng điền đầy đủ các trường', 'error');
+      showToast('Thiếu thông tin', 'Vui lòng điền người gửi, tiêu đề và nội dung thư', 'error');
       return;
     }
     setIsSubmittingCustEmail(true);
     try {
-      const code = `TK-VKU-${Date.now().toString().slice(-4)}`;
-      // 1. Tạo bản ghi Hộp Thư Triage
-      await fetch(`${API_BASE_URL}/api/v1/triage/logs`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/inbound/process-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender_name: custName,
           sender_email: custEmail,
           subject: custSubject,
-          body_snippet: custBody,
-          category: custCategory,
-          priority: custPriority,
-          sentiment: custPriority.includes('P1') ? 'Khan cap' : 'Tieu cuc',
-          urgency_reason: custPriority.includes('P1') ? 'Sự cố P1 đe dọa gián đoạn dịch vụ toàn trường' : 'Yêu cầu hỗ trợ kỹ thuật định kỳ',
-          status: 'PENDING',
+          body: custBody,
+          attachment_name: custAttachment,
         }),
       });
+      const data = await res.json();
 
-      // 2. Tạo Vé Kỹ thuật & Điều phối KTV
-      await fetch(`${API_BASE_URL}/api/v1/tickets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticket_code: code,
-          customer_email: custEmail,
-          sender_email: custEmail,
-          title: custSubject,
-          description: custBody,
-          category: custCategory,
-          priority: custPriority,
-        }),
-      });
+      if (data.action === 'QUARANTINED') {
+        showToast('🛡️ AI Phát Hiện Đe Dọa An Ninh!', `Email đã bị cô lập vào Kho Cách Ly (Vault): ${data.reason}`, 'error');
+        setActiveTab('quarantine');
+      } else {
+        const cat = data.category_detected || 'Technical';
+        const pri = data.priority_detected || 'P1 - Critical';
+        showToast(
+          'Tiếp nhận & Xử lý thành công!',
+          `🤖 AI Phân Loại: [${cat}] & Ưu Tiên: [${pri}] ➜ Đã phát email thật đến các hòm thư!`,
+          'success'
+        );
+        if (cat === 'Technical') setActiveTab('tickets');
+        else if (cat === 'General') setActiveTab('triage');
+      }
 
-      // 3. Tạo Bản nháp phản hồi AI RAG
-      await fetch(`${API_BASE_URL}/api/v1/drafts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticket_code: code,
-          recipient_email: custEmail,
-          subject: `[TIẾP NHẬN] ${custSubject} - Mã: ${code}`,
-          proposed_subject: `[TIẾP NHẬN] ${custSubject} - Mã: ${code}`,
-          proposed_body: `<p>Kính gửi quý khách <b>${custName}</b>,</p><p>Hệ thống Doanh nghiệp (<b>tranngo170770@gmail.com</b>) đã tiếp nhận yêu cầu hỗ trợ với mức độ <b>${custPriority}</b> (Mã vé: <b>${code}</b>).</p><p>Đội ngũ kỹ sư đang khẩn trương xử lý sự cố để đảm bảo thời hạn cam kết SLA.</p><p style="margin-top:14px;color:#64748b;font-size:12px;"><i>(Thư phản hồi tự động gửi từ máy chủ SMTP doanh nghiệp: <b>kieutrangg06123@gmail.com</b>)</i></p><p>Trân trọng,<br/><b>Enterprise Support Team</b></p>`,
-          confidence_score: 98.8,
-          status: 'PENDING_APPROVAL',
-        }),
-      });
-
-      showToast('Tiếp nhận thành công!', `AI đã tiếp nhận email từ ${custName} và cấp vé ${code}`, 'success');
       setShowCustomerModal(false);
       await reloadAll();
-    } catch (err) {
+    } catch {
       showToast('Lỗi gửi thư', 'Không thể kết nối đến Backend', 'error');
     } finally {
       setIsSubmittingCustEmail(false);
@@ -1185,10 +1164,108 @@ export default function TicketsPage() {
               </div>
             </div>
 
+            {/* Quick Test Scenario Pills */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                ⚡ Chọn Nhanh Kịch Bản Thực Tế Để AI Tự Động Phân Loại &amp; Xử Lý:
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustName('Lê Thị Kiều Trang');
+                    setCustEmail('trangltk.24it@vku.udn.vn');
+                    setCustSubject('[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504');
+                    setCustBody('Kính gửi ban kỹ thuật, toàn bộ sinh viên không thể truy cập đăng ký môn học, máy chủ báo lỗi 504 Gateway Timeout. Đề nghị can thiệp ngay lập tức!');
+                    setCustAttachment('');
+                  }}
+                  className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>🔴 1. Kỹ Thuật (P1 Khẩn Cấp)</span>
+                  <span className="text-[10px] font-normal text-rose-600">Sập cổng 504 ➔ Cấp vé &amp; Giao KTV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustName('Trần Văn Giám Đốc');
+                    setCustEmail('trangltk.24it@vku.udn.vn');
+                    setCustSubject('[HỎI GIÁ & DEMO] Yêu cầu tư vấn triển khai gói Email Automation Enterprise');
+                    setCustBody('Kính gửi phòng kinh doanh, tôi là Trần Văn Giám Đốc từ Tập đoàn Công nghệ ABC (SĐT: +84 905 123 456). Chúng tôi cần báo giá gói phần mềm ngân sách 250 triệu VNĐ.');
+                    setCustAttachment('');
+                  }}
+                  className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>🟡 2. Bán Hàng (Sales Lead VIP)</span>
+                  <span className="text-[10px] font-normal text-amber-600">Deal 250tr ➔ Lead Score 95</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustName('Công ty CP Phần Mềm VKU');
+                    setCustEmail('trangltk.24it@vku.udn.vn');
+                    setCustSubject('[GỬI HÓA ĐƠN VAT] Quyết toán chi phí phần mềm HD-2026-001');
+                    setCustBody('Kính gửi bộ phận kế toán, Công ty CP Phần Mềm VKU gửi hóa đơn HD-2026-001: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 11.000.000 đ.');
+                    setCustAttachment('hoa_don_vat_001.pdf');
+                  }}
+                  className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>🟢 3. Hóa Đơn Hợp Lệ</span>
+                  <span className="text-[10px] font-normal text-emerald-600">10tr + 1tr = 11tr ➔ VALIDATED</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustName('Nhà cung cấp lạ');
+                    setCustEmail('trangltk.24it@vku.udn.vn');
+                    setCustSubject('[GỬI HÓA ĐƠN VAT] Thanh toán dịch vụ bảo trì HD-FAKE-002');
+                    setCustBody('Kính gửi kế toán, gửi hóa đơn HD-FAKE-002: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 15.000.000 đ (kê khống lệch 4 triệu).');
+                    setCustAttachment('hoa_don_fake.pdf');
+                  }}
+                  className="p-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>⚠️ 4. Hóa Đơn Lệch Tiền</span>
+                  <span className="text-[10px] font-normal text-purple-600">Lệch 4tr ➔ Cảnh báo gian lận KTT</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustName('Hệ Thống An Ninh Ngân Hàng');
+                    setCustEmail('security@vietcombannk-update.com');
+                    setCustSubject('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu xác thực OTP ngay');
+                    setCustBody('Kính gửi khách hàng, tài khoản của bạn bị tạm ngưng. Vui lòng cung cấp mã OTP để mở khóa ngay.');
+                    setCustAttachment('');
+                  }}
+                  className="p-2 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-900 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>🛑 5. Phishing Lừa Đảo OTP</span>
+                  <span className="text-[10px] font-normal text-red-600">Tự động cô lập Kho An Ninh</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustName('Kẻ Tấn Công');
+                    setCustEmail('phishing_bot@trojan-domain.ru');
+                    setCustSubject('[THÔNG BÁO] Chi trả bảng lương và tiền thưởng dự án DACS4 HK1');
+                    setCustBody('Chi tiết bảng lương nhân viên và mức thưởng vui lòng mở tệp đính kèm.');
+                    setCustAttachment('bang_luong_thuong_quy.xlsx.exe');
+                  }}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>☣️ 6. Mã Độc Tệp Đính Kèm</span>
+                  <span className="text-[10px] font-normal text-slate-600">Tệp .exe ➔ Tự động cách ly</span>
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleSendCustomerEmail} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Họ và tên khách hàng:</label>
+                  <label className="font-bold text-slate-700 block mb-1">Họ và tên người gửi:</label>
                   <input
                     type="text"
                     required
@@ -1199,67 +1276,59 @@ export default function TicketsPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email người gửi (Khách hàng):</label>
+                  <label className="font-bold text-slate-700 block mb-1">Email người gửi (Customer):</label>
                   <input
                     type="email"
                     required
                     value={custEmail}
                     onChange={(e) => setCustEmail(e.target.value)}
                     placeholder="trangltk.24it@vku.udn.vn"
-                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800 font-mono"
                   />
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Nhận thư trả lời từ kieutrangg06123@gmail.com</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Phòng ban tiếp nhận:</label>
-                  <select
-                    value={custCategory}
-                    onChange={(e) => setCustCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
-                  >
-                    <option value="Technical">Technical (Kỹ thuật - tranngo170770@gmail.com)</option>
-                    <option value="Sales">Sales (Kinh doanh - tranngo170770@gmail.com)</option>
-                    <option value="Finance">Finance (Tài chính - tranngo170770@gmail.com)</option>
-                    <option value="General">General (Chung - tranngo170770@gmail.com)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Mức độ ưu tiên yêu cầu:</label>
-                  <select
-                    value={custPriority}
-                    onChange={(e) => setCustPriority(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
-                  >
-                    <option value="P1 - Critical">P1 - Critical (Sự cố khẩn cấp SLA 1h)</option>
-                    <option value="P2 - High">P2 - High (Ưu tiên cao SLA 4h)</option>
-                    <option value="P3 - Medium">P3 - Medium (Bình thường SLA 8h)</option>
-                    <option value="P4 - Low">P4 - Low (Hỏi thông tin SLA 24h)</option>
-                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Tiêu đề email:</label>
+                <label className="font-bold text-slate-700 block mb-1">Hòm thư tiếp nhận Doanh nghiệp (To):</label>
+                <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-slate-800 font-mono text-xs flex items-center justify-between">
+                  <span>tranngo170770@gmail.com</span>
+                  <span className="text-[10px] text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full font-bold">Inbound Gateway</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Tiêu đề email (Subject):</label>
                 <input
                   type="text"
                   required
                   value={custSubject}
                   onChange={(e) => setCustSubject(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs font-semibold text-slate-800"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Nội dung thư phản ánh:</label>
+                <label className="font-bold text-slate-700 block mb-1">Tệp đính kèm (Attachment - Tùy chọn):</label>
+                <div className="flex items-center gap-2 p-2 rounded-xl border border-rose-200 bg-rose-50/30">
+                  <Paperclip className="w-4 h-4 text-rose-500" />
+                  <input
+                    type="text"
+                    value={custAttachment}
+                    onChange={(e) => setCustAttachment(e.target.value)}
+                    placeholder="Để trống hoặc nhập tên tệp (VD: hoa_don.pdf hoặc virus.exe)"
+                    className="bg-transparent border-none text-xs font-mono text-slate-700 w-full focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Nội dung thư phản ánh (Email Body):</label>
                 <textarea
                   required
                   rows={4}
                   value={custBody}
                   onChange={(e) => setCustBody(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800"
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800 leading-relaxed"
                 />
               </div>
 
@@ -1277,7 +1346,7 @@ export default function TicketsPage() {
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold shadow-md shadow-rose-200 transition disabled:opacity-60"
                 >
                   <Send className={`w-3.5 h-3.5 ${isSubmittingCustEmail ? 'animate-pulse' : ''}`} />
-                  <span>{isSubmittingCustEmail ? 'Đang gửi...' : 'Gửi Thư Đến Doanh Nghiệp (tranngo170770@gmail.com)'}</span>
+                  <span>{isSubmittingCustEmail ? 'AI Đang Xử Lý & Gửi...' : 'Gửi Thư Đến Doanh Nghiệp (tranngo170770@gmail.com)'}</span>
                 </button>
               </div>
             </form>
