@@ -330,7 +330,7 @@ export class MailService {
   // 4. Luồng 7: Gửi thông báo Lead VIP nội bộ cho chuyên viên Sales (tranngo170770@gmail.com)
   async notifySalesNewLead(lead: any, deal: any, to = 'tranngo170770@gmail.com') {
     const budgetStr = Number(deal.expected_budget || 0).toLocaleString('vi-VN');
-    const subject = `[TIẾP NHẬN YÊU CẦU BÁO GIÁ] Khách hàng doanh nghiệp: ${lead.full_name || 'Khách hàng'} (${lead.company_name || 'Doanh nghiệp'})`;
+    const subject = `[TIẾP NHẬN MỚI] Yêu cầu tư vấn doanh nghiệp từ ${lead.email || 'Khách hàng'} - Ngân sách: ${budgetStr} đ`;
     const html = `
       <!DOCTYPE html>
       <html>
@@ -342,8 +342,8 @@ export class MailService {
               <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9;">
                 <tr>
                   <td style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); padding: 30px; text-align: left;">
-                    <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Sales Opportunity</span>
-                    <h1 style="color: #ffffff; font-size: 22px; margin: 12px 0 4px 0; font-weight: 800;">Phát Hiện Cơ Hội Bán Hàng Mới</h1>
+                    <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Enterprise Consultation</span>
+                    <h1 style="color: #ffffff; font-size: 22px; margin: 12px 0 4px 0; font-weight: 800;">Thông Báo Yêu Cầu Tư Vấn Khách Hàng</h1>
                     <p style="color: #fef3c7; margin: 0; font-size: 13px;">AI Triage bóc tách tự động &bull; Điểm tiềm năng: <b>${lead.lead_score || 95}/100</b></p>
                   </td>
                 </tr>
@@ -391,7 +391,7 @@ export class MailService {
       </body>
       </html>
     `;
-    return this.sendMail(to, subject, html, 'Enterprise CRM System');
+    return this.sendMail(to, subject, html, 'Enterprise Internal Alert');
   }
 
   // 5. Luồng 9: Gửi cảnh báo gian lận / sai lệch số học hóa đơn (tranngo170770@gmail.com)
