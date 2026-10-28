@@ -1,0 +1,12 @@
+[2026-10-28 14:02:11.102] [FATAL] [HTTP-GATEWAY-504] Ingress connection timeout to backend cluster.
+[2026-10-28 14:02:11.105] [CRITICAL] [DATABASE] PostgreSQL pool connection exhausted (max_connections=100 reached).
+[2026-10-28 14:02:11.110] [ERROR] [DACS4-PORTAL] Error 504 Gateway Timeout on endpoint /api/v1/students/course-registration
+Stack trace:
+  at pg.Pool.connect (/usr/src/app/node_modules/pg-pool/index.js:68:12)
+  at QueryRunner.connect (/usr/src/app/src/database/query-runner.ts:142:25)
+  at CourseRegistrationService.submitBatch (/usr/src/app/src/modules/registration.service.ts:89:19)
+  at runMicrotasks (<anonymous>)
+  at processTicksAndRejections (node:internal/process/task_queues:95:5)
+System status: CPU Load: 99.8%, Memory: 15.8GB / 16GB.
+Impact: Hơn 3.500 sinh viên không thể đăng ký học phần tín chỉ. Hệ thống cổng trường tê liệt hoàn toàn.
+Yêu cầu hỗ trợ: Kích hoạt quy trình khẩn cấp P1 - Critical, khởi động máy chủ phụ và cấp thêm RAM ngay lập tức!
