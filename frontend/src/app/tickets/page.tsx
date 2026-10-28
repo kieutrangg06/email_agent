@@ -50,6 +50,7 @@ interface Ticket {
   agent_email?: string;
   status: string;
   first_response_sla: string;
+  sla_due_at?: string;
   created_at: string;
   resolved_at?: string;
 }
@@ -119,12 +120,80 @@ export default function TicketsPage() {
   const [custAttachment, setCustAttachment] = useState('');
   const [isSubmittingCustEmail, setIsSubmittingCustEmail] = useState(false);
 
-  // Quarantine Modal state
-  const [showQuarantineModal, setShowQuarantineModal] = useState(false);
-  const [quarantineSender, setQuarantineSender] = useState('security@vietcombannk-update.com');
-  const [quarantineSubject, setQuarantineSubject] = useState('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu đăng nhập OTP ngay');
-  const [quarantineReason, setQuarantineReason] = useState('Phishing Scam - Domain mạo danh ngân hàng & đánh cắp OTP');
-  const [isSubmittingQuarantine, setIsSubmittingQuarantine] = useState(false);
+  // Real File Upload State
+  const [selectedFile, setSelectedFile] = useState<{
+    name: string;
+    size: number;
+    type: string;
+    content: string;
+  } | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    if (file.type.includes('text') || file.type.includes('json') || file.type.includes('xml') || file.name.endsWith('.csv') || file.name.endsWith('.xml') || file.name.endsWith('.txt')) {
+      reader.onload = () => {
+        setSelectedFile({
+          name: file.name,
+          size: file.size,
+          type: file.type || 'text/plain',
+          content: reader.result as string,
+        });
+        setCustAttachment(file.name);
+      };
+      reader.readAsText(file);
+    } else {
+      reader.onload = () => {
+        const resStr = (reader.result as string) || '';
+        setSelectedFile({
+          name: file.name,
+          size: file.size,
+          type: file.type || 'application/octet-stream',
+          content: resStr.slice(0, 50000),
+        });
+        setCustAttachment(file.name);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Helper format hạn SLA với đếm ngược thông minh
+  const formatSlaDeadline = (deadlineStr?: string | null) => {
+    if (!deadlineStr) return { label: 'Chưa có hạn', badge: 'bg-slate-100 text-slate-500', isExpired: false, detail: '---' };
+    const deadline = new Date(deadlineStr);
+    const now = new Date();
+    const diffMs = deadline.getTime() - now.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+    const timeStr = deadline.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + deadline.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+
+    if (diffMins < 0) {
+      const passedHours = (Math.abs(diffMins) / 60).toFixed(1);
+      return {
+        label: `Quá hạn ${passedHours}h`,
+        badge: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
+        isExpired: true,
+        detail: `Hạn chót: ${timeStr}`,
+      };
+    } else if (diffMins <= 60) {
+      return {
+        label: `Còn ${diffMins} phút!`,
+        badge: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold animate-pulse',
+        isExpired: false,
+        detail: `Trước: ${timeStr}`,
+      };
+    } else {
+      const remainHours = Math.round(diffMins / 60);
+      return {
+        label: `Còn ${remainHours} giờ`,
+        badge: 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold',
+        isExpired: false,
+        detail: `Trước: ${timeStr}`,
+      };
+    }
+  };
 
   // Feedback & Loading states
   const [loading, setLoading] = useState(true);
@@ -260,13 +329,15 @@ export default function TicketsPage() {
           sender_email: custEmail,
           subject: custSubject,
           body: custBody,
-          attachment_name: custAttachment,
+          attachment_name: selectedFile?.name || custAttachment || '',
+          attachment_content: selectedFile?.content || '',
+          attachment_size: selectedFile?.size || 0,
         }),
       });
       const data = await res.json();
 
       if (data.action === 'QUARANTINED') {
-        showToast('🛡️ AI Phát Hiện Đe Dọa An Ninh!', `Email đã bị cô lập vào Kho Cách Ly (Vault): ${data.reason}`, 'error');
+        showToast('🛡️ AI Phát Hiện Đe Dọa An Ninh!', `Email đã bị cô lập vào Kho Cách Ly (Vault): ${data.badge}`, 'error');
         setActiveTab('quarantine');
       } else {
         const cat = data.category_detected || 'Technical';
@@ -286,40 +357,6 @@ export default function TicketsPage() {
       showToast('Lỗi gửi thư', 'Không thể kết nối đến Backend', 'error');
     } finally {
       setIsSubmittingCustEmail(false);
-    }
-  };
-
-  // Giả lập nhận email độc hại / Phishing / Malware
-  const handleSendQuarantine = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quarantineSender || !quarantineSubject) {
-      showToast('Thiếu thông tin', 'Vui lòng điền người gửi và tiêu đề', 'error');
-      return;
-    }
-    setIsSubmittingQuarantine(true);
-    try {
-      await fetch(`${API_BASE_URL}/api/v1/triage/quarantine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender_email: quarantineSender,
-          subject: quarantineSubject,
-          quarantine_reason: quarantineReason,
-          payload: {
-            threat_type: quarantineReason,
-            action: 'QUARANTINED_VAULT_ISOLATED',
-            simulated_at: new Date().toISOString(),
-          },
-        }),
-      });
-      showToast('Đã cách ly thành công!', `Email độc hại từ ${quarantineSender} đã bị cô lập vào kho an ninh`, 'success');
-      setShowQuarantineModal(false);
-      setActiveTab('quarantine');
-      await reloadAll();
-    } catch (err) {
-      showToast('Lỗi cách ly', 'Không thể gửi bản ghi vào kho an ninh', 'error');
-    } finally {
-      setIsSubmittingQuarantine(false);
     }
   };
 
@@ -391,25 +428,16 @@ export default function TicketsPage() {
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowCustomerModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-rose-200"
-            title="Mở form gửi email với vai trò Khách hàng / Sinh viên thực tế"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-rose-200 cursor-pointer"
+            title="Mở form gửi email từ góc nhìn Khách Hàng / Đối Tác gửi đến Doanh nghiệp (hỗ trợ đính kèm tệp thật)"
           >
             <Send className="w-4 h-4" />
-            <span>+ Gửi Email Khách Hàng (Test Thật)</span>
-          </button>
-
-          <button
-            onClick={() => setShowQuarantineModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-rose-300 border border-rose-500/30 text-xs sm:text-sm font-bold transition shadow-sm"
-            title="Giả lập nhận email phishing hoặc chứa virus để kiểm tra kho an ninh"
-          >
-            <ShieldAlert className="w-4 h-4 text-rose-400" />
-            <span>🛡️ Test Email Độc Hại</span>
+            <span>+ Soạn & Gửi Email Khách Hàng (Inbound Pipeline)</span>
           </button>
 
           <button
             onClick={reloadAll}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-semibold transition shadow-xs cursor-pointer"
             title="Làm mới dữ liệu từ Database"
           >
             <RefreshCw className={`w-4 h-4 text-rose-500 ${loading ? 'animate-spin' : ''}`} />
@@ -658,8 +686,19 @@ export default function TicketsPage() {
                           <span className="text-slate-600 font-medium">{log.sentiment}</span>
                         </td>
 
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          {log.sla_deadline ? new Date(log.sla_deadline).toLocaleTimeString('vi-VN') + ' ' + new Date(log.sla_deadline).toLocaleDateString('vi-VN') : '---'}
+                        <td className="py-3.5 px-4">
+                          {(() => {
+                            const sla = formatSlaDeadline(log.sla_deadline);
+                            return (
+                              <div className="space-y-0.5">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] ${sla.badge}`}>
+                                  <Clock className="w-3 h-3" />
+                                  <span>{sla.label}</span>
+                                </span>
+                                <p className="font-mono text-[10px] text-slate-400">{sla.detail}</p>
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         <td className="py-3.5 px-3">
@@ -808,8 +847,19 @@ export default function TicketsPage() {
                           <p className="font-mono text-[11px] text-slate-400">{t.agent_email || 'support@enterprise.com'}</p>
                         </td>
 
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          {t.first_response_sla ? new Date(t.first_response_sla).toLocaleTimeString('vi-VN') + ' ' + new Date(t.first_response_sla).toLocaleDateString('vi-VN') : '---'}
+                        <td className="py-3.5 px-4">
+                          {(() => {
+                            const sla = formatSlaDeadline(t.sla_due_at || t.first_response_sla);
+                            return (
+                              <div className="space-y-0.5">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] ${sla.badge}`}>
+                                  <Clock className="w-3 h-3" />
+                                  <span>{sla.label}</span>
+                                </span>
+                                <p className="font-mono text-[10px] text-slate-400">{sla.detail}</p>
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         <td className="py-3.5 px-3">
@@ -913,11 +963,24 @@ export default function TicketsPage() {
               </p>
             </div>
             <button
-              onClick={() => setShowQuarantineModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold transition shadow-md shadow-rose-900/50 shrink-0"
+              onClick={() => {
+                setCustName('Hệ Thống An Ninh Giả Mạo');
+                setCustEmail('security@vietcombannk-update.com');
+                setCustSubject('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu cài đặt OTP mở khóa');
+                setCustBody('Kính gửi khách hàng, tài khoản của bạn bị tạm ngưng. Vui lòng mở file đính kèm otp_security_patch.exe để kích hoạt lại.');
+                setSelectedFile({
+                  name: 'otp_security_patch.exe',
+                  size: 245000,
+                  type: 'application/x-msdownload',
+                  content: 'MZ9000ExecutableTrojanPayloadSimulated',
+                });
+                setCustAttachment('otp_security_patch.exe');
+                setShowCustomerModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold transition shadow-md shadow-rose-900/50 shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Giả Lập Email Độc Hại / Spam (Test Quarantine)</span>
+              <span>+ Soạn Thư Test Kho Cách Ly (Mã Độc .exe)</span>
             </button>
           </div>
 
@@ -939,8 +1002,21 @@ export default function TicketsPage() {
                       <td colSpan={5} className="py-12 text-center text-slate-400">
                         <p className="mb-2">Kho lưu trữ cách ly an ninh hiện không có bản ghi thư rác nào.</p>
                         <button
-                          onClick={() => setShowQuarantineModal(true)}
-                          className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-bold underline"
+                          onClick={() => {
+                            setCustName('Hệ Thống An Ninh Giả Mạo');
+                            setCustEmail('security@vietcombannk-update.com');
+                            setCustSubject('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu cài đặt OTP mở khóa');
+                            setCustBody('Kính gửi khách hàng, tài khoản của bạn bị tạm ngưng. Vui lòng mở file đính kèm otp_security_patch.exe để kích hoạt lại.');
+                            setSelectedFile({
+                              name: 'otp_security_patch.exe',
+                              size: 245000,
+                              type: 'application/x-msdownload',
+                              content: 'MZ9000ExecutableTrojanPayloadSimulated',
+                            });
+                            setCustAttachment('otp_security_patch.exe');
+                            setShowCustomerModal(true);
+                          }}
+                          className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-bold underline cursor-pointer"
                         >
                           Bấm vào đây để test gửi email độc hại mẫu
                         </button>
@@ -1016,9 +1092,18 @@ export default function TicketsPage() {
 
               <div className="bg-rose-50/40 p-3 rounded-xl border border-rose-100 col-span-2">
                 <span className="text-slate-400">Cam kết hạn SLA:</span>
-                <p className="font-mono font-bold text-emerald-700">
-                  {selectedMail.sla_deadline ? new Date(selectedMail.sla_deadline).toLocaleString('vi-VN') : '---'}
-                </p>
+                {(() => {
+                  const sla = formatSlaDeadline(selectedMail.sla_deadline);
+                  return (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs ${sla.badge}`}>
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{sla.label}</span>
+                      </span>
+                      <span className="font-mono text-xs text-slate-600 font-bold">({sla.detail})</span>
+                    </div>
+                  );
+                })()}
                 <p className="text-slate-500 mt-1">Lý do khẩn cấp: {selectedMail.urgency_reason}</p>
               </div>
             </div>
@@ -1084,9 +1169,18 @@ export default function TicketsPage() {
 
               <div className="bg-rose-50/40 p-3 rounded-xl border border-rose-100 col-span-2">
                 <span className="text-slate-400">Thời hạn SLA cam kết:</span>
-                <p className="font-mono font-bold text-emerald-700">
-                  {selectedTicket.first_response_sla ? new Date(selectedTicket.first_response_sla).toLocaleString('vi-VN') : '---'}
-                </p>
+                {(() => {
+                  const sla = formatSlaDeadline(selectedTicket.sla_due_at || selectedTicket.first_response_sla);
+                  return (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs ${sla.badge}`}>
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{sla.label}</span>
+                      </span>
+                      <span className="font-mono text-xs text-slate-600 font-bold">({sla.detail})</span>
+                    </div>
+                  );
+                })()}
                 <p className="text-slate-500 mt-1">Trạng thái hiện tại: <strong>{selectedTicket.status}</strong></p>
               </div>
             </div>
@@ -1167,7 +1261,7 @@ export default function TicketsPage() {
             {/* Quick Test Scenario Pills */}
             <div className="space-y-1.5">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                ⚡ Chọn Nhanh Kịch Bản Thực Tế Để AI Tự Động Phân Loại &amp; Xử Lý:
+                ⚡ Chọn Nhanh Kịch Bản 4 Phòng Ban &amp; An Ninh Để AI Tự Động Phân Loại:
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
                 <button
@@ -1175,8 +1269,9 @@ export default function TicketsPage() {
                   onClick={() => {
                     setCustName('Lê Thị Kiều Trang');
                     setCustEmail('trangltk.24it@vku.udn.vn');
-                    setCustSubject('[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504');
-                    setCustBody('Kính gửi ban kỹ thuật, toàn bộ sinh viên không thể truy cập đăng ký môn học, máy chủ báo lỗi 504 Gateway Timeout. Đề nghị can thiệp ngay lập tức!');
+                    setCustSubject('[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504 Gateway Timeout');
+                    setCustBody('Kính gửi ban kỹ thuật, toàn bộ sinh viên không thể truy cập đăng ký môn học, máy chủ báo lỗi 504 Gateway Timeout và sập cơ sở dữ liệu. Đề nghị can thiệp ngay lập tức!');
+                    setSelectedFile(null);
                     setCustAttachment('');
                   }}
                   className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 font-bold text-left transition flex flex-col gap-0.5"
@@ -1191,7 +1286,8 @@ export default function TicketsPage() {
                     setCustName('Trần Văn Giám Đốc');
                     setCustEmail('trangltk.24it@vku.udn.vn');
                     setCustSubject('[HỎI GIÁ & DEMO] Yêu cầu tư vấn triển khai gói Email Automation Enterprise');
-                    setCustBody('Kính gửi phòng kinh doanh, tôi là Trần Văn Giám Đốc từ Tập đoàn Công nghệ ABC (SĐT: +84 905 123 456). Chúng tôi cần báo giá gói phần mềm ngân sách 250 triệu VNĐ.');
+                    setCustBody('Kính gửi phòng kinh doanh, tôi là Trần Văn Giám Đốc từ Tập đoàn Công nghệ ABC (SĐT: +84 905 123 456). Chúng tôi cần báo giá gói phần mềm ngân sách 250 triệu VNĐ triển khai trong tháng tới.');
+                    setSelectedFile(null);
                     setCustAttachment('');
                   }}
                   className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-left transition flex flex-col gap-0.5"
@@ -1206,7 +1302,13 @@ export default function TicketsPage() {
                     setCustName('Công ty CP Phần Mềm VKU');
                     setCustEmail('trangltk.24it@vku.udn.vn');
                     setCustSubject('[GỬI HÓA ĐƠN VAT] Quyết toán chi phí phần mềm HD-2026-001');
-                    setCustBody('Kính gửi bộ phận kế toán, Công ty CP Phần Mềm VKU gửi hóa đơn HD-2026-001: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 11.000.000 đ.');
+                    setCustBody('Kính gửi bộ phận kế toán, Công ty CP Phần Mềm VKU gửi hóa đơn số HD-2026-001: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 11.000.000 đ. Đính kèm bản PDF hóa đơn để đối soát.');
+                    setSelectedFile({
+                      name: 'hoa_don_vat_001.pdf',
+                      size: 145200,
+                      type: 'application/pdf',
+                      content: 'Invoice No: HD-2026-001 | Seller: Cong ty CP Phan Mem VKU | Subtotal: 10000000 | VAT: 1000000 | Total: 11000000',
+                    });
                     setCustAttachment('hoa_don_vat_001.pdf');
                   }}
                   className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 font-bold text-left transition flex flex-col gap-0.5"
@@ -1218,11 +1320,17 @@ export default function TicketsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setCustName('Nhà cung cấp lạ');
+                    setCustName('Nhà Cung Cấp ABC');
                     setCustEmail('trangltk.24it@vku.udn.vn');
-                    setCustSubject('[GỬI HÓA ĐƠN VAT] Thanh toán dịch vụ bảo trì HD-FAKE-002');
-                    setCustBody('Kính gửi kế toán, gửi hóa đơn HD-FAKE-002: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 15.000.000 đ (kê khống lệch 4 triệu).');
-                    setCustAttachment('hoa_don_fake.pdf');
+                    setCustSubject('[GỬI HÓA ĐƠN VAT] Thanh toán dịch vụ bảo trì HD-DISC-002');
+                    setCustBody('Kính gửi kế toán, gửi hóa đơn HD-DISC-002: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán yêu cầu là 15.000.000 đ (bị sai lệch 4 triệu).');
+                    setSelectedFile({
+                      name: 'hoa_don_sai_lech_tien.pdf',
+                      size: 152000,
+                      type: 'application/pdf',
+                      content: 'Invoice No: HD-DISC-002 | Subtotal: 10000000 | VAT: 1000000 | Total: 15000000 | Mismatch: 4000000',
+                    });
+                    setCustAttachment('hoa_don_sai_lech_tien.pdf');
                   }}
                   className="p-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 font-bold text-left transition flex flex-col gap-0.5"
                 >
@@ -1233,31 +1341,38 @@ export default function TicketsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setCustName('Hệ Thống An Ninh Ngân Hàng');
+                    setCustName('Hệ Thống An Ninh Giả Mạo');
                     setCustEmail('security@vietcombannk-update.com');
-                    setCustSubject('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu xác thực OTP ngay');
-                    setCustBody('Kính gửi khách hàng, tài khoản của bạn bị tạm ngưng. Vui lòng cung cấp mã OTP để mở khóa ngay.');
-                    setCustAttachment('');
+                    setCustSubject('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu cài đặt OTP mở khóa');
+                    setCustBody('Kính gửi khách hàng, tài khoản của bạn bị tạm ngưng. Vui lòng mở file đính kèm otp_security_patch.exe để kích hoạt lại.');
+                    setSelectedFile({
+                      name: 'otp_security_patch.exe',
+                      size: 245000,
+                      type: 'application/x-msdownload',
+                      content: 'MZ9000ExecutableTrojanPayloadSimulated',
+                    });
+                    setCustAttachment('otp_security_patch.exe');
                   }}
                   className="p-2 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-900 font-bold text-left transition flex flex-col gap-0.5"
                 >
-                  <span>🛑 5. Phishing Lừa Đảo OTP</span>
-                  <span className="text-[10px] font-normal text-red-600">Tự động cô lập Kho An Ninh</span>
+                  <span>🛡️ 5. Lừa Đảo &amp; Mã Độc</span>
+                  <span className="text-[10px] font-normal text-red-600">Phishing + Tệp .exe ➔ Kho An Ninh</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
-                    setCustName('Kẻ Tấn Công');
-                    setCustEmail('phishing_bot@trojan-domain.ru');
-                    setCustSubject('[THÔNG BÁO] Chi trả bảng lương và tiền thưởng dự án DACS4 HK1');
-                    setCustBody('Chi tiết bảng lương nhân viên và mức thưởng vui lòng mở tệp đính kèm.');
-                    setCustAttachment('bang_luong_thuong_quy.xlsx.exe');
+                    setCustName('Đặng Văn Hoàng');
+                    setCustEmail('trangltk.24it@vku.udn.vn');
+                    setCustSubject('[TƯ VẤN] Hướng dẫn cấp lại tài khoản email và tra cứu cam kết SLA dịch vụ');
+                    setCustBody('Kính gửi phòng Hỗ trợ, tôi muốn hỏi thủ tục cấp lại tài khoản email doanh nghiệp và xin thông tin về các mức cam kết thời gian phản hồi SLA của trung tâm.');
+                    setSelectedFile(null);
+                    setCustAttachment('');
                   }}
-                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-left transition flex flex-col gap-0.5"
+                  className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-left transition flex flex-col gap-0.5"
                 >
-                  <span>☣️ 6. Mã Độc Tệp Đính Kèm</span>
-                  <span className="text-[10px] font-normal text-slate-600">Tệp .exe ➔ Tự động cách ly</span>
+                  <span>🔵 6. Hỗ Trợ Chung (General)</span>
+                  <span className="text-[10px] font-normal text-blue-600">Thủ tục &amp; SLA ➔ Nhánh General</span>
                 </button>
               </div>
             </div>
@@ -1292,7 +1407,7 @@ export default function TicketsPage() {
                 <label className="font-bold text-slate-700 block mb-1">Hòm thư tiếp nhận Doanh nghiệp (To):</label>
                 <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-slate-800 font-mono text-xs flex items-center justify-between">
                   <span>tranngo170770@gmail.com</span>
-                  <span className="text-[10px] text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full font-bold">Inbound Gateway</span>
+                  <span className="text-[10px] text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full font-bold">Inbound AI Gateway</span>
                 </div>
               </div>
 
@@ -1307,17 +1422,61 @@ export default function TicketsPage() {
                 />
               </div>
 
+              {/* TỆP ĐÍNH KÈM THẬT - MỞ THƯ MỤC CHỌN TỆP */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Tệp đính kèm (Attachment - Tùy chọn):</label>
-                <div className="flex items-center gap-2 p-2 rounded-xl border border-rose-200 bg-rose-50/30">
-                  <Paperclip className="w-4 h-4 text-rose-500" />
-                  <input
-                    type="text"
-                    value={custAttachment}
-                    onChange={(e) => setCustAttachment(e.target.value)}
-                    placeholder="Để trống hoặc nhập tên tệp (VD: hoa_don.pdf hoặc virus.exe)"
-                    className="bg-transparent border-none text-xs font-mono text-slate-700 w-full focus:outline-none"
-                  />
+                <label className="font-bold text-slate-700 block mb-1">
+                  Tệp đính kèm (Mở thư mục máy tính để chọn tệp thật - AI OCR sẽ bóc tách):
+                </label>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".pdf,.png,.jpg,.jpeg,.txt,.csv,.xml,.json,.docx,.xlsx,.exe,.bat"
+                  className="hidden"
+                />
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-rose-50/20">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <Paperclip className="w-4 h-4 text-rose-600" />
+                    <span>📁 Mở Thư Mục Chọn Tệp Máy Tính...</span>
+                  </button>
+
+                  {selectedFile ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono">
+                      <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-bold truncate max-w-[200px]">{selectedFile.name}</span>
+                      <span className="text-[10px] text-emerald-600">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setCustAttachment('');
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="text-slate-400 hover:text-rose-600 p-0.5 ml-1 cursor-pointer"
+                        title="Xóa tệp"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : custAttachment ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono">
+                      <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="truncate max-w-[200px]">{custAttachment}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCustAttachment('')}
+                        className="text-slate-400 hover:text-rose-600 p-0.5 ml-1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 italic">Chưa chọn tệp (Hỗ trợ PDF hóa đơn, XML, TXT, mã độc .exe...)</span>
+                  )}
                 </div>
               </div>
 
@@ -1328,7 +1487,7 @@ export default function TicketsPage() {
                   rows={4}
                   value={custBody}
                   onChange={(e) => setCustBody(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800 leading-relaxed"
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800 leading-relaxed font-sans"
                 />
               </div>
 
@@ -1336,124 +1495,17 @@ export default function TicketsPage() {
                 <button
                   type="button"
                   onClick={() => setShowCustomerModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingCustEmail}
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold shadow-md shadow-rose-200 transition disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold shadow-md shadow-rose-200 transition disabled:opacity-60 cursor-pointer"
                 >
                   <Send className={`w-3.5 h-3.5 ${isSubmittingCustEmail ? 'animate-pulse' : ''}`} />
-                  <span>{isSubmittingCustEmail ? 'AI Đang Xử Lý & Gửi...' : 'Gửi Thư Đến Doanh Nghiệp (tranngo170770@gmail.com)'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL GIẢ LẬP EMAIL ĐỘC HẠI (QUARANTINE VAULT TEST) */}
-      {showQuarantineModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-rose-300 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-              <div>
-                <span className="text-[11px] font-mono font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 uppercase flex items-center gap-1 w-fit">
-                  <ShieldAlert className="w-3.5 h-3.5" /> Security Threat Simulator
-                </span>
-                <h3 className="text-base font-bold text-slate-800 mt-1">Giả Lập Email Độc Hại / Lừa Đảo Vào Kho Cách Ly</h3>
-              </div>
-              <button
-                onClick={() => setShowQuarantineModal(false)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Quick Fill Threat Buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setQuarantineSender('security@vietcombannk-update.com');
-                  setQuarantineSubject('[CẢNH BÁO KHẨN CẤP] Tài khoản ngân hàng số bị khóa, yêu cầu đăng nhập OTP ngay');
-                  setQuarantineReason('Phishing Scam - Domain mạo danh ngân hàng & đánh cắp OTP');
-                }}
-                className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 text-left text-xs font-bold transition flex flex-col gap-0.5"
-              >
-                <span>⚡ Mẫu 1: Phishing Ngân Hàng</span>
-                <span className="text-[10px] font-normal text-rose-600 font-mono">vietcombannk-update.com</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setQuarantineSender('phishing_bot@trojan-domain.ru');
-                  setQuarantineSubject('Thông báo chi trả tiền thưởng dự án DACS4 HK1.xlsx.exe');
-                  setQuarantineReason('Dangerous Malware Attachment - Phát hiện tệp thực thi .exe độc hại');
-                }}
-                className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 text-left text-xs font-bold transition flex flex-col gap-0.5"
-              >
-                <span>⚡ Mẫu 2: Mã Độc Malware</span>
-                <span className="text-[10px] font-normal text-rose-600 font-mono">file payload: .xlsx.exe</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleSendQuarantine} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Địa chỉ người gửi nghi vấn (Sender Email):</label>
-                <input
-                  type="text"
-                  required
-                  value={quarantineSender}
-                  onChange={(e) => setQuarantineSender(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 font-mono text-slate-800"
-                  placeholder="security@phishing-domain.com"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Tiêu đề thư độc hại (Subject):</label>
-                <input
-                  type="text"
-                  required
-                  value={quarantineSubject}
-                  onChange={(e) => setQuarantineSubject(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-slate-800"
-                  placeholder="Tiêu đề mạo danh hoặc lừa đảo..."
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Lý do phát hiện an ninh (Quarantine Reason):</label>
-                <input
-                  type="text"
-                  required
-                  value={quarantineReason}
-                  onChange={(e) => setQuarantineReason(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-rose-700 font-semibold"
-                  placeholder="Lý do cách ly..."
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-rose-100">
-                <button
-                  type="button"
-                  onClick={() => setShowQuarantineModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingQuarantine}
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-rose-300 border border-rose-500/30 text-xs font-bold shadow-md transition disabled:opacity-60"
-                >
-                  <ShieldAlert className={`w-3.5 h-3.5 ${isSubmittingQuarantine ? 'animate-spin' : ''}`} />
-                  <span>{isSubmittingQuarantine ? 'Đang cách ly...' : 'Kích Hoạt Cách Ly An Ninh (Vault)'}</span>
+                  <span>{isSubmittingCustEmail ? 'AI Đang Bóc Tách & Gửi Mail Thật...' : 'Gửi Thư Đến Doanh Nghiệp (tranngo170770@gmail.com)'}</span>
                 </button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { API_BASE_URL } from '../../lib/api';
 import { Users, DollarSign, TrendingUp, Send, RefreshCw, Plus, Clock, CheckCircle2, AlertTriangle, X, Mail } from 'lucide-react';
 
@@ -40,60 +41,26 @@ export default function CrmPage() {
   const [activeTab, setActiveTab] = useState<'deals' | 'customers'>('deals');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Inbound Sales Email Modal State (Luồng 7)
-  const [showSalesEmailModal, setShowSalesEmailModal] = useState(false);
-  const [isSubmittingSalesEmail, setIsSubmittingSalesEmail] = useState(false);
   const [isTriggeringFollowup, setIsTriggeringFollowup] = useState(false);
-
-  // Email Fields
-  const [emailSenderName, setEmailSenderName] = useState('Trần Văn Giám Đốc');
-  const [emailSenderAddress, setEmailSenderAddress] = useState('trangltk.24it@vku.udn.vn');
-  const [emailSubject, setEmailSubject] = useState('[HỎI GIÁ & DEMO] Yêu cầu tư vấn triển khai gói Email Automation Enterprise');
-  const [emailBody, setEmailBody] = useState('Kính gửi phòng kinh doanh,\n\nTôi là Trần Văn Giám Đốc đại diện Tập đoàn Công nghệ ABC (SĐT: +84 905 123 456).\nChúng tôi đang có nhu cầu đầu tư hệ thống tự động hóa email cho 500 nhân viên với dự toán ngân sách khoảng 250 triệu VNĐ trong tháng tới.\n\nKính đề nghị công ty gửi báo giá chi tiết và thu xếp lịch Demo trực tuyến.\n\nTrân trọng,\nTrần Văn Giám Đốc');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // 1. Luồng 7: Khách hàng gửi email thật hỏi mua hàng ➔ AI bóc tách Lead & Deal
-  const handleSendSalesEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmittingSalesEmail(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/inbound/process-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender_name: emailSenderName,
-          sender_email: emailSenderAddress,
-          subject: emailSubject,
-          body: emailBody,
-        }),
-      });
-      const data = await res.json();
-      showToast(`🎯 AI Triage đã bóc tách: Lead VIP ${emailSenderName} (Deal: 250.000.000 đ) & Đã gửi mail thông báo cho Sales (tranngo170770@gmail.com)!`);
-      setShowSalesEmailModal(false);
-      await fetchData();
-    } catch {
-      showToast('Lỗi khi gửi email bán hàng đến hệ thống');
-    } finally {
-      setIsSubmittingSalesEmail(false);
-    }
-  };
-
   // 2. Luồng 8: Kích hoạt gửi email chăm sóc tự động (Follow-up Cadence)
   const handleTriggerFollowup = async () => {
     setIsTriggeringFollowup(true);
+    const targetEmail = customers[0]?.email || 'trangltk.24it@vku.udn.vn';
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/crm/trigger-followup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailSenderAddress }),
+        body: JSON.stringify({ email: targetEmail }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`⏰ Đã kích hoạt Luồng 8: Gửi email chăm sóc báo giá tự động tới khách hàng (${emailSenderAddress})!`);
+        showToast(`⏰ Đã kích hoạt Luồng 8: Gửi email chăm sóc báo giá tự động tới khách hàng (${targetEmail})!`);
       } else {
         showToast('Không thể kích hoạt chuỗi follow-up');
       }
@@ -150,28 +117,28 @@ export default function CrmPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSalesEmailModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-amber-200"
-            title="Khách hàng gửi email hỏi báo giá gói phần mềm (Luồng 7)"
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-amber-50 border border-amber-300 text-amber-900 text-xs sm:text-sm font-semibold transition shadow-xs"
+            title="Mở Cổng Tiếp Nhận Chung để gửi email với tư cách Khách Hàng (AI sẽ bóc tách Lead & Deal)"
           >
-            <Send className="w-4 h-4" />
-            <span>📧 KH Gửi Mail Mua Hàng (Test Luồng 7)</span>
-          </button>
+            <Send className="w-4 h-4 text-amber-600" />
+            <span>📬 Gửi Thư Mua Hàng (Cổng Khách Hàng)</span>
+          </Link>
 
           <button
             onClick={handleTriggerFollowup}
             disabled={isTriggeringFollowup}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-blue-200 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-blue-200 disabled:opacity-50 cursor-pointer"
             title="Kích hoạt Luồng 8: Gửi email tự động chăm sóc báo giá tới khách hàng"
           >
             <Clock className="w-4 h-4" />
-            <span>{isTriggeringFollowup ? 'Đang gửi...' : '⏰ Chăm Sóc Báo Giá (Test Luồng 8)'}</span>
+            <span>{isTriggeringFollowup ? 'Đang gửi...' : '⏰ Tự Động Chăm Sóc Báo Giá (Luồng 8)'}</span>
           </button>
 
           <button
             onClick={fetchData}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs cursor-pointer"
             title="Tải lại dữ liệu"
           >
             <RefreshCw className="w-4 h-4 text-rose-500" />
@@ -392,107 +359,6 @@ export default function CrmPage() {
           </div>
         )}
       </div>
-
-      {/* MODAL KHÁCH HÀNG GỬI EMAIL BÁO GIÁ (LUỒNG 7: CRM LEAD & DEAL SCORING) */}
-      {showSalesEmailModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-amber-200 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-amber-100 pb-3">
-              <div>
-                <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 uppercase flex items-center gap-1 w-fit">
-                  <Mail className="w-3.5 h-3.5" /> Luồng 7: Inbound Customer Sales Inquiry
-                </span>
-                <h3 className="text-base font-bold text-slate-800 mt-1">Khách Hàng Gửi Thư Hỏi Giá &amp; Đặt Mua Phần Mềm</h3>
-              </div>
-              <button
-                onClick={() => setShowSalesEmailModal(false)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/80 text-xs text-amber-900 leading-relaxed">
-              💡 <b>Cơ chế hoạt động thực tế:</b> Khách hàng chỉ việc gửi thư như thông thường. Hệ thống AI Triage sẽ tự đọc nội dung, tự bóc tách Tên công ty, SĐT, Ngân sách và tính điểm Lead VIP để giao việc cho chuyên viên Sales!
-            </div>
-
-            <form onSubmit={handleSendSalesEmail} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Người gửi (From Name):</label>
-                  <input
-                    type="text"
-                    required
-                    value={emailSenderName}
-                    onChange={(e) => setEmailSenderName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-amber-500 text-xs"
-                    placeholder="VD: Trần Văn Giám Đốc"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Email gửi (From Address):</label>
-                  <input
-                    type="email"
-                    required
-                    value={emailSenderAddress}
-                    onChange={(e) => setEmailSenderAddress(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-amber-500 text-xs font-mono"
-                    placeholder="trangltk.24it@vku.udn.vn"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Hòm thư tiếp nhận DN (To):</label>
-                <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-mono text-xs flex items-center justify-between">
-                  <span>tranngo170770@gmail.com</span>
-                  <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">Inbound Gateway</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Tiêu đề thư (Subject):</label>
-                <input
-                  type="text"
-                  required
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-amber-500 text-xs font-semibold text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Nội dung email (Body):</label>
-                <textarea
-                  rows={5}
-                  required
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-amber-500 text-xs leading-relaxed"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSalesEmailModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
-                >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingSalesEmail}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold shadow-md shadow-amber-200 disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Send className={`w-3.5 h-3.5 ${isSubmittingSalesEmail ? 'animate-pulse' : ''}`} />
-                  <span>{isSubmittingSalesEmail ? 'AI Đang Bóc Tách...' : 'Gửi Thư Đến Doanh Nghiệp'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

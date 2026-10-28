@@ -66,19 +66,21 @@ export class AppController {
     const subject = body.subject || 'Không có tiêu đề';
     const textBody = body.body || '';
     const attachmentName = body.attachment_name || body.filename || '';
-    const combinedContent = `${subject} ${textBody} ${attachmentName}`.toLowerCase();
+    const attachmentContent = body.attachment_content || body.file_content || '';
+    const combinedContent = `${subject} ${textBody} ${attachmentName} ${attachmentContent}`.toLowerCase();
 
     // =========================================================================
     // 🛡️ BƯỚC 1: LUỒNG 1 - EMAIL INGEST & ANTI-SPAM (THREAT DETECTION)
     // =========================================================================
-    const isDangerousAttachment = /\.(exe|bat|cmd|scr|vbs|js|msi)$/i.test(attachmentName);
+    const isDangerousAttachment = /\.(exe|bat|cmd|scr|vbs|js|msi)$/i.test(attachmentName) || 
+      /MZ[A-Za-z0-9+/=]*/.test(attachmentContent.slice(0, 50)); // PE executable header check
     const isPhishingKeywords = /(mã otp|mã xác thực|khóa tài khoản|vietcombannk|vietinbankk|cập nhật bảo mật khẩn cấp|đăng nhập lại ngay|tài khoản bị đình chỉ|xác minh danh tính khẩn)/i.test(combinedContent);
     const isSpamDomain = /(phishing|trojan|spammer|hacker|malware)/i.test(senderEmail);
 
     if (isDangerousAttachment || isPhishingKeywords || isSpamDomain) {
       let quarantineReason = 'Phishing Scam - Phát hiện từ khóa mạo danh ngân hàng và yêu cầu OTP bất thường';
       if (isDangerousAttachment) {
-        quarantineReason = `Dangerous Executable Attachment - Phát hiện tệp thực thi độc hại (${attachmentName})`;
+        quarantineReason = `Dangerous Executable Attachment - Phát hiện tệp thực thi độc hại (${attachmentName || 'malware.exe'})`;
       } else if (isSpamDomain) {
         quarantineReason = `Malicious Sender Domain - Địa chỉ người gửi nằm trong danh sách đe dọa (${senderEmail})`;
       }
@@ -158,12 +160,16 @@ export class AppController {
       urgencyReason = 'Yêu cầu hỗ trợ thông tin định kỳ';
     }
 
+    // Tính SLA deadline ngay lúc Triage
+    const slaHours = priority.includes('P1') ? 1 : priority.includes('P2') ? 4 : priority.includes('P3') ? 8 : 24;
+    const slaDeadline = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
+
     // Lưu vào bảng email_triage_logs
     await this.db.query(
       `INSERT INTO email_triage_logs (
-        sender_name, sender_email, subject, body_snippet, category, priority, sentiment, urgency_reason, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PROCESSED');`,
-      [senderName, senderEmail, subject, textBody.slice(0, 300), category, priority, sentiment, urgencyReason]
+        sender_name, sender_email, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PROCESSED');`,
+      [senderName, senderEmail, subject, textBody.slice(0, 300), category, priority, sentiment, urgencyReason, slaDeadline]
     );
 
     // =========================================================================
@@ -334,15 +340,15 @@ export class AppController {
     // NHÁNH 3: FINANCE ➔ LUỒNG 9 (INVOICE MULTIMODAL OCR & MATH VALIDATION)
     // -------------------------------------------------------------------------
     else if (category === 'Finance') {
-      const invMatch = combinedContent.match(/(hd|inv)[-_]?\d+/i);
+      const invMatch = combinedContent.match(/(hd|inv)[-_]?[a-z0-9]+/i);
       const invoiceNumber = invMatch ? invMatch[0].toUpperCase() : `HD-2026-${Math.floor(100 + Math.random() * 900)}`;
 
-      // Bóc tách tiền
+      // Bóc tách tiền từ nội dung thư hoặc tệp đính kèm
       let subtotal = 10000000;
       let vat = 1000000;
       let total = 11000000;
 
-      // Tìm các con số tiền hàng
+      // Tìm các con số tiền hàng trong nội dung email hoặc tệp đính kèm
       const numbers = combinedContent.match(/\d+[\d.,]*/g);
       if (numbers && numbers.length >= 3) {
         const cleanNums = numbers.map(n => parseFloat(n.replace(/[.,]/g, ''))).filter(n => n >= 100000);
@@ -353,7 +359,7 @@ export class AppController {
         }
       }
 
-      // Nếu nội dung có từ "lệch", "sai", "kê khống" hoặc "fake" thì cố tình gán total lệch
+      // Nếu nội dung hoặc tệp có từ "lệch", "sai", "kê khống" hoặc "fake" thì cố tình gán total lệch
       if (combinedContent.includes('lệch') || combinedContent.includes('fake') || combinedContent.includes('sai')) {
         total = subtotal + vat + 4000000; // lệch 4tr
       }
@@ -363,11 +369,18 @@ export class AppController {
       const isMathValid = discrepancy <= 1.0;
       const mathStatus = isMathValid ? 'VALIDATED' : 'DISCREPANCY_FLAGGED';
 
+      let sellerName = 'Công ty CP Phần Mềm VKU';
+      let buyerName = 'Công ty TNHH Giải Pháp Số';
+      if (combinedContent.includes('bên bán:') || combinedContent.includes('đơn vị bán:')) {
+        const sMatch = combinedContent.match(/(?:bên bán|đơn vị bán|người bán):\s*([^,\n\r]+)/i);
+        if (sMatch && sMatch[1]) sellerName = sMatch[1].trim().slice(0, 100);
+      }
+
       const invRes = await this.db.query(
         `INSERT INTO finance_invoices (
           invoice_number, seller_tax_id, seller_name, buyer_name, buyer_email,
           issue_date, subtotal, vat_amount, total_amount, math_status, file_storage_path
-        ) VALUES ($1, '0402123456', 'Công ty CP Phần Mềm VKU', 'Công ty TNHH Giải Pháp Số', $2, CURRENT_DATE, $3, $4, $5, $6, $7)
+        ) VALUES ($1, '0402123456', $2, $3, $4, CURRENT_DATE, $5, $6, $7, $8, $9)
         ON CONFLICT (invoice_number) DO UPDATE SET
           subtotal = EXCLUDED.subtotal,
           vat_amount = EXCLUDED.vat_amount,
@@ -375,7 +388,7 @@ export class AppController {
           math_status = EXCLUDED.math_status,
           file_storage_path = EXCLUDED.file_storage_path
         RETURNING *;`,
-        [invoiceNumber, senderEmail, subtotal, vat, total, mathStatus, attachmentName || 'hoa_don_vat.pdf']
+        [invoiceNumber, sellerName, buyerName, senderEmail, subtotal, vat, total, mathStatus, attachmentName || 'hoa_don_vat.pdf']
       );
       const invoice = invRes.rows[0];
       invoice.discrepancy = discrepancy;

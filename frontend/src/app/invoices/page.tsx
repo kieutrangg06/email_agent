@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { API_BASE_URL } from '../../lib/api';
 import { FileText, ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle, Search, Plus, X, Send, Paperclip } from 'lucide-react';
 
@@ -40,51 +41,9 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Inbound Invoice Email Modal State (Luồng 9)
-  const [showInvoiceEmailModal, setShowInvoiceEmailModal] = useState(false);
-  const [isSubmittingInvoiceEmail, setIsSubmittingInvoiceEmail] = useState(false);
-
-  // Email Fields
-  const [emailSenderName, setEmailSenderName] = useState('Công ty CP Phần Mềm VKU');
-  const [emailSenderAddress, setEmailSenderAddress] = useState('trangltk.24it@vku.udn.vn');
-  const [emailSubject, setEmailSubject] = useState('[GỬI HÓA ĐƠN VAT] Quyết toán chi phí phần mềm HD-2026-001');
-  const [emailBody, setEmailBody] = useState('Kính gửi bộ phận kế toán,\n\nCông ty CP Phần Mềm VKU (MST: 0402123456) gửi chứng từ hóa đơn số HD-2026-001 chi phí bản quyền giải pháp phần mềm:\n- Tiền hàng chưa thuế (Subtotal): 10.000.000 đ\n- Thuế suất GTGT 10% (VAT): 1.000.000 đ\n- Tổng tiền thanh toán (Total): 11.000.000 đ\n\nKính đề nghị kế toán kiểm tra đối soát số học và phê duyệt giải ngân.\n\nTrân trọng,\nKế toán trưởng - Công ty CP Phần Mềm VKU');
-  const [emailAttachment, setEmailAttachment] = useState('hoa_don_vat_001.pdf');
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4500);
-  };
-
-  const handleSendInvoiceEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmittingInvoiceEmail(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/inbound/process-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender_name: emailSenderName,
-          sender_email: emailSenderAddress,
-          subject: emailSubject,
-          body: emailBody,
-          attachment_name: emailAttachment,
-        }),
-      });
-      const data = await res.json();
-      const branch = data?.branch_result || {};
-      if (branch.math_status === 'VALIDATED') {
-        showToast(`✅ AI OCR đã bóc tách HĐ ${branch.invoice_number}: Số học KHỚP 100% ➔ Gắn nhãn VALIDATED!`);
-      } else {
-        showToast(`🛑 CẢNH BÁO: HĐ ${branch.invoice_number} bị LỆCH ${branch.discrepancy} ➔ Đã gửi mail cảnh báo gian lận cho Kế toán trưởng (tranngo170770@gmail.com)!`);
-      }
-      setShowInvoiceEmailModal(false);
-      await fetchData();
-    } catch {
-      showToast('Lỗi khi gửi email hóa đơn đến hệ thống');
-    } finally {
-      setIsSubmittingInvoiceEmail(false);
-    }
   };
 
   const fetchData = async () => {
@@ -145,18 +104,18 @@ export default function InvoicesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowInvoiceEmailModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-purple-200"
-            title="Khách hàng / Đối tác gửi email đính kèm hóa đơn VAT (Luồng 9)"
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-purple-50 border border-purple-300 text-purple-900 text-xs sm:text-sm font-semibold transition shadow-xs"
+            title="Mở Cổng Tiếp Nhận Chung để gửi hóa đơn đính kèm tệp thật (PDF, Ảnh, XML) cho AI OCR"
           >
-            <Send className="w-4 h-4" />
-            <span>📧 KH Gửi Mail Hóa Đơn (Test Luồng 9)</span>
-          </button>
+            <Send className="w-4 h-4 text-purple-600" />
+            <span>🧾 Gửi Hóa Đơn VAT (Cổng Khách Hàng)</span>
+          </Link>
 
           <button
             onClick={fetchData}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs cursor-pointer"
             title="Tải lại dữ liệu"
           >
             <RefreshCw className="w-4 h-4 text-rose-500" />
@@ -364,146 +323,6 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
-
-      {/* MODAL KHÁCH HÀNG GỬI EMAIL ĐÍNH KÈM HÓA ĐƠN (LUỒNG 9: INVOICE MULTIMODAL OCR) */}
-      {showInvoiceEmailModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-purple-200 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-purple-100 pb-3">
-              <div>
-                <span className="text-[11px] font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 uppercase flex items-center gap-1 w-fit">
-                  <FileText className="w-3.5 h-3.5" /> Luồng 9: Inbound Invoice Processing
-                </span>
-                <h3 className="text-base font-bold text-slate-800 mt-1">Gửi Thư Kèm Hóa Đơn VAT Để AI Đối Soát</h3>
-              </div>
-              <button
-                onClick={() => setShowInvoiceEmailModal(false)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Quick Fill Buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmailSenderName('Công ty CP Phần Mềm VKU');
-                  setEmailSubject('[GỬI HÓA ĐƠN VAT] Quyết toán chi phí phần mềm HD-2026-001');
-                  setEmailBody('Kính gửi bộ phận kế toán,\n\nCông ty CP Phần Mềm VKU (MST: 0402123456) gửi chứng từ hóa đơn số HD-2026-001 chi phí bản quyền phần mềm:\n- Tiền hàng chưa thuế (Subtotal): 10.000.000 đ\n- Thuế suất GTGT 10% (VAT): 1.000.000 đ\n- Tổng tiền thanh toán (Total): 11.000.000 đ\n\nKính đề nghị kế toán kiểm tra đối soát số học và phê duyệt giải ngân.\n\nTrân trọng,\nKế toán trưởng');
-                  setEmailAttachment('hoa_don_vat_001.pdf');
-                }}
-                className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 text-left text-xs font-bold transition flex flex-col gap-0.5"
-              >
-                <span>⚡ Mẫu 1: Hóa Đơn Hợp Lệ</span>
-                <span className="text-[10px] font-normal text-emerald-700">10tr + 1tr = 11tr (VALIDATED)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmailSenderName('Nhà cung cấp lạ');
-                  setEmailSubject('[GỬI HÓA ĐƠN VAT] Thanh toán dịch vụ bảo trì HD-FAKE-002');
-                  setEmailBody('Kính gửi kế toán,\n\nGửi hóa đơn HD-FAKE-002: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 15.000.000 đ (kê khống lệch 4 triệu).\n\nĐề nghị duyệt chi gấp.\n\nTrân trọng.');
-                  setEmailAttachment('hoa_don_fake.pdf');
-                }}
-                className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 text-left text-xs font-bold transition flex flex-col gap-0.5"
-              >
-                <span>⚡ Mẫu 2: Gian Lận / Lệch Tiền</span>
-                <span className="text-[10px] font-normal text-rose-700">10tr + 1tr ≠ 15tr (Cảnh Báo KTT)</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleSendInvoiceEmail} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Đơn vị gửi (From Name):</label>
-                  <input
-                    type="text"
-                    required
-                    value={emailSenderName}
-                    onChange={(e) => setEmailSenderName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Email gửi (From Address):</label>
-                  <input
-                    type="email"
-                    required
-                    value={emailSenderAddress}
-                    onChange={(e) => setEmailSenderAddress(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Hòm thư tiếp nhận DN (To):</label>
-                <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-mono text-xs flex items-center justify-between">
-                  <span>tranngo170770@gmail.com</span>
-                  <span className="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full font-bold">Inbound Gateway</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Tiêu đề thư (Subject):</label>
-                <input
-                  type="text"
-                  required
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs font-semibold text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Tệp đính kèm hóa đơn (Attachment):</label>
-                <div className="flex items-center gap-2 p-2 rounded-xl border border-purple-200 bg-purple-50/50">
-                  <Paperclip className="w-4 h-4 text-purple-600" />
-                  <input
-                    type="text"
-                    value={emailAttachment}
-                    onChange={(e) => setEmailAttachment(e.target.value)}
-                    className="bg-transparent border-none text-xs font-mono text-purple-900 w-full focus:outline-none"
-                    placeholder="tệp đính kèm: hoa_don.pdf"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">Nội dung thư bóc tách (Email Body):</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-purple-500 text-xs leading-relaxed"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowInvoiceEmailModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
-                >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingInvoiceEmail}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Send className={`w-3.5 h-3.5 ${isSubmittingInvoiceEmail ? 'animate-pulse' : ''}`} />
-                  <span>{isSubmittingInvoiceEmail ? 'AI Đang Đối Soát...' : 'Gửi Thư Kèm Hóa Đơn'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
