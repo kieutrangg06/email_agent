@@ -932,20 +932,6 @@ export default function TicketsPage() {
                 Ngăn chặn và cô lập tự động các email Phishing đánh cắp OTP hoặc mã độc .exe đe dọa an toàn mạng.
               </p>
             </div>
-            <button
-              onClick={() => {
-                setCustName('Hệ Thống An Ninh Ngân Hàng');
-                setCustEmail('security@vietcombannk-update.com');
-                setCustSubject('[CẢNH BÁO BẢO MẬT] Tài khoản bị khóa, yêu cầu xác thực OTP ngay');
-                setCustBody('Kính gửi khách hàng, tài khoản của bạn bị tạm ngưng. Vui lòng cung cấp mã OTP để mở khóa ngay.');
-                handleClearFile();
-                setShowCustomerModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold transition shadow-md shadow-rose-900/50 shrink-0 cursor-pointer"
-            >
-              <Send className="w-4 h-4" />
-              <span>Gửi Thư Kiểm Tra Kho Cách Ly</span>
-            </button>
           </div>
 
           <div className="bg-white rounded-3xl border border-rose-150 shadow-xs overflow-hidden">
@@ -1271,6 +1257,21 @@ export default function TicketsPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setCustName('Nguyễn Thị Thảo');
+                    setCustEmail('trangltk.24it@vku.udn.vn');
+                    setCustSubject('[HỎI THỦ TỤC] Hướng dẫn làm lại thẻ từ và đăng ký gửi xe máy');
+                    setCustBody('Kính gửi phòng Hành chính - Tổng hợp, tôi là nhân viên mới muốn xin hướng dẫn thủ tục làm lại thẻ từ ra vào tòa nhà và đăng ký biển số xe tại tầng hầm. Trân trọng cảm ơn!');
+                    handleClearFile();
+                  }}
+                  className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-left transition flex flex-col gap-0.5"
+                >
+                  <span>📋 5. Hành Chính / CSKH (General)</span>
+                  <span className="text-[10px] font-normal text-blue-600">Hỏi thủ tục ➔ Sinh vé &amp; Dự thảo duyệt</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setCustName('Hệ Thống An Ninh Ngân Hàng');
                     setCustEmail('security@vietcombannk-update.com');
                     setCustSubject('[CẢNH BÁO BẢO MẬT] Tài khoản bị khóa, yêu cầu xác thực OTP ngay');
@@ -1279,7 +1280,7 @@ export default function TicketsPage() {
                   }}
                   className="p-2 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-900 font-bold text-left transition flex flex-col gap-0.5"
                 >
-                  <span>🛑 5. Phishing Lừa Đảo OTP</span>
+                  <span>🛑 6. Phishing Lừa Đảo OTP</span>
                   <span className="text-[10px] font-normal text-red-600">Tự động cô lập Kho An Ninh</span>
                 </button>
 
@@ -1292,11 +1293,11 @@ export default function TicketsPage() {
                     setCustBody('Chi tiết bảng lương nhân viên và mức thưởng vui lòng mở tệp đính kèm.');
                     setCustAttachmentName('bang_luong_thuong_quy.xlsx.exe');
                     setCustAttachmentSize(524288);
-                    setCustAttachmentContent('MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00 (PE Windows Executable Binary Trojan)');
+                    setCustAttachmentContent('MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\xff\\xff\\x00\\x00 (PE Windows Executable Binary Trojan)');
                   }}
                   className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-left transition flex flex-col gap-0.5"
                 >
-                  <span>☣️ 6. Mã Độc Tệp Đính Kèm</span>
+                  <span>☣️ 7. Mã Độc Tệp Đính Kèm</span>
                   <span className="text-[10px] font-normal text-slate-600">Tệp .exe ➔ Tự động cách ly</span>
                 </button>
               </div>

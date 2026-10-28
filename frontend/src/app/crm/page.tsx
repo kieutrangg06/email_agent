@@ -92,7 +92,35 @@ export default function CrmPage() {
     fetchData();
   }, []);
 
-  const filteredDeals = deals.filter((d) => (filterStage === 'ALL' ? true : d.stage === filterStage));
+  const STAGE_FILTERS = [
+    { key: 'ALL', label: 'Tất Cả Giai Đoạn' },
+    { key: 'NEW_INQUIRY', label: 'Mới Tiếp Nhận' },
+    { key: 'QUOTED', label: 'Báo Giá / Đề Xuất' },
+    { key: 'COLD_LEAD', label: 'Cần Chăm Sóc Lại' },
+    { key: 'WON', label: 'Chốt Thành Công' },
+  ];
+
+  const filteredDeals = deals.filter((d) => {
+    if (filterStage === 'ALL') return true;
+    if (filterStage === 'QUOTED') return d.stage === 'QUOTED' || d.stage === 'PROPOSAL';
+    return d.stage === filterStage;
+  });
+
+  const formatStageBadge = (stage: string) => {
+    if (stage === 'NEW_INQUIRY') {
+      return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">Mới Tiếp Nhận</span>;
+    }
+    if (stage === 'QUOTED' || stage === 'PROPOSAL') {
+      return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Đã Báo Giá / Đề Xuất</span>;
+    }
+    if (stage === 'COLD_LEAD') {
+      return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-200 text-slate-700">Cần Chăm Sóc Lại</span>;
+    }
+    if (stage === 'WON') {
+      return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Chốt Thành Công</span>;
+    }
+    return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">{stage}</span>;
+  };
 
   const totalPipeline = deals.reduce((acc, d) => acc + Number(d.expected_budget || 0), 0);
   const vipCount = customers.filter((c) => c.lead_score >= 80).length;
@@ -196,16 +224,16 @@ export default function CrmPage() {
         </div>
 
         {activeTab === 'deals' && (
-          <div className="flex items-center gap-1.5 pb-2">
-            {['ALL', 'NEW_INQUIRY', 'QUOTED', 'COLD_LEAD', 'WON'].map((st) => (
+          <div className="flex items-center gap-1.5 pb-2 overflow-x-auto">
+            {STAGE_FILTERS.map((st) => (
               <button
-                key={st}
-                onClick={() => setFilterStage(st)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
-                  filterStage === st ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                key={st.key}
+                onClick={() => setFilterStage(st.key)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                  filterStage === st.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {st}
+                {st.label}
               </button>
             ))}
           </div>
@@ -265,19 +293,7 @@ export default function CrmPage() {
                           </div>
                         </td>
                         <td className="px-5 py-4">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                              deal.stage === 'NEW_INQUIRY'
-                                ? 'bg-blue-100 text-blue-700'
-                                : deal.stage === 'QUOTED'
-                                ? 'bg-amber-100 text-amber-700'
-                                : deal.stage === 'COLD_LEAD'
-                                ? 'bg-slate-200 text-slate-700'
-                                : 'bg-emerald-100 text-emerald-700'
-                            }`}
-                          >
-                            {deal.stage}
-                          </span>
+                          {formatStageBadge(deal.stage)}
                         </td>
                         <td className="px-5 py-4">
                           <div className="text-xs text-slate-600 flex items-center gap-1 font-medium">
