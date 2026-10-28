@@ -330,7 +330,7 @@ export class MailService {
   // 4. Luồng 7: Gửi thông báo Lead VIP nội bộ cho chuyên viên Sales (tranngo170770@gmail.com)
   async notifySalesNewLead(lead: any, deal: any, to = 'tranngo170770@gmail.com') {
     const budgetStr = Number(deal.expected_budget || 0).toLocaleString('vi-VN');
-    const subject = `[CƠ HỘI BÁN HÀNG MỚI] Lead VIP: ${lead.full_name || 'Khách hàng'} (${lead.company_name || 'Doanh nghiệp'}) - Deal: ${budgetStr} đ`;
+    const subject = `[TIẾP NHẬN YÊU CẦU BÁO GIÁ] Khách hàng doanh nghiệp: ${lead.full_name || 'Khách hàng'} (${lead.company_name || 'Doanh nghiệp'})`;
     const html = `
       <!DOCTYPE html>
       <html>
