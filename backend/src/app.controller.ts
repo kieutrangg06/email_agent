@@ -184,9 +184,9 @@ export class AppController {
     emailsDispatched.push(`[Luồng 2] Xác nhận tiếp nhận gửi Khách hàng (${senderEmail})`);
 
     // -------------------------------------------------------------------------
-    // NHÁNH 1: TECHNICAL ➔ LUỒNG 3 (TICKET & SLA) + LUỒNG 4 (AI RAG DRAFT)
+    // NHÁNH 1: TECHNICAL & GENERAL ➔ LUỒNG 3 (TICKET & SLA) + LUỒNG 4 (AI RAG DRAFT)
     // -------------------------------------------------------------------------
-    if (category === 'Technical') {
+    if (category === 'Technical' || category === 'General') {
       const slaHours = priority.includes('P1') ? 1 : priority.includes('P2') ? 4 : 24;
       const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
 
@@ -207,32 +207,57 @@ export class AppController {
       emailsDispatched.push(`[Luồng 3] Thông báo giao việc KTV gửi Doanh nghiệp (tranngo170770@gmail.com)`);
 
       // Luồng 4: AI RAG sinh bản nháp HTML
-      const proposedBody = `
-        <p>Kính gửi quý khách <b>${senderName}</b>,</p>
-        <p>Bộ phận Kỹ thuật đã tiếp nhận sự cố: <b>${subject}</b> (Mã vé: <b>${code}</b>).</p>
-        <p><b>Giải pháp kỹ thuật từ cẩm nang AI RAG:</b></p>
-        <ol style="margin-left: 20px; line-height: 1.8;">
-          <li>Kỹ sư đang mở rộng tài nguyên Ram/CPU và tối ưu hóa Connection Pool PostgreSQL trên máy chủ Cloud.</li>
-          <li>Đã khởi động lại dịch vụ Reverse Proxy Nginx để giải phóng hàng đợi 504 Gateway Timeout.</li>
-          <li>Hệ thống đang hoạt động trở lại bình thường. Kính đề nghị bạn thử tải lại trang.</li>
-        </ol>
-        <p>Trân trọng,<br/><b>Đội Ngũ Hỗ Trợ Kỹ Thuật Doanh Nghiệp</b></p>
-      `;
+      let proposedSubject = '';
+      let proposedBody = '';
+      if (category === 'Technical') {
+        proposedSubject = `[PHẢN HỒI KỸ THUẬT] Hướng dẫn khắc phục sự cố ${code}`;
+        proposedBody = `
+          <p>Kính gửi quý khách <b>${senderName}</b>,</p>
+          <p>Bộ phận Kỹ thuật đã tiếp nhận sự cố: <b>${subject}</b> (Mã vé: <b>${code}</b>).</p>
+          <p><b>Giải pháp kỹ thuật từ cẩm nang AI RAG:</b></p>
+          <ol style="margin-left: 20px; line-height: 1.8;">
+            <li>Kỹ sư đang mở rộng tài nguyên Ram/CPU và tối ưu hóa Connection Pool PostgreSQL trên máy chủ Cloud.</li>
+            <li>Đã khởi động lại dịch vụ Reverse Proxy Nginx để giải phóng hàng đợi 504 Gateway Timeout.</li>
+            <li>Hệ thống đang hoạt động trở lại bình thường. Kính đề nghị bạn thử tải lại trang.</li>
+          </ol>
+          <p>Trân trọng,<br/><b>Đội Ngũ Hỗ Trợ Kỹ Thuật Doanh Nghiệp</b></p>
+        `;
+      } else {
+        proposedSubject = `[GIẢI ĐÁP THÔNG TIN] Hỗ trợ yêu cầu ${code}`;
+        proposedBody = `
+          <p>Kính gửi quý khách <b>${senderName}</b>,</p>
+          <p>Bộ phận Hỗ Trợ Khách Hàng đã tiếp nhận thông tin yêu cầu: <b>${subject}</b> (Mã vé: <b>${code}</b>).</p>
+          <p>Chúng tôi đã rà soát thông tin theo quy trình nghiệp vụ và ghi nhận yêu cầu của quý khách để phục vụ chu đáo nhất.</p>
+          <p>Nếu cần hỗ trợ thêm thông tin chi tiết, quý khách vui lòng phản hồi trực tiếp qua email này.</p>
+          <p>Trân trọng,<br/><b>Trung Tâm Chăm Sóc Khách Hàng Doanh Nghiệp</b></p>
+        `;
+      }
 
-      await this.db.query(
+      const draftRes = await this.db.query(
         `INSERT INTO email_drafts (
-          ticket_code, recipient_email, subject, proposed_subject, proposed_body,
+          ticket_id, ticket_code, recipient_email, sender_name,
+          subject, proposed_subject, proposed_body, html_content,
+          original_subject, original_body, knowledge_context,
           confidence_score, status
-        ) VALUES ($1, $2, $3, $3, $4, 98.8, 'PENDING_APPROVAL');`,
-        [code, senderEmail, `[PHẢN HỒI KỸ THUẬT] Hướng dẫn khắc phục sự cố ${code}`, proposedBody]
+        ) VALUES ($1, $2, $3, $4, $5, $5, $6, $6, $7, $8, '[]'::jsonb, 98.8, 'PENDING_APPROVAL')
+        RETURNING *;`,
+        [savedTicket.id, code, senderEmail, senderName, proposedSubject, proposedBody, subject, textBody]
       );
+      const createdDraft = draftRes.rows[0];
+
+      // Cập nhật draft_id vào tickets
+      await this.db.query(
+        `UPDATE tickets SET draft_id = $1 WHERE id = $2;`,
+        [createdDraft.id, savedTicket.id]
+      ).catch(() => {});
 
       branchResult = {
-        type: 'TECHNICAL_FLOW_3_AND_4',
+        type: `${category.toUpperCase()}_FLOW_3_AND_4`,
         ticket_code: code,
         assigned_to: 'Nguyễn Văn An (tranngo170770@gmail.com)',
         sla_hours: `${slaHours} giờ`,
         ai_draft_status: 'PENDING_APPROVAL (Chờ duyệt tại /approval)',
+        draft_id: createdDraft.id,
       };
     }
 
@@ -277,13 +302,17 @@ export class AppController {
       // Lưu Deal
       const dealRes = await this.db.query(
         `INSERT INTO crm_deals (
-          customer_id, customer_name, customer_email, deal_name, expected_budget,
-          stage, campaign_tag, assigned_sales_rep, note
-        ) VALUES ($1, $2, $3, $4, $5, 'PROPOSAL', 'Inbound AI Triage', 'Lê Thị Bích', $6)
+          customer_id, deal_name, expected_budget,
+          stage, campaign_tag, assigned_sales_rep, followup_count, last_contacted_at, created_at, updated_at
+        ) VALUES ($1, $2, $3, 'PROPOSAL', 'Inbound AI Triage', 'Lê Thị Bích', 0, NOW(), NOW(), NOW())
         RETURNING *;`,
-        [cust.id, senderName, senderEmail, `Gói giải pháp Email Enterprise - ${companyName}`, budget, textBody]
+        [cust.id, `Gói giải pháp Email Enterprise - ${companyName}`, budget]
       );
       const deal = dealRes.rows[0];
+      deal.customer_name = senderName;
+      deal.customer_email = senderEmail;
+      deal.company_name = companyName;
+      deal.phone = phone;
 
       // Luồng 7: Gửi email thông báo Lead VIP cho chuyên viên Sales (tranngo170770@gmail.com)
       await this.mailService.notifySalesNewLead(cust, deal, 'tranngo170770@gmail.com')
@@ -339,6 +368,12 @@ export class AppController {
           invoice_number, seller_tax_id, seller_name, buyer_name, buyer_email,
           issue_date, subtotal, vat_amount, total_amount, math_status, file_storage_path
         ) VALUES ($1, '0402123456', 'Công ty CP Phần Mềm VKU', 'Công ty TNHH Giải Pháp Số', $2, CURRENT_DATE, $3, $4, $5, $6, $7)
+        ON CONFLICT (invoice_number) DO UPDATE SET
+          subtotal = EXCLUDED.subtotal,
+          vat_amount = EXCLUDED.vat_amount,
+          total_amount = EXCLUDED.total_amount,
+          math_status = EXCLUDED.math_status,
+          file_storage_path = EXCLUDED.file_storage_path
         RETURNING *;`,
         [invoiceNumber, senderEmail, subtotal, vat, total, mathStatus, attachmentName || 'hoa_don_vat.pdf']
       );
