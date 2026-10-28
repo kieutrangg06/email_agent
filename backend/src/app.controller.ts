@@ -66,21 +66,20 @@ export class AppController {
     const subject = body.subject || 'Không có tiêu đề';
     const textBody = body.body || '';
     const attachmentName = body.attachment_name || body.filename || '';
-    const attachmentContent = body.attachment_content || body.file_content || '';
+    const attachmentContent = body.attachment_content || '';
     const combinedContent = `${subject} ${textBody} ${attachmentName} ${attachmentContent}`.toLowerCase();
 
     // =========================================================================
-    // 🛡️ BƯỚC 1: LUỒNG 1 - EMAIL INGEST & ANTI-SPAM (THREAT DETECTION)
+    // 🛡️ BƯỚC 1: EMAIL INGEST & BẢO MẬT (THREAT DETECTION)
     // =========================================================================
-    const isDangerousAttachment = /\.(exe|bat|cmd|scr|vbs|js|msi)$/i.test(attachmentName) || 
-      /MZ[A-Za-z0-9+/=]*/.test(attachmentContent.slice(0, 50)); // PE executable header check
+    const isDangerousAttachment = /\.(exe|bat|cmd|scr|vbs|js|msi)$/i.test(attachmentName) || /data:application\/(x-msdownload|x-executable|x-dosexec)/i.test(attachmentContent);
     const isPhishingKeywords = /(mã otp|mã xác thực|khóa tài khoản|vietcombannk|vietinbankk|cập nhật bảo mật khẩn cấp|đăng nhập lại ngay|tài khoản bị đình chỉ|xác minh danh tính khẩn)/i.test(combinedContent);
     const isSpamDomain = /(phishing|trojan|spammer|hacker|malware)/i.test(senderEmail);
 
     if (isDangerousAttachment || isPhishingKeywords || isSpamDomain) {
       let quarantineReason = 'Phishing Scam - Phát hiện từ khóa mạo danh ngân hàng và yêu cầu OTP bất thường';
       if (isDangerousAttachment) {
-        quarantineReason = `Dangerous Executable Attachment - Phát hiện tệp thực thi độc hại (${attachmentName || 'malware.exe'})`;
+        quarantineReason = `Dangerous Executable Attachment - Phát hiện tệp thực thi độc hại (${attachmentName})`;
       } else if (isSpamDomain) {
         quarantineReason = `Malicious Sender Domain - Địa chỉ người gửi nằm trong danh sách đe dọa (${senderEmail})`;
       }
@@ -107,7 +106,7 @@ export class AppController {
 
       return {
         success: true,
-        flow: 'Luồng 1: Email Ingest & Anti-Spam',
+        category_detected: 'Security Threat (Kho Cách Ly)',
         action: 'QUARANTINED',
         badge: 'CÔ LẬP AN NINH (SPAM / PHISHING / MALWARE)',
         quarantine_record: res.rows[0],
@@ -120,12 +119,12 @@ export class AppController {
     }
 
     // =========================================================================
-    // 🧠 BƯỚC 2: LUỒNG 2 - AI DEPARTMENT TRIAGE (PHÂN LOẠI NGỮ NGHĨA & CẢM XÚC)
+    // 🧠 BƯỚC 2: AI SEMANTIC TRIAGE (PHÂN LOẠI PHÒNG BAN & ĐÁNH GIÁ MỨC ĐỘ ƯU TIÊN)
     // =========================================================================
     let category = 'Technical';
     let priority = 'P1 - Critical';
     let sentiment = 'Khan cap';
-    let urgencyReason = 'Sự cố P1 đe dọa gián đoạn dịch vụ toàn trường';
+    let urgencyReason = 'Sự cố P1 đe dọa gián đoạn dịch vụ toàn hệ thống';
 
     // AI Semantic Classifier
     const isFinance = /(hóa đơn|vat|thuế|tiền hàng|invoice|đối soát|thanh toán hóa đơn|subtotal|chứng từ)/i.test(combinedContent);
@@ -160,11 +159,22 @@ export class AppController {
       urgencyReason = 'Yêu cầu hỗ trợ thông tin định kỳ';
     }
 
-    // Tính SLA deadline ngay lúc Triage
-    const slaHours = priority.includes('P1') ? 1 : priority.includes('P2') ? 4 : priority.includes('P3') ? 8 : 24;
+    // Tính toán hạn SLA
+    let slaHours = 24;
+    if (priority.includes('P1')) {
+      slaHours = 1;
+    } else if (priority.includes('P2')) {
+      slaHours = 4;
+    } else if (category === 'Sales') {
+      slaHours = 8;
+    } else if (category === 'Finance') {
+      slaHours = 12;
+    } else {
+      slaHours = 24;
+    }
     const slaDeadline = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
 
-    // Lưu vào bảng email_triage_logs
+    // Lưu vào bảng email_triage_logs CÓ SLA_DEADLINE
     await this.db.query(
       `INSERT INTO email_triage_logs (
         sender_name, sender_email, subject, body_snippet, category, priority, sentiment, urgency_reason, sla_deadline, status
@@ -173,46 +183,43 @@ export class AppController {
     );
 
     // =========================================================================
-    // 🎫 BƯỚC 3: PHÂN NHÁNH CHUYÊN SÂU THEO NGHIỆP VỤ
+    // 🎫 BƯỚC 3: PHÂN NHÁNH XỬ LÝ CHUYÊN SÂU THEO NGHIỆP VỤ PHÒNG BAN
     // =========================================================================
     const code = `TK-VKU-${Date.now().toString().slice(-4)}`;
     let branchResult: any = {};
     const emailsDispatched: string[] = [];
 
-    // Gửi email Luồng 2: Xác nhận tiếp nhận gửi Khách hàng
+    // Gửi email xác nhận tiếp nhận gửi Khách hàng
     await this.mailService.confirmCustomerTicketReceived({
       ticket_code: code,
       sender_email: senderEmail,
       title: subject,
       priority,
       assigned_to: 'Nguyễn Văn An',
-    }).catch(e => console.warn('Mail Luồng 2 err:', e.message));
-    emailsDispatched.push(`[Luồng 2] Xác nhận tiếp nhận gửi Khách hàng (${senderEmail})`);
+    }).catch(e => console.warn('Mail confirmation err:', e.message));
+    emailsDispatched.push(`Thư xác nhận tiếp nhận tự động gửi Khách hàng (${senderEmail})`);
 
     // -------------------------------------------------------------------------
-    // NHÁNH 1: TECHNICAL & GENERAL ➔ LUỒNG 3 (TICKET & SLA) + LUỒNG 4 (AI RAG DRAFT)
+    // NHÁNH 1: TECHNICAL & GENERAL ➔ KHỞI TẠO VÉ & DỰ THẢO PHẢN HỒI AI
     // -------------------------------------------------------------------------
     if (category === 'Technical' || category === 'General') {
-      const slaHours = priority.includes('P1') ? 1 : priority.includes('P2') ? 4 : 24;
-      const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
-
-      // Lưu Ticket
+      // Lưu Ticket (trạng thái OPEN để hiển thị ngay trong danh sách lọc)
       const tRes = await this.db.query(
         `INSERT INTO tickets (
           ticket_code, customer_email, sender_email, title, description, summary,
           category, priority, assigned_to, agent_email, sla_due_at, first_response_sla, status
-        ) VALUES ($1, $2, $2, $3, $4, $4, $5, $6, 'Nguyễn Văn An', 'tranngo170770@gmail.com', $7, $7, 'PENDING')
+        ) VALUES ($1, $2, $2, $3, $4, $4, $5, $6, 'Nguyễn Văn An', 'tranngo170770@gmail.com', $7, $7, 'OPEN')
         RETURNING *;`,
-        [code, senderEmail, subject, textBody, category, priority, slaDue]
+        [code, senderEmail, subject, textBody, category, priority, slaDeadline]
       );
       const savedTicket = tRes.rows[0];
 
-      // Luồng 3: Gửi email giao việc cho Kỹ thuật viên (tranngo170770@gmail.com)
+      // Gửi email giao việc cho Kỹ thuật viên
       await this.mailService.notifyEnterpriseNewTicket(savedTicket)
-        .catch(e => console.warn('Mail Luồng 3 err:', e.message));
-      emailsDispatched.push(`[Luồng 3] Thông báo giao việc KTV gửi Doanh nghiệp (tranngo170770@gmail.com)`);
+        .catch(e => console.warn('Mail KTV err:', e.message));
+      emailsDispatched.push(`Thông báo giao việc Kỹ thuật viên (tranngo170770@gmail.com)`);
 
-      // Luồng 4: AI RAG sinh bản nháp HTML
+      // AI RAG sinh bản nháp HTML
       let proposedSubject = '';
       let proposedBody = '';
       if (category === 'Technical') {
@@ -258,17 +265,18 @@ export class AppController {
       ).catch(() => {});
 
       branchResult = {
-        type: `${category.toUpperCase()}_FLOW_3_AND_4`,
+        type: `${category.toUpperCase()}_SUPPORT_DISPATCH`,
         ticket_code: code,
         assigned_to: 'Nguyễn Văn An (tranngo170770@gmail.com)',
         sla_hours: `${slaHours} giờ`,
-        ai_draft_status: 'PENDING_APPROVAL (Chờ duyệt tại /approval)',
+        sla_deadline: slaDeadline,
+        ai_draft_status: 'PENDING_APPROVAL (Chờ duyệt)',
         draft_id: createdDraft.id,
       };
     }
 
     // -------------------------------------------------------------------------
-    // NHÁNH 2: SALES ➔ LUỒNG 7 (CRM LEAD & DEAL SCORING)
+    // NHÁNH 2: SALES ➔ BÓC TÁCH CRM LEAD & ĐÁNH GIÁ ĐIỂM
     // -------------------------------------------------------------------------
     else if (category === 'Sales') {
       // Bóc tách tên công ty & SĐT
@@ -320,35 +328,35 @@ export class AppController {
       deal.company_name = companyName;
       deal.phone = phone;
 
-      // Luồng 7: Gửi email thông báo Lead VIP cho chuyên viên Sales (tranngo170770@gmail.com)
+      // Gửi email thông báo Lead VIP cho chuyên viên Sales
       await this.mailService.notifySalesNewLead(cust, deal, 'tranngo170770@gmail.com')
-        .catch(e => console.warn('Mail Luồng 7 err:', e.message));
-      emailsDispatched.push(`[Luồng 7] Thông báo Lead VIP gửi Chuyên viên Sales (tranngo170770@gmail.com)`);
+        .catch(e => console.warn('Mail Sales err:', e.message));
+      emailsDispatched.push(`Thông báo Cơ hội Khách hàng VIP gửi Chuyên viên Sales (tranngo170770@gmail.com)`);
 
       branchResult = {
-        type: 'SALES_FLOW_7',
+        type: 'SALES_LEAD_DISCOVERY',
         lead_name: senderName,
         company: companyName,
         phone,
         deal_budget: `${budget.toLocaleString('vi-VN')} đ`,
         lead_score: `${leadScore}/100 (Khách VIP)`,
         assigned_sales: 'Lê Thị Bích (tranngo170770@gmail.com)',
+        sla_deadline: slaDeadline,
       };
     }
 
     // -------------------------------------------------------------------------
-    // NHÁNH 3: FINANCE ➔ LUỒNG 9 (INVOICE MULTIMODAL OCR & MATH VALIDATION)
+    // NHÁNH 3: FINANCE ➔ BÓC TÁCH HÓA ĐƠN & ĐỐI SOÁT SỐ HỌC (OCR)
     // -------------------------------------------------------------------------
     else if (category === 'Finance') {
-      const invMatch = combinedContent.match(/(hd|inv)[-_]?[a-z0-9]+/i);
+      const invMatch = combinedContent.match(/(hd|inv)[-_]?\d+/i);
       const invoiceNumber = invMatch ? invMatch[0].toUpperCase() : `HD-2026-${Math.floor(100 + Math.random() * 900)}`;
 
-      // Bóc tách tiền từ nội dung thư hoặc tệp đính kèm
+      // Bóc tách tiền từ tệp đính kèm hoặc nội dung thư
       let subtotal = 10000000;
       let vat = 1000000;
       let total = 11000000;
 
-      // Tìm các con số tiền hàng trong nội dung email hoặc tệp đính kèm
       const numbers = combinedContent.match(/\d+[\d.,]*/g);
       if (numbers && numbers.length >= 3) {
         const cleanNums = numbers.map(n => parseFloat(n.replace(/[.,]/g, ''))).filter(n => n >= 100000);
@@ -359,8 +367,8 @@ export class AppController {
         }
       }
 
-      // Nếu nội dung hoặc tệp có từ "lệch", "sai", "kê khống" hoặc "fake" thì cố tình gán total lệch
-      if (combinedContent.includes('lệch') || combinedContent.includes('fake') || combinedContent.includes('sai')) {
+      // Nếu phát hiện dấu hiệu lệch số học hoặc kê khống
+      if (combinedContent.includes('lệch') || combinedContent.includes('fake') || combinedContent.includes('sai') || combinedContent.includes('khống')) {
         total = subtotal + vat + 4000000; // lệch 4tr
       }
 
@@ -369,18 +377,11 @@ export class AppController {
       const isMathValid = discrepancy <= 1.0;
       const mathStatus = isMathValid ? 'VALIDATED' : 'DISCREPANCY_FLAGGED';
 
-      let sellerName = 'Công ty CP Phần Mềm VKU';
-      let buyerName = 'Công ty TNHH Giải Pháp Số';
-      if (combinedContent.includes('bên bán:') || combinedContent.includes('đơn vị bán:')) {
-        const sMatch = combinedContent.match(/(?:bên bán|đơn vị bán|người bán):\s*([^,\n\r]+)/i);
-        if (sMatch && sMatch[1]) sellerName = sMatch[1].trim().slice(0, 100);
-      }
-
       const invRes = await this.db.query(
         `INSERT INTO finance_invoices (
           invoice_number, seller_tax_id, seller_name, buyer_name, buyer_email,
           issue_date, subtotal, vat_amount, total_amount, math_status, file_storage_path
-        ) VALUES ($1, '0402123456', $2, $3, $4, CURRENT_DATE, $5, $6, $7, $8, $9)
+        ) VALUES ($1, '0402123456', 'Công ty CP Phần Mềm VKU', 'Công ty TNHH Giải Pháp Số', $2, CURRENT_DATE, $3, $4, $5, $6, $7)
         ON CONFLICT (invoice_number) DO UPDATE SET
           subtotal = EXCLUDED.subtotal,
           vat_amount = EXCLUDED.vat_amount,
@@ -388,20 +389,20 @@ export class AppController {
           math_status = EXCLUDED.math_status,
           file_storage_path = EXCLUDED.file_storage_path
         RETURNING *;`,
-        [invoiceNumber, sellerName, buyerName, senderEmail, subtotal, vat, total, mathStatus, attachmentName || 'hoa_don_vat.pdf']
+        [invoiceNumber, senderEmail, subtotal, vat, total, mathStatus, attachmentName || 'chung_tu_hoa_don_vat.pdf']
       );
       const invoice = invRes.rows[0];
       invoice.discrepancy = discrepancy;
 
-      // Luồng 9: Nếu lệch tiền ➔ Gửi email cảnh báo gian lận cho Kế toán trưởng (tranngo170770@gmail.com)
+      // Nếu lệch tiền ➔ Gửi email cảnh báo gian lận cho Kế toán trưởng
       if (!isMathValid) {
         await this.mailService.sendInvoiceDiscrepancyAlert(invoice, 'tranngo170770@gmail.com')
-          .catch(e => console.warn('Mail Luồng 9 err:', e.message));
-        emailsDispatched.push(`[Luồng 9] Cảnh báo gian lận số học gửi Kế toán trưởng (tranngo170770@gmail.com)`);
+          .catch(e => console.warn('Mail Finance err:', e.message));
+        emailsDispatched.push(`Cảnh báo gian lận số học gửi Kế toán trưởng (tranngo170770@gmail.com)`);
       }
 
       branchResult = {
-        type: 'FINANCE_FLOW_9',
+        type: 'FINANCE_INVOICE_OCR',
         invoice_number: invoiceNumber,
         subtotal: `${subtotal.toLocaleString('vi-VN')} đ`,
         vat: `${vat.toLocaleString('vi-VN')} đ`,
@@ -409,6 +410,8 @@ export class AppController {
         math_status: mathStatus,
         discrepancy: `${discrepancy.toLocaleString('vi-VN')} đ`,
         alert_sent: !isMathValid,
+        file_analyzed: attachmentName || 'Chung_tu_goc.pdf',
+        sla_deadline: slaDeadline,
       };
     }
 
@@ -427,7 +430,7 @@ export class AppController {
   }
 
   // =========================================================================
-  // 📊 LUỒNG 6: GỬI BÁO CÁO ĐIỀU HÀNH 24H CHO BAN GIÁM ĐỐC
+  // 📊 BÁO CÁO ĐIỀU HÀNH 24H CHO BAN GIÁM ĐỐC
   // =========================================================================
   @Post('api/v1/analytics/send-daily-digest')
   async triggerDailyDigest() {
@@ -442,7 +445,7 @@ export class AppController {
     const res = await this.mailService.sendExecutiveDailyDigest(data, 'tranngo170770@gmail.com');
     return {
       success: true,
-      flow: 'Luồng 6: Executive Daily Digest',
+      service: 'Báo Cáo Điều Hành 24H',
       recipient: 'tranngo170770@gmail.com',
       result: res ? 'SENT_SUCCESS' : 'FAILED',
       dispatched_at: new Date().toISOString(),
@@ -450,7 +453,7 @@ export class AppController {
   }
 
   // =========================================================================
-  // 🤝 LUỒNG 8: AUTOMATED SALES FOLLOW-UP CADENCE
+  // 🤝 TỰ ĐỘNG CHĂM SÓC & THEO DÕI BÁO GIÁ KHÁCH HÀNG
   // =========================================================================
   @Post('api/v1/crm/trigger-followup')
   async triggerSalesFollowup(@Body() body: any) {
@@ -466,7 +469,7 @@ export class AppController {
     const res = await this.mailService.sendSalesFollowUpToCustomer(deal, targetEmail);
     return {
       success: true,
-      flow: 'Luồng 8: Automated Follow-up',
+      service: 'Tự Động Chăm Sóc & Theo Dõi Báo Giá',
       recipient: targetEmail,
       result: res ? 'SENT_SUCCESS' : 'FAILED',
       dispatched_at: new Date().toISOString(),

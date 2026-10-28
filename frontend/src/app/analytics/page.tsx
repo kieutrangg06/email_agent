@@ -555,10 +555,10 @@ export default function AnalyticsPage() {
             disabled={isSendingDigest}
             onClick={handleSendDailyDigest}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-indigo-200 cursor-pointer disabled:opacity-50"
-            title="Kích hoạt Luồng 6: Gửi Báo Cáo Điều Hành 24H gửi Ban Giám Đốc"
+            title="Gửi email Báo Cáo Điều Hành 24H tổng kết tới Ban Giám Đốc (tranngo170770@gmail.com)"
           >
             <Send className="w-4 h-4" />
-            <span>{isSendingDigest ? 'Đang gửi...' : '🚀 Gửi Báo Cáo 24H (Ban Giám Đốc)'}</span>
+            <span>{isSendingDigest ? 'Đang gửi...' : 'Gửi Báo Cáo Điều Hành 24H'}</span>
           </button>
 
           <button

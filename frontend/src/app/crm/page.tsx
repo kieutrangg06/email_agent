@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { API_BASE_URL } from '../../lib/api';
 import { Users, DollarSign, TrendingUp, Send, RefreshCw, Plus, Clock, CheckCircle2, AlertTriangle, X, Mail } from 'lucide-react';
 
@@ -41,26 +40,27 @@ export default function CrmPage() {
   const [activeTab, setActiveTab] = useState<'deals' | 'customers'>('deals');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Follow-up State
   const [isTriggeringFollowup, setIsTriggeringFollowup] = useState(false);
+  const targetFollowupEmail = 'trangltk.24it@vku.udn.vn';
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // 2. Luồng 8: Kích hoạt gửi email chăm sóc tự động (Follow-up Cadence)
+  // Kích hoạt gửi email chăm sóc tự động (Follow-up Cadence)
   const handleTriggerFollowup = async () => {
     setIsTriggeringFollowup(true);
-    const targetEmail = customers[0]?.email || 'trangltk.24it@vku.udn.vn';
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/crm/trigger-followup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail }),
+        body: JSON.stringify({ email: targetFollowupEmail }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`⏰ Đã kích hoạt Luồng 8: Gửi email chăm sóc báo giá tự động tới khách hàng (${targetEmail})!`);
+        showToast(`⏰ Đã gửi email chăm sóc & theo dõi báo giá tự động tới khách hàng (${targetFollowupEmail}) thành công!`);
       } else {
         showToast('Không thể kích hoạt chuỗi follow-up');
       }
@@ -117,28 +117,19 @@ export default function CrmPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/tickets"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-amber-50 border border-amber-300 text-amber-900 text-xs sm:text-sm font-semibold transition shadow-xs"
-            title="Mở Cổng Tiếp Nhận Chung để gửi email với tư cách Khách Hàng (AI sẽ bóc tách Lead & Deal)"
-          >
-            <Send className="w-4 h-4 text-amber-600" />
-            <span>📬 Gửi Thư Mua Hàng (Cổng Khách Hàng)</span>
-          </Link>
-
           <button
             onClick={handleTriggerFollowup}
             disabled={isTriggeringFollowup}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-blue-200 disabled:opacity-50 cursor-pointer"
-            title="Kích hoạt Luồng 8: Gửi email tự động chăm sóc báo giá tới khách hàng"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-blue-200 disabled:opacity-50"
+            title="Tự động gửi email chăm sóc báo giá tới khách hàng (trangltk.24it@vku.udn.vn)"
           >
             <Clock className="w-4 h-4" />
-            <span>{isTriggeringFollowup ? 'Đang gửi...' : '⏰ Tự Động Chăm Sóc Báo Giá (Luồng 8)'}</span>
+            <span>{isTriggeringFollowup ? 'Đang gửi...' : 'Tự Động Chăm Sóc Báo Giá'}</span>
           </button>
 
           <button
             onClick={fetchData}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
             title="Tải lại dữ liệu"
           >
             <RefreshCw className="w-4 h-4 text-rose-500" />

@@ -56,41 +56,6 @@ export default function ApprovalPage() {
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  // Helper format hạn SLA với đếm ngược
-  const formatSlaDeadline = (deadlineStr?: string | null) => {
-    if (!deadlineStr) return { label: 'Chưa có hạn', badge: 'bg-slate-100 text-slate-500', isExpired: false, detail: '---' };
-    const deadline = new Date(deadlineStr);
-    const now = new Date();
-    const diffMs = deadline.getTime() - now.getTime();
-    const diffMins = Math.round(diffMs / 60000);
-    const timeStr = deadline.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + deadline.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-
-    if (diffMins < 0) {
-      const passedHours = (Math.abs(diffMins) / 60).toFixed(1);
-      return {
-        label: `Quá hạn ${passedHours}h`,
-        badge: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
-        isExpired: true,
-        detail: `Hạn chót: ${timeStr}`,
-      };
-    } else if (diffMins <= 60) {
-      return {
-        label: `Còn ${diffMins} phút!`,
-        badge: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold animate-pulse',
-        isExpired: false,
-        detail: `Trước: ${timeStr}`,
-      };
-    } else {
-      const remainHours = Math.round(diffMins / 60);
-      return {
-        label: `Còn ${remainHours} giờ`,
-        badge: 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold',
-        isExpired: false,
-        detail: `Trước: ${timeStr}`,
-      };
-    }
-  };
-
   // Editing state
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [editSubject, setEditSubject] = useState('');
@@ -499,16 +464,6 @@ export default function ApprovalPage() {
                     >
                       {draft.status === 'PENDING_APPROVAL' ? 'CHỜ DUYỆT' : draft.status === 'SENT' ? 'ĐÃ GỬI' : 'TỪ CHỐI'}
                     </span>
-
-                    {(() => {
-                      const sla = formatSlaDeadline(draft.sla_due_at || draft.first_response_sla);
-                      return (
-                        <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${sla.badge}`}>
-                          <Clock className="w-3 h-3" />
-                          <span>Hạn SLA: {sla.label} ({sla.detail})</span>
-                        </span>
-                      );
-                    })()}
                   </div>
 
                   <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
@@ -540,6 +495,16 @@ export default function ApprovalPage() {
                       <span className="text-slate-400">SMTP Phản hồi:</span>
                       <strong className="text-indigo-700 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">kieutrangg06123@gmail.com</strong>
                     </div>
+
+                    {(draft.sla_due_at || draft.first_response_sla) && (
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-slate-400">Cam kết hạn SLA:</span>
+                        <strong className="text-amber-800 font-mono bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          {new Date(draft.sla_due_at || draft.first_response_sla!).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} {new Date(draft.sla_due_at || draft.first_response_sla!).toLocaleDateString('vi-VN')}
+                        </strong>
+                      </div>
+                    )}
                   </div>
                 </div>
 
