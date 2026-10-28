@@ -1,0 +1,29 @@
+================================================================================
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+--------------------------------------------------------------------------------
+HÓA ĐƠN ĐIỆN TỬ (CẢNH BÁO: PHÁT HIỆN SAI LỆCH TOÁN HỌC)
+Ký hiệu: BB/26E
+Số hóa đơn: HD-FAKE-8888
+Ngày lập: 28/10/2026
+
+ĐƠN VỊ BÁN HÀNG:
+Tên đơn vị: NHÀ CUNG CẤP THIẾT BỊ LẠ UNKNOWN
+Mã số thuế: 9999999999
+
+ĐƠN VỊ MUA HÀNG:
+Tên đơn vị: TRƯỜNG ĐẠI HỌC CÔNG NGHỆ THÔNG TIN VÀ TRUYỀN THÔNG VIỆT - HÀN (VKU)
+Mã số thuế: 0400101010
+
+CHI TIẾT HÀNG HÓA DỊCH VỤ:
+1. Chi phí bảo trì máy chủ và đường truyền
+   - Thành tiền (Subtotal): 10.000.000 VNĐ
+   - Tiền thuế GTGT 10% (Tax): 1.000.000 VNĐ
+--------------------------------------------------------------------------------
+TỔNG CỘNG TIỀN THANH TOÁN (TOTAL GHI TRÊN HÓA ĐƠN): 15.000.000 VNĐ
+(Bằng chữ: Mười lăm triệu đồng chẵn)
+--------------------------------------------------------------------------------
+CẢNH BÁO ĐỐI SOÁT OCR: 
+10.000.000 (Tiền hàng) + 1.000.000 (Thuế) = 11.000.000 != 15.000.000 (Lệch 4.000.000 VNĐ)
+TRẠNG THÁI HỆ THỐNG YÊU CẦU: DISCREPANCY_FLAGGED (CHẶN GIẢI NGÂN / CẢNH BÁO KẾ TOÁN)
+================================================================================

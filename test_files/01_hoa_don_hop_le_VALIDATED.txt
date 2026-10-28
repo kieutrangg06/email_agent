@@ -1,0 +1,36 @@
+================================================================================
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+--------------------------------------------------------------------------------
+HÓA ĐƠN GIÁ TRỊ GIA TĂNG (VAT INVOICE)
+Ký hiệu (Serial): AA/26E
+Số hóa đơn (Invoice No): HD-2026-001
+Ngày lập (Date): 28/10/2026
+
+ĐƠN VỊ BÁN HÀNG:
+Tên đơn vị: CÔNG TY CỔ PHẦN CÔNG NGHỆ VÀ PHẦN MỀM VKU
+Mã số thuế (Tax ID): 0401987654
+Địa chỉ: 470 Đường Trần Đại Nghĩa, Phường Hòa Quý, Quận Ngũ Hành Sơn, TP. Đà Nẵng
+Số tài khoản: 1903456789012 - Ngân hàng TMCP Ngoại Thương Việt Nam (Vietcombank)
+
+ĐƠN VỊ MUA HÀNG:
+Tên đơn vị: CÔNG TY TNHH GIẢI PHÁP SỐ TOÀN CẦU
+Mã số thuế (Tax ID): 0108998877
+Địa chỉ: Tầng 8, Tòa nhà Innovation, Quận Cẩm Lệ, TP. Đà Nẵng
+
+NỘI DUNG THANH TOÁN DỊCH VỤ:
+1. Bản quyền giải pháp tự động hóa Email Automation v2.0 Enterprise
+   - Số lượng: 1 gói
+   - Đơn giá: 10.000.000 VNĐ
+   - Thành tiền (Subtotal): 10.000.000 VNĐ
+
+TÍNH TOÁN THUẾ SUẤT VÀ TỔNG CỘNG:
+- Tiền hàng (Subtotal): 10.000.000 VNĐ
+- Thuế suất GTGT (VAT): 10%
+- Tiền thuế GTGT (Tax Amount): 1.000.000 VNĐ
+--------------------------------------------------------------------------------
+TỔNG CỘNG TIỀN THANH TOÁN (TOTAL): 11.000.000 VNĐ
+(Bằng chữ: Mười một triệu đồng chẵn)
+--------------------------------------------------------------------------------
+ĐỐI SOÁT TOÁN HỌC: 10.000.000 + 1.000.000 = 11.000.000 (KHỚP 100% - HỢP LỆ)
+================================================================================

@@ -1,0 +1,23 @@
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+--------------------------------------------------------------------------------
+BẢN YÊU CẦU BÁO GIÁ VÀ ĐỀ XUẤT GIẢI PHÁP PHẦN MỀM (RFP)
+
+Kính gửi: Ban Giám Đốc Kinh Doanh & Đội Ngũ Bán Hàng Dự Án
+Đơn vị gửi yêu cầu: TẬP ĐOÀN CÔNG NGHỆ & ĐẦU TƯ ABC
+Người đại diện: Ông Trần Văn Giám Đốc
+Chức vụ: Giám đốc Công nghệ Thông tin (CIO)
+Email liên hệ: trangltk.24it@vku.udn.vn
+Điện thoại: +84 905 123 456
+
+NỘI DUNG DỰ ÁN DỰ KIẾN:
+- Quy mô triển khai: 15 chi nhánh trên toàn quốc với hơn 500 nhân sự vận hành.
+- Tính năng yêu cầu:
+  + Tự động hóa tiếp nhận và xử lý email khách hàng đa kênh với AI Triage.
+  + Tích hợp tra cứu tri thức doanh nghiệp RAG với pgvector.
+  + Phân hệ OCR hóa đơn tự động và tích hợp CRM quản trị giao dịch.
+- Dự toán ngân sách đầu tư phê duyệt (Deal Value): 250.000.000 VNĐ (Hai trăm năm mươi triệu đồng).
+- Thời gian dự kiến ký hợp đồng và giải ngân: Tháng 11/2026.
+
+Đề nghị công ty gửi báo giá chi tiết, tài liệu kỹ thuật và sắp xếp buổi demo giải pháp trực tiếp trong tuần này.
+Trân trọng cảm ơn!

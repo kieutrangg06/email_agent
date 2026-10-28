@@ -1,0 +1,10 @@
+MZThis program cannot be run in DOS mode.
+$PEL!E!
+================================================================================
+SIMULATED MALWARE PAYLOAD FOR SECURITY TESTING (EICAR / TROJAN PATTERN)
+SIGNATURE: TROJAN_PAYLOAD_SIMULATED_MALWARE_SIGNATURE_EXE
+TARGET: /System32/winlogon.exe
+ACTION: EXFILTRATE_CREDENTIALS & INJECT_KEYLOGGER
+================================================================================
+WARNING: FILE NÀY LÀ MẪU KIỂM THỬ AN NINH THÔNG TIN DOANH NGHIỆP.
+HỆ THỐNG EMAIL AUTOMATION BẮT BUỘC PHẢI CHẶN ĐỨNG VÀ ĐƯA VÀO QUARANTINE VAULT!
