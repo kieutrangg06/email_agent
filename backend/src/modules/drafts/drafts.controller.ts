@@ -44,6 +44,11 @@ export class DraftsController {
     return this.draftsService.updateDraftStatus(id, body);
   }
 
+  @Post('drafts/:id/resend')
+  async resendApprovedReply(@Param('id', ParseIntPipe) id: number) {
+    return this.draftsService.resendApprovedReply(id);
+  }
+
   @Post('reviewers/validate')
   validateReviewer(@Body('reviewer_email') reviewerEmail: string) {
     return this.draftsService.validateReviewer(reviewerEmail);

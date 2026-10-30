@@ -266,10 +266,10 @@ export class MailService {
 
   // 3. Gửi email phản hồi chính thức sau khi Chuyên viên bấm DUYỆT (HITL)
   async sendApprovedReplyToCustomer(draft: any) {
-    const to = draft.recipient_email;
+    const to = draft.recipient_email || draft.customer_email || 'trangltk.24it@vku.udn.vn';
     if (!to || !to.includes('@')) return null;
 
-    const subject = draft.subject || draft.proposed_subject || `[PHẢN HỒI HỖ TRỢ] Vé ${draft.ticket_code}`;
+    const subject = draft.subject || draft.proposed_subject || `[PHẢN HỒI KỸ THUẬT] Hướng dẫn khắc phục sự cố ${draft.ticket_code || ''}`;
     const body = draft.html_content || draft.proposed_body || '<p>Kính gửi quý khách, yêu cầu của bạn đã được xử lý thành công.</p>';
 
     const html = `

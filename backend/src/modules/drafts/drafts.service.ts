@@ -223,9 +223,21 @@ export class DraftsService {
 
     // Gửi email thật qua SMTP khi trạng thái là SENT (Phê duyệt)
     if (updated && isSent) {
-      this.mailService.sendApprovedReplyToCustomer(updated).catch((e) => {
-        this.logger.warn(`Could not dispatch approved reply to customer: ${e.message}`);
-      });
+      try {
+        if (!updated.recipient_email && updated.ticket_code) {
+          const tRes = await this.db.query(
+            'SELECT customer_email, sender_email FROM tickets WHERE ticket_code = $1',
+            [updated.ticket_code],
+          );
+          if (tRes.rows.length > 0) {
+            updated.recipient_email = tRes.rows[0].customer_email || tRes.rows[0].sender_email;
+          }
+        }
+        await this.mailService.sendApprovedReplyToCustomer(updated);
+        this.logger.log(`Approved reply successfully dispatched to ${updated.recipient_email}`);
+      } catch (e: any) {
+        this.logger.error(`Could not dispatch approved reply to customer: ${e.message}`);
+      }
     }
 
     // If status is SENT, update ticket status to RESOLVED
@@ -256,6 +268,28 @@ export class DraftsService {
     });
 
     return updated;
+  }
+
+  async resendApprovedReply(id: number) {
+    const draft = await this.getDraftById(id);
+    if (!draft) {
+      throw new Error(`Draft #${id} not found`);
+    }
+    if (!draft.recipient_email && draft.ticket_code) {
+      const tRes = await this.db.query(
+        'SELECT customer_email, sender_email FROM tickets WHERE ticket_code = $1',
+        [draft.ticket_code],
+      );
+      if (tRes.rows.length > 0) {
+        draft.recipient_email = tRes.rows[0].customer_email || tRes.rows[0].sender_email;
+      }
+    }
+    const result = await this.mailService.sendApprovedReplyToCustomer(draft);
+    return {
+      success: true,
+      message: `Đã gửi lại email phản hồi tới ${draft.recipient_email || 'khách hàng'}`,
+      result,
+    };
   }
 
   validateReviewer(reviewerEmail: string) {

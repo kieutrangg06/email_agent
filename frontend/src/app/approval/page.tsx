@@ -243,6 +243,34 @@ export default function ApprovalPage() {
     }
   };
 
+  const handleResend = async (draft: Draft) => {
+    setActionLoading(draft.id);
+    setActionMsg({
+      type: 'info',
+      text: `Đang gửi lại email phản hồi tới ${draft.recipient_email || 'khách hàng'}...`,
+    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/drafts/${draft.id}/resend`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setActionMsg({
+          type: 'success',
+          text: `✅ Đã gửi lại email thành công tới ${draft.recipient_email}! Vui lòng kiểm tra hộp thư đến (và thư mục Spam/Quảng cáo).`,
+        });
+      } else {
+        throw new Error('Gửi lại email thất bại');
+      }
+    } catch (err: any) {
+      setActionMsg({
+        type: 'error',
+        text: `❌ Lỗi khi gửi lại email: ${err.message}`,
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Notification Banner */}
@@ -667,8 +695,21 @@ export default function ApprovalPage() {
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-xl shadow-xs">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Đã gửi thành công qua SMTP</span>
+                        <span>Đã gửi qua SMTP</span>
                       </span>
+                      <button
+                        disabled={actionLoading === draft.id}
+                        onClick={() => handleResend(draft)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-700 text-xs font-semibold rounded-xl transition shadow-xs disabled:opacity-50"
+                        title="Gửi lại email phản hồi tới khách hàng"
+                      >
+                        {actionLoading === draft.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
+                        <span>Gửi lại Email</span>
+                      </button>
                     </div>
                   )}
 
