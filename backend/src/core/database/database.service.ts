@@ -24,6 +24,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       max: 20,
       idleTimeoutMillis: 30000,
     });
+
+    // Tự động chuẩn hóa dữ liệu General sang P4 - Low (SLA 48h) chuẩn ITIL
+    this.pool.query(`
+      UPDATE email_triage_logs 
+      SET priority = 'P4 - Low', 
+          sla_deadline = created_at + INTERVAL '48 hours'
+      WHERE category = 'General' AND priority = 'P3 - Medium';
+      UPDATE tickets
+      SET priority = 'P4 - Low',
+          sla_due_at = created_at + INTERVAL '48 hours'
+      WHERE category = 'General' AND priority LIKE '%P3%';
+    `).catch(() => {});
   }
 
   async query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {

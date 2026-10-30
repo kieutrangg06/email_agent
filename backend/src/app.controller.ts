@@ -154,13 +154,13 @@ export class AppController {
       }
     } else {
       category = 'General';
-      priority = 'P3 - Medium';
+      priority = 'P4 - Low';
       sentiment = 'Trung lap';
       urgencyReason = 'Yêu cầu hỗ trợ thông tin định kỳ / thủ tục hành chính';
     }
 
-    // Tính toán hạn SLA
-    let slaHours = 24;
+    // Tính toán hạn SLA chuẩn ITIL
+    let slaHours = 48;
     if (priority.includes('P1')) {
       slaHours = 1;
     } else if (priority.includes('P2')) {
@@ -169,8 +169,10 @@ export class AppController {
       slaHours = 8;
     } else if (category === 'Finance') {
       slaHours = 12;
-    } else {
+    } else if (priority.includes('P3')) {
       slaHours = 24;
+    } else {
+      slaHours = 48;
     }
     const slaDeadline = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
 
