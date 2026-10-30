@@ -11,7 +11,7 @@
 
 1. [Bản Chất Dự Án & Bảng Tổng Hợp Đường Link Trực Tiếp](#1-bản-chất-dự-án--bảng-tổng-hợp-đường-link-trực-tiếp)
 2. [Kiến Trúc Hạ Tầng Cloud & Các Giải Pháp Vượt Rào Cản Kỹ Thuật Free Tier](#2-kiến-trúc-hạ-tầng-cloud--các-giải-pháp-vượt-rào-cản-kỹ-thuật-free-tier)
-3. [Cấu Trúc Tự Động Hóa Email & 3 Hòm Thư Thực Nghiệm Chuẩn](#3-cấu-trúc-tự-động-hóa-email--3-hòm-thư-thực-nghiệm-chuẩn)
+3. [Cấu Trúc Gửi & Nhận Email Thực Tế (Inbound & Outbound Architecture)](#3-cấu-trúc-gửi--nhận-email-thực-tế-inbound--outbound-architecture)
 4. [Trải Nghiệm Cổng Tiếp Nhận Inbound Chuẩn Doanh Nghiệp (Real File Picker)](#4-trải-nghiệm-cổng-tiếp-nhận-inbound-chuẩn-doanh-nghiệp-real-file-picker)
 5. [Hệ Sinh Thái 10 AI Agents & Cơ Sở Dữ Liệu 14 Bảng (pgvector)](#5-hệ-sinh-thái-10-ai-agents--cơ-sở-dữ-liệu-14-bảng-pgvector)
 6. [Bộ Kịch Bản Kiểm Thử Thực Tế Trên Web Kèm Tệp Tin Mẫu (7 Kịch Bản)](#6-bộ-kịch-bản-kiểm-thử-thực-tế-trên-web-kèm-tệp-tin-mẫu-7-kịch-bản)
@@ -80,19 +80,152 @@ Triển khai một hệ thống Enterprise đa tác tử lên Cloud với chi ph
 
 ---
 
-# 3. CẤU TRÚC TỰ ĐỘNG HÓA EMAIL & 3 HÒM THƯ THỰC NGHIỆM CHUẨN
+# 3. CẤU TRÚC GỬI & NHẬN EMAIL THỰC TẾ (INBOUND & OUTBOUND ARCHITECTURE)
 
-Để nghiệm thu và kiểm thử trên môi trường Cloud thật, hệ thống tương tác với đúng 3 hòm thư tiêu chuẩn:
+Trong toàn bộ hệ thống, chu trình xử lý email được tổ chức thành 2 phân hệ cốt lõi: **Tiếp Nhận Email (Inbound Pipeline)** và **Phát Tán Email (Outbound Pipeline)**:
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Khach as Khách Hàng (trangltk.24it@vku.udn.vn)
+    participant Inbound as Cổng Tiếp Nhận Inbound (/tickets & Webhook API)
+    participant Core as Backend Core Engine (NestJS & AI Agents)
+    participant Brevo as Cổng Phát Thư Brevo API (kieutrangg06123@gmail.com)
+    actor NoiBo as Nhân Viên / Quản Lý (tranngo170770@gmail.com)
+
+    Note over Khach, Inbound: 📥 PHÂN HỆ TIẾP NHẬN EMAIL (INBOUND)
+    Khach->>Inbound: Gửi Email / Tải Tệp Tin Sự Cố (.txt, .pdf, .log)
+    Inbound->>Core: Chuyển tiếp Payload (POST /api/v1/inbound/process-email)
+    Core->>Core: Quét mã độc (Agent 9) -> AI Triage 4 phòng ban (Agent 1) -> Sinh vé (Agent 3)
+
+    Note over Core, Khach: 📤 PHÂN HỆ PHÁT TÁN EMAIL (OUTBOUND - 6 VỊ TRÍ)
+    Core->>Brevo: 1. Phát thư xác nhận tiếp nhận vé tự động (ACK Email)
+    Brevo-->>Khach: Nhận email thông báo mã vé TK-XXXX & Cam kết SLA 1h
+    
+    opt Nếu là Sự Cố Khẩn Cấp P1
+        Core->>Brevo: 2. Phát email Báo Động Đỏ KTV Trực Nhật
+        Brevo-->>NoiBo: Nhận email giao việc khẩn cấp cho KTV Nguyễn Văn An
+    end
+
+    opt Nếu là Yêu Cầu Báo Giá Sales B2B (Deal 250M)
+        Core->>Brevo: 3. Phát email Cảnh Báo Cơ Hội Bán Hàng Lead VIP
+        Brevo-->>NoiBo: Nhận email màu hổ phách [TIẾP NHẬN MỚI] Lead 95đ
+    end
+
+    opt Nếu là Hóa Đơn Đối Soát Kế Toán
+        Core->>Brevo: 4. Phát email Thông Báo Duyệt Chi (hoặc Cảnh Báo Sai Lệch)
+        Brevo-->>NoiBo: Kế toán trưởng nhận email phê duyệt thanh toán / tạm dừng
+    end
+
+    Note over NoiBo, Khach: ✍️ DUYỆT THƯ HUMAN-IN-THE-LOOP (HITL)
+    NoiBo->>Core: Xem xét bản nháp AI và bấm "Phê Duyệt & Gửi Thư" (/approval)
+    Core->>Brevo: 5. Phát email phản hồi kỹ thuật chính thức
+    Brevo-->>Khach: Nhận giải pháp khắc phục sự cố máy chủ
+
+    opt Khi Quản Trị Viên Kích Hoạt Báo Cáo (/analytics)
+        NoiBo->>Core: Bấm nút "Gửi Báo Cáo Điều Hành 24H"
+        Core->>Brevo: 6. Phát email Báo Cáo Điều Hành Executive Digest
+        Brevo-->>NoiBo: Ban Giám Đốc nhận email báo cáo đồ họa toàn diện
+    end
+```
+
+---
+
+### 3.1. Dự án NHẬN email ở đâu và bằng cơ chế nào? (Inbound Mechanism)
+Hệ thống triển khai cơ chế tiếp nhận đa kênh khép kín, bảo đảm phản ánh trọn vẹn mô hình tiếp nhận thư doanh nghiệp hiện đại:
+
+1. **Cổng Tiếp Nhận Trực Quan (Inbound Portal UI):**
+   - **Vị trí trên Web:** Nằm trực tiếp tại giao diện Hộp thư `https://email-automation-vku.onrender.com/tickets`, thông qua nút bấm **`+ Gửi Email Khách Hàng`**.
+   - **Cơ chế hoạt động:** Giao diện tích hợp thẻ chọn tệp thật (`<input type="file">`), cho phép khách hàng tải lên các tệp tài liệu thực tế (`.txt`, `.pdf`, `.png`, `.jpg`, `.log`, `.exe`). 
+   - **Tự động đọc nội dung:** Frontend sử dụng API `FileReader` đọc toàn văn nội dung tệp tin, trích xuất chuỗi văn bản và đóng gói thành payload chuẩn gửi về máy chủ.
+   
+2. **Cổng Tiếp Nhận Webhook / REST API (`POST /api/v1/inbound/process-email`):**
+   - **Endpoint xử lý:** `https://email-automation-api-a377.onrender.com/api/v1/inbound/process-email`.
+   - **Mã nguồn xử lý:** Thuộc tệp `backend/src/app.controller.ts` (phương thức `processInboundEmail`).
+   - **Cấu trúc gói tin tiếp nhận (Inbound Payload):**
+     ```json
+     {
+       "sender_name": "Lê Thị Kiều Trang",
+       "sender_email": "trangltk.24it@vku.udn.vn",
+       "subject": "[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504",
+       "body": "Kính gửi ban kỹ thuật, toàn bộ sinh viên không thể truy cập...",
+       "attachment_name": "03_nhat_ky_su_co_may_chu_P1.txt",
+       "attachment_content": "2026-10-30 08:00:00 [CRITICAL] Database pool exhausted..."
+     }
+     ```
+3. **Cơ chế tương thích với Nhà cung cấp Email Inbound (Inbound Webhook Mapping):**
+   - Endpoint trên được chuẩn hóa theo chuẩn Inbound Webhook của các dịch vụ định tuyến email hàng đầu (như SendGrid Inbound Parse, Brevo Inbound Webhook, Mailgun Route).
+   - Khi doanh nghiệp trỏ bản ghi MX Record của tên miền về máy chủ mail, toàn bộ email gửi đến `support@enterprise.com` hoặc `sales@enterprise.com` sẽ được tự động chuyển đổi thành HTTP POST gọi thẳng vào endpoint `/api/v1/inbound/process-email`.
+4. **Hòm thư tiếp nhận đại diện cho doanh nghiệp (Inbound Inbox):**
+   - Hòm thư: **`tranngo170770@gmail.com`**.
+   - Đóng vai trò là hòm thư tập trung ghi nhận toàn bộ yêu cầu, sự cố và chứng từ đến từ khách hàng.
+
+---
+
+### 3.2. Dự án GỬI email ở đâu và qua cổng nào? (Outbound Mechanism)
+Hệ thống phát tán email thực tế ra thế giới bên ngoài thông qua hạ tầng chuyên biệt, bao gồm **đúng 6 kịch bản gửi thư cụ thể**:
+
+* **Cổng phát thư hệ thống (Brevo Verified Sender):** **`kieutrangg06123@gmail.com`**.
+* **Hạ tầng truyền tải:** **Brevo HTTPS REST API (Port 443)** tại máy chủ `https://api.brevo.com/v3/smtp/email` với giao thức TLS 1.3. Phương thức này không phụ thuộc vào cổng SMTP thông thường (25, 465, 587) nên không bao giờ bị Render chặn kết nối. (Kèm cơ chế dự phòng Fallback qua Google SMTP Socket Port 465).
+* **Mã nguồn lõi thực hiện gửi thư:** `backend/src/core/mail/mail.service.ts` (phương thức `sendMail`).
+
+#### Chi tiết 6 Vị Trí Gửi Email Ra Ngoài Trong Toàn Bộ Dự Án:
+
+1. **Vị trí 1: Gửi Email Xác Nhận Tiếp Nhận Vé Tự Động (ACK Email) cho Khách hàng:**
+   - **Gửi đến:** Khách hàng (`trangltk.24it@vku.udn.vn`).
+   - **Kích hoạt tại:** Ngay khi Luồng 2 (AI Semantic Triage) phân loại thành công yêu cầu tại `backend/src/app.controller.ts`.
+   - **Tiêu đề thư:** `[XÁC NHẬN TIẾP NHẬN] Sự cố mã số TK-XXXX - Enterprise Support`.
+   - **Nội dung:** Thông báo mã tra cứu vé, phòng ban tiếp nhận và đồng hồ cam kết hạn xử lý SLA (1 giờ đối với P1, 4 giờ đối với P2).
+2. **Vị trí 2: Gửi Email Báo Động Đỏ Giao Việc cho Kỹ Thuật Viên Trực Nhật:**
+   - **Gửi đến:** Hòm thư KTV / Trực nhật (`tranngo170770@gmail.com`).
+   - **Kích hoạt tại:** Khi Luồng 3 phát hiện sự cố `Technical P1` và thuật toán Least-Busy gán cho KTV *Nguyễn Văn An*.
+   - **Tiêu đề thư:** `[ĐIỀU PHỐI VÉ P1 KHẨN CẤP] Sự cố hệ thống mã TK-XXXX đã được gán cho KTV Nguyễn Văn An`.
+   - **Nội dung:** Tóm tắt triệu chứng lỗi, phân hệ ảnh hưởng và đường link truy cập trực tiếp xử lý vé.
+3. **Vị trí 3: Gửi Email Cảnh Báo Cơ Hội Bán Hàng Lead VIP cho Bộ Phận Kinh Doanh:**
+   - **Gửi đến:** Nhân viên kinh doanh / Trưởng phòng Sales (`tranngo170770@gmail.com`).
+   - **Kích hoạt tại:** Khi Luồng 7 nhận diện yêu cầu báo giá B2B, chấm điểm Lead VIP $\ge 80/100$ điểm (kịch bản Deal 250M).
+   - **Tiêu đề thư:** `[TIẾP NHẬN MỚI] CƠ HỘI BÁN HÀNG: Trần Văn Giám Đốc (Tập đoàn ABC) - Deal: 250.000.000 đ`.
+   - **Nội dung:** Thiết kế đồ họa màu hổ phách chuẩn giao dịch, đính kèm số điện thoại, ngân sách dự kiến và nhắc nhở liên hệ trong 4 giờ. Email gắn tiêu đề `X-Internal-System: Auto-Helpdesk` để vào thẳng tab **Hộp thư chính (Primary)**.
+4. **Vị trí 4: Gửi Email Thông Báo Duyệt Chi / Cảnh Báo Hóa Đơn cho Kế Toán Trưởng:**
+   - **Gửi đến:** Kế toán trưởng (`tranngo170770@gmail.com`).
+   - **Kích hoạt tại:** Khi Luồng 9 hoàn tất bóc tách OCR và đối soát số học hóa đơn.
+   - **Trường hợp Khớp 100%:** Tiêu đề `[DUYỆT CHI HÓA ĐƠN] Phê duyệt thanh toán hóa đơn hợp lệ HD-2026-001` $\rightarrow$ Thông báo chứng từ hợp lệ, sẵn sàng chuyển khoản.
+   - **Trường hợp Sai lệch số học:** Tiêu đề `[CẢNH BÁO KIỂM TOÁN] Tạm dừng giải ngân - Phát hiện sai lệch số học trên hóa đơn HD-FAKE-8888` $\rightarrow$ Báo động đỏ chênh lệch 4.000.000 đ, yêu cầu rà soát đơn vị phát hành.
+5. **Vị trí 5: Gửi Email Phản Hồi Chính Thức Giải Pháp Kỹ Thuật (Human-in-the-Loop):**
+   - **Gửi đến:** Khách hàng (`trangltk.24it@vku.udn.vn`).
+   - **Kích hoạt tại:** Trang **Duyệt Thư ([/approval](https://email-automation-vku.onrender.com/approval))** khi chuyên viên đọc thư nháp AI và bấm nút **`Phê Duyệt & Gửi Thư`** (hoặc nút **`Gửi Lại Email`**).
+   - **Tiêu đề thư:** `[PHẢN HỒI KỸ THUẬT] Hướng dẫn khắc phục sự cố TK-XXXX`.
+   - **Nội dung:** Toàn văn giải pháp xử lý tối ưu Connection Pool PostgreSQL và khởi động lại Nginx Reverse Proxy do AI RAG soạn thảo kết hợp chuyên viên phê duyệt. Đồng thời tự động cập nhật vé sang `RESOLVED`.
+6. **Vị trí 6: Gửi Email Báo Cáo Điều Hành 24H (Executive Digest) cho Ban Giám Đốc:**
+   - **Gửi đến:** Ban Giám Đốc điều hành (`tranngo170770@gmail.com`).
+   - **Kích hoạt tại:** Trang **Báo Cáo ([/analytics](https://email-automation-vku.onrender.com/analytics))** khi bấm nút tím **`🚀 Gửi Báo Cáo Điều Hành 24H`**.
+   - **Tiêu đề thư:** `[EXECUTIVE DIGEST 24H] Báo Cáo Tình Hình Vận Hành Doanh Nghiệp & Tỷ Lệ SLA`.
+   - **Nội dung:** Tổng kết toàn diện bức tranh kinh doanh và kỹ thuật trong 24 giờ: Tổng số vé tiếp nhận, Tỷ lệ đạt SLA (100%), Bảng xếp hạng KTV xuất sắc, Tổng doanh số CRM và Cảnh báo mối đe dọa an ninh đã cách ly.
+
+---
+
+### 3.3. Bảng tra cứu vị trí mã nguồn xử lý Gửi & Nhận Mail (Source Code Mapping)
+
+| Chiều | Hành vi nghiệp vụ | Endpoint / Hàm xử lý trong Mã Nguồn | Hòm thư nguồn | Hòm thư đích | Giao thức truyền tải |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 📥 **NHẬN** | Tiếp nhận thư & tệp đính kèm Inbound | `POST /api/v1/inbound/process-email`<br>tại `backend/src/app.controller.ts` | Khách hàng bất kỳ | `tranngo170770@gmail.com` | HTTP POST / Form-data JSON |
+| 📤 **GỬI 1** | Phát email xác nhận tiếp nhận vé (ACK) | `sendTicketAckEmail()`<br>tại `backend/src/app.controller.ts` | `kieutrangg06123@gmail.com` | `trangltk.24it@vku.udn.vn` | Brevo HTTPS API (Port 443) |
+| 📤 **GỬI 2** | Báo động đỏ KTV sự cố P1 | `notifyEnterpriseNewTicket()`<br>tại `backend/src/core/mail/mail.service.ts` | `kieutrangg06123@gmail.com` | `tranngo170770@gmail.com` | Brevo HTTPS API (Port 443) |
+| 📤 **GỬI 3** | Cảnh báo Cơ hội Bán hàng Lead VIP | `notifyNewCrmLead()`<br>tại `backend/src/core/mail/mail.service.ts` | `kieutrangg06123@gmail.com` | `tranngo170770@gmail.com` | Brevo HTTPS API (Port 443) |
+| 📤 **GỬI 4** | Thông báo duyệt chi / cảnh báo hóa đơn | `notifyInvoiceValidated()` / `Alert()`<br>tại `backend/src/core/mail/mail.service.ts` | `kieutrangg06123@gmail.com` | `tranngo170770@gmail.com` | Brevo HTTPS API (Port 443) |
+| 📤 **GỬI 5** | Duyệt thư HITL gửi giải pháp cho khách | `POST /api/v1/drafts/:id/approve`<br>tại `backend/src/modules/drafts/drafts.controller.ts` | `kieutrangg06123@gmail.com` | `trangltk.24it@vku.udn.vn` | Brevo HTTPS API (Port 443) |
+| 📤 **GỬI 6** | Báo cáo điều hành 24H Ban Giám Đốc | `POST /api/v1/analytics/send-digest`<br>tại `backend/src/modules/analytics/analytics.controller.ts` | `kieutrangg06123@gmail.com` | `tranngo170770@gmail.com` | Brevo HTTPS API (Port 443) |
+
+---
+
+### 3.4. Định danh 3 Hòm thư thực nghiệm chuẩn và vai trò khép kín
 1. **`trangltk.24it@vku.udn.vn` (Khách hàng bên ngoài - External Customer):**
-   - Đại diện cho sinh viên, khách hàng hoặc đối tác bên ngoài gửi yêu cầu vào hệ thống.
+   - Đóng vai trò là khách hàng hoặc sinh viên gửi yêu cầu vào hệ thống.
    - Nhận email xác nhận tự động (ACK Email) với mã tra cứu vé và thời hạn SLA.
    - Nhận email trả lời giải pháp chính thức sau khi chuyên viên bấm phê duyệt trên trang `/approval`.
-
 2. **`kieutrangg06123@gmail.com` (Cổng phát thư hệ thống - Brevo Verified Sender):**
    - Đóng vai trò là System Mailer đã qua xác thực SPF/DKIM trên nền tảng Brevo.
    - Thay mặt doanh nghiệp thực hiện phát tán toàn bộ các email giao dịch, email xác nhận, cảnh báo nội bộ và báo cáo điều hành ra thế giới bên ngoài.
-
 3. **`tranngo170770@gmail.com` (Nhân sự nội bộ / Quản lý / Ban Giám Đốc):**
    - **Kỹ thuật viên trực nhật:** Nhận email giao việc điều phối vé khi có sự cố kỹ thuật P1.
    - **Bộ phận Bán hàng:** Nhận email thông báo Lead VIP (Deal 250M, điểm 95/100).
@@ -445,6 +578,25 @@ curl -i https://email-automation-api-a377.onrender.com/api/v1/health
 > 1. Sử dụng tên người gửi định danh rõ ràng: `Enterprise Internal Alert` thay vì các tên chung chung.
 > 2. Chuẩn hóa tiêu đề theo cú pháp giao dịch nội bộ: `[TIẾP NHẬN MỚI] ...` hoặc `[CẢNH BÁO NỘI BỘ] ...`, loại bỏ các từ nhạy cảm với bộ lọc rác.
 > 3. Bổ sung các Custom Headers chuẩn công nghiệp trong gói tin MIME: `X-Internal-System: Auto-Helpdesk` và `Auto-Submitted: auto-generated`. Nhờ vậy, email được các máy chủ thư điện tử nhận diện là thông báo luồng công việc nội bộ và đưa thẳng vào hộp thư đến chính."*
+
+---
+
+### 💬 Câu 7: Hệ thống nhận email từ đâu và gửi email ở những vị trí nào? Tại sao nhóm dùng mô hình Inbound Webhook / Portal thay vì cơ chế IMAP Polling liên tục?
+**🎯 Cách trả lời đạt điểm 10:**  
+> *"Dạ thưa Thầy/Cô, đây là điểm mấu chốt thể hiện sự am hiểu kiến trúc hệ thống phân tán và bảo mật hiện đại của nhóm:
+> 
+> **1. Về chiều NHẬN Email (Inbound):**
+> - Thay vì dùng giao thức cổ điển IMAP Polling (phải mở kết nối liên tục hoặc định kỳ 30s quét hộp thư một lần làm lãng phí RAM, CPU và dễ bị Google khóa tài khoản do quét liên tục), hệ thống áp dụng kiến trúc **Event-Driven Webhook / Inbound Gateway** qua endpoint `POST /api/v1/inbound/process-email` và Cổng tiếp nhận Inbound Portal trực quan.
+> - Khi khách hàng gửi thư hoặc tệp đính kèm, sự kiện được đẩy (Push) tức thì theo thời gian thực tới Backend. Mô hình này hoàn toàn tương thích với các giải pháp Mail Gateway doanh nghiệp (SendGrid Inbound Parse, Brevo Inbound Webhook) khi trỏ MX Record của domain.
+> 
+> **2. Về chiều GỬI Email (Outbound):**
+> - Hệ thống không dùng SMTP Socket truyền thống vì bị Render Free chặn cổng, mà phát tán 100% qua **Brevo HTTPS REST API (Port 443)** tại 6 điểm nghiệp vụ rõ ràng:
+>   1. Gửi email xác nhận tiếp nhận vé tự động (ACK) cho Khách hàng (`trangltk.24it@vku.udn.vn`).
+>   2. Báo động đỏ sự cố P1 khẩn cấp cho Kỹ thuật viên trực nhật (`tranngo170770@gmail.com`).
+>   3. Cảnh báo Cơ hội Bán hàng Lead VIP (màu hổ phách) cho nhân viên Kinh doanh (`tranngo170770@gmail.com`).
+>   4. Thông báo duyệt chi hoặc cảnh báo tạm dừng thanh toán hóa đơn cho Kế toán trưởng (`tranngo170770@gmail.com`).
+>   5. Phát phản hồi giải pháp kỹ thuật chính thức cho Khách hàng sau khi Quản trị viên duyệt Human-in-the-Loop trên trang `/approval`.
+>   6. Báo cáo Điều hành 24H (Executive Digest) cho Ban Giám Đốc trên trang `/analytics`."*
 
 ---
 *Báo cáo toàn thư được cập nhật và đồng bộ hoàn tất với toàn bộ mã nguồn, API và cơ sở dữ liệu trên môi trường Cloud Host của Trường Đại học Công nghệ Thông tin & Truyền thông Việt - Hàn (VKU).*
