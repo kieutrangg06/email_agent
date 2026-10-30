@@ -623,19 +623,20 @@ export class AppController {
   }
 
   async seedComprehensiveMockData() {
-    // 1. Dọn dẹp dữ liệu giao dịch cũ
-    await this.db.query(`
-      TRUNCATE TABLE email_quarantine_vault RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE email_triage_logs RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE ticket_comments RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE email_drafts RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE tickets RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE crm_deals RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE crm_customers RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE finance_invoices RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE daily_summaries RESTART IDENTITY CASCADE;
-      TRUNCATE TABLE system_audit_logs RESTART IDENTITY CASCADE;
-    `);
+    try {
+      // 1. Dọn dẹp dữ liệu giao dịch cũ
+      await this.db.query(`
+        TRUNCATE TABLE email_quarantine_vault RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE email_triage_logs RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE ticket_comments RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE email_drafts RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE tickets RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE crm_deals RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE crm_customers RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE finance_invoices RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE daily_summaries RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE system_audit_logs RESTART IDENTITY CASCADE;
+      `);
 
     // 2. Điểm uy tín người gửi (email_senders_reputation)
     await this.db.query(`
@@ -658,20 +659,25 @@ export class AppController {
 
     // 3. Kho cách ly an ninh (email_quarantine_vault) - Đa ngày
     await this.db.query(`
-      INSERT INTO email_quarantine_vault (sender_email, subject, reason, severity_score, threat_type, file_name, created_at) VALUES
-      ('trojan@malware-drop.com', '[KHẨN] Bản cập nhật bảo mật hệ thống e-Banking', 'Phát hiện tệp tin thực thi nhị phân nguy hiểm (.exe)', 98.5, 'MALWARE', '05_ma_doc_trojan_gia_lap.exe', NOW() - INTERVAL '12 days'),
-      ('spammer@evil-crypto.xyz', 'Nhận ngay 50.000 USDT miễn phí từ quỹ đầu tư', 'Nội dung chứa liên kết lừa đảo tài chính và giả mạo thương hiệu', 95.0, 'PHISHING', 'airdrop_claim.html', NOW() - INTERVAL '8 days'),
-      ('promo@bet888-casino.online', 'Tặng 100% giá trị nạp đầu tuần cá cược bóng đá', 'Nội dung spam quảng cáo cờ bạc trái phép', 89.0, 'SPAM', NULL, NOW() - INTERVAL '4 days'),
-      ('ransom@dark-crypto.ru', 'Thông báo khóa dữ liệu máy chủ doanh nghiệp', 'Mã độc tống tiền tệp đính kèm macro độc hại', 99.0, 'RANSOMWARE', 'invoice_encrypted.docm', NOW() - INTERVAL '1 days');
+      INSERT INTO email_quarantine_vault (sender_email, subject, quarantine_reason, raw_payload, created_at) VALUES
+      ('trojan@malware-drop.com', '[KHẨN] Bản cập nhật bảo mật hệ thống e-Banking', 'Phát hiện tệp tin thực thi nhị phân nguy hiểm 05_ma_doc_trojan_gia_lap.exe', '{"threat": "MALWARE", "severity": 98.5}'::jsonb, NOW() - INTERVAL '12 days'),
+      ('spammer@evil-crypto.xyz', 'Nhận ngay 50.000 USDT miễn phí từ quỹ đầu tư', 'Nội dung chứa liên kết lừa đảo tài chính và giả mạo thương hiệu', '{"threat": "PHISHING", "severity": 95.0}'::jsonb, NOW() - INTERVAL '8 days'),
+      ('promo@bet888-casino.online', 'Tặng 100% giá trị nạp đầu tuần cá cược bóng đá', 'Nội dung spam quảng cáo cờ bạc trái phép', '{"threat": "SPAM", "severity": 89.0}'::jsonb, NOW() - INTERVAL '4 days'),
+      ('ransom@dark-crypto.ru', 'Thông báo khóa dữ liệu máy chủ doanh nghiệp', 'Mã độc tống tiền tệp đính kèm macro độc hại invoice_encrypted.docm', '{"threat": "RANSOMWARE", "severity": 99.0}'::jsonb, NOW() - INTERVAL '1 days');
     `);
 
     // 4. Kỹ thuật viên (support_agents)
     await this.db.query(`
-      INSERT INTO support_agents (full_name, name, email, department, active_tickets_count, is_active) VALUES
-      ('Nguyễn Văn An', 'Nguyễn Văn An', 'tranngo170770@gmail.com', 'Technical', 2, true),
-      ('Trần Hoàng Bách', 'Trần Hoàng Bách', 'tranngo170770@gmail.com', 'Technical', 1, true),
-      ('Lê Thị Mai', 'Lê Thị Mai', 'tranngo170770@gmail.com', 'Technical', 1, true)
-      ON CONFLICT (email) DO UPDATE SET
+      INSERT INTO support_agents (name, full_name, email, category, status, is_active, active_tickets_count) VALUES
+      ('Nguyễn Văn An', 'Nguyễn Văn An', 'tranngo170770@gmail.com', 'Technical', 'AVAILABLE', true, 2),
+      ('Trần Hoàng Bách', 'Trần Hoàng Bách', 'tranngo170770@gmail.com', 'Technical', 'AVAILABLE', true, 1),
+      ('Lê Thị Mai', 'Lê Thị Mai', 'tranngo170770@gmail.com', 'Sales', 'AVAILABLE', true, 1),
+      ('Phạm Đức Trọng', 'Phạm Đức Trọng', 'tranngo170770@gmail.com', 'Finance', 'AVAILABLE', true, 0),
+      ('Đỗ Thúy Vy', 'Đỗ Thúy Vy', 'tranngo170770@gmail.com', 'General', 'AVAILABLE', true, 0)
+      ON CONFLICT (name) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = EXCLUDED.full_name,
+        is_active = EXCLUDED.is_active,
         active_tickets_count = EXCLUDED.active_tickets_count;
     `);
 
@@ -721,13 +727,19 @@ export class AppController {
 
     // 7. Bản nháp duyệt thư HITL (email_drafts) - Có PENDING_APPROVAL, SENT, REJECTED
     await this.db.query(`
-      INSERT INTO email_drafts (ticket_code, recipient_email, sender_name, subject, proposed_subject, proposed_body, html_content, confidence_score, status, reviewed_by, reviewed_at, sent_at, created_at) VALUES
+      INSERT INTO email_drafts (
+        ticket_code, recipient_email, sender_name, subject, proposed_subject, proposed_body,
+        html_content, original_subject, original_body, confidence_score, status,
+        reviewed_by, reviewed_at, sent_at, created_at
+      ) VALUES
       (
         'TK-VKU-7731', 'monitor@cloud-aws.internal', 'Hệ thống Giám sát AWS',
         '[PHẢN HỒI KỸ THUẬT] Khắc phục sự cố đứt cổng thanh toán VNPay TK-VKU-7731',
         '[PHẢN HỒI KỸ THUẬT] Khắc phục sự cố đứt cổng thanh toán VNPay TK-VKU-7731',
         '<p>Kính gửi quý đối tác, Đội ngũ kỹ thuật đã chuyển đổi sang cổng thanh toán dự phòng MoMo/ZaloPay và tái lập kết nối VNPay Gateway thành công.</p>',
         '<p>Kính gửi quý đối tác, Đội ngũ kỹ thuật đã chuyển đổi sang cổng thanh toán dự phòng MoMo/ZaloPay và tái lập kết nối VNPay Gateway thành công.</p>',
+        '[CRITICAL P1] Đứt kết nối cổng thanh toán trực tuyến VNPay Gateway',
+        'Cổng thanh toán báo lỗi timeout liên tục, giao dịch thất bại 100%.',
         98.8, 'PENDING_APPROVAL', NULL, NULL, NULL, NOW() - INTERVAL '10 minutes'
       ),
       (
@@ -736,6 +748,8 @@ export class AppController {
         '[GIẢI ĐÁP THỦ TỤC] Hướng dẫn làm lại thẻ từ và đăng ký gửi xe TK-VKU-9157',
         '<p>Kính gửi bạn Nguyễn Thị Thảo, Bạn vui lòng mang CCCD đến Phòng 102 - Tòa Hành chính để nhận thẻ từ mới trong giờ hành chính. Biển số xe điền vào mẫu đính kèm.</p>',
         '<p>Kính gửi bạn Nguyễn Thị Thảo, Bạn vui lòng mang CCCD đến Phòng 102 - Tòa Hành chính để nhận thẻ từ mới trong giờ hành chính. Biển số xe điền vào mẫu đính kèm.</p>',
+        '[HỎI THỦ TỤC] Hướng dẫn làm lại thẻ từ và đăng ký gửi xe máy',
+        'Kính gửi phòng Hành chính, tôi là nhân viên mới cần hướng dẫn làm lại thẻ từ ra vào tòa nhà.',
         96.5, 'PENDING_APPROVAL', NULL, NULL, NULL, NOW() - INTERVAL '5 minutes'
       ),
       (
@@ -744,6 +758,8 @@ export class AppController {
         '[PHẢN HỒI KỸ THUẬT] Hướng dẫn khắc phục sự cố TK-VKU-1269',
         '<p>Kính gửi quý khách Lê Thị Kiều Trang, Đội ngũ Kỹ thuật đã mở rộng Connection Pool PostgreSQL và khởi động lại Nginx Reverse Proxy. Cổng đăng ký học phần đã hoạt động ổn định 100%.</p>',
         '<p>Kính gửi quý khách Lê Thị Kiều Trang, Đội ngũ Kỹ thuật đã mở rộng Connection Pool PostgreSQL và khởi động lại Nginx Reverse Proxy. Cổng đăng ký học phần đã hoạt động ổn định 100%.</p>',
+        '[SỰ CỐ KHẨN CẤP] Cổng đăng ký học phần DACS4 VKU bị lỗi 504',
+        'Toàn bộ sinh viên không thể truy cập đăng ký môn học, máy chủ báo lỗi 504.',
         98.8, 'SENT', 'tranngo170770@gmail.com', NOW() - INTERVAL '15 minutes', NOW() - INTERVAL '15 minutes', NOW() - INTERVAL '1 hour'
       ),
       (
@@ -752,6 +768,8 @@ export class AppController {
         '[PHẢN HỒI KỸ THUẬT] Tối ưu hóa Redis Cache TK-VKU-4826',
         '<p>Đã tăng kích thước Redis maxmemory lên 16GB và kích hoạt chính sách allkeys-lru để giải phóng bộ nhớ.</p>',
         '<p>Đã tăng kích thước Redis maxmemory lên 16GB và kích hoạt chính sách allkeys-lru để giải phóng bộ nhớ.</p>',
+        '[CẢNH BÁO KỸ THUẬT] Cụm bộ nhớ cache Redis quá tải 95% CPU',
+        'Hệ thống hàng đợi tin nhắn đang bị nghẽn do Redis chạm ngưỡng RAM tối đa.',
         94.0, 'SENT', 'tranngo170770@gmail.com', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '3 hours'
       ),
       (
@@ -760,6 +778,8 @@ export class AppController {
         '[TỪ CHỐI] Yêu cầu không hợp lệ TK-VKU-0099',
         '<p>Nội dung thư không chứa yêu cầu hỗ trợ hợp lệ theo quy chế công ty.</p>',
         '<p>Nội dung thư không chứa yêu cầu hỗ trợ hợp lệ theo quy chế công ty.</p>',
+        '[SPAM] Yêu cầu hỗ trợ giả mạo',
+        'Thư spam quảng cáo không có nội dung nghiệp vụ.',
         60.0, 'REJECTED', 'tranngo170770@gmail.com', NOW() - INTERVAL '2 days', NULL, NOW() - INTERVAL '2 days'
       );
     `);
@@ -805,11 +825,47 @@ export class AppController {
         company_name = EXCLUDED.company_name,
         phone = EXCLUDED.phone;
 
-      INSERT INTO crm_deals (customer_id, deal_name, expected_budget, stage, probability, close_date, notes, created_at) VALUES
-      (1, 'Hợp đồng Giải pháp Email AI Automation Enterprise (100 License)', 250000000, 'PROPOSAL_SENT', 80, CURRENT_DATE + INTERVAL '15 days', 'Lead VIP 95 điểm, đã gửi báo giá chi tiết', NOW() - INTERVAL '5 days'),
-      (2, 'Gói Tự Động Hóa Chăm Sóc Khách Hàng CRM & Helpdesk AI', 180000000, 'QUALIFIED', 60, CURRENT_DATE + INTERVAL '20 days', 'Khách hàng có nhu cầu mở rộng chi nhánh', NOW() - INTERVAL '4 days'),
-      (3, 'Dự Án Triển Khai Hệ Thống Email On-Premise Tích Hợp RAG AI', 320000000, 'NEGOTIATION', 90, CURRENT_DATE + INTERVAL '10 days', 'Đang đàm phán điều khoản hợp đồng thanh toán', NOW() - INTERVAL '3 days'),
-      (4, 'Gói Khởi Nghiệp AI Email Automation (20 License)', 85000000, 'WON', 100, CURRENT_DATE - INTERVAL '1 days', 'Đã ký kết hợp đồng và nghiệm thu thành công', NOW() - INTERVAL '1 days');
+      INSERT INTO crm_deals (customer_id, deal_name, expected_budget, stage, campaign_tag, assigned_sales_rep, followup_count, created_at) VALUES
+      (
+        (SELECT id FROM crm_customers WHERE email = 'director@vietcorp.vn' LIMIT 1),
+        'Hợp đồng Giải pháp Email AI Automation Enterprise (100 License)',
+        250000000,
+        'QUOTED',
+        'ENTERPRISE_VIP',
+        'Lê Thị Bích (tranngo170770@gmail.com)',
+        1,
+        NOW() - INTERVAL '5 days'
+      ),
+      (
+        (SELECT id FROM crm_customers WHERE email = 'ceo@fpt-software.com' LIMIT 1),
+        'Gói Tự Động Hóa Chăm Sóc Khách Hàng CRM & Helpdesk AI',
+        180000000,
+        'NEW_INQUIRY',
+        'PARTNER',
+        'Nguyễn Văn An',
+        0,
+        NOW() - INTERVAL '4 days'
+      ),
+      (
+        (SELECT id FROM crm_customers WHERE email = 'thao.dang@asiaproperties.vn' LIMIT 1),
+        'Dự Án Triển Khai Hệ Thống Email On-Premise Tích Hợp RAG AI',
+        320000000,
+        'QUOTED',
+        'ENTERPRISE_VIP',
+        'Lê Thị Bích',
+        2,
+        NOW() - INTERVAL '3 days'
+      ),
+      (
+        (SELECT id FROM crm_customers WHERE email = 'long.le@logistics-viet.com' LIMIT 1),
+        'Gói Khởi Nghiệp AI Email Automation (20 License)',
+        85000000,
+        'WON',
+        'INBOUND',
+        'Nguyễn Văn An',
+        1,
+        NOW() - INTERVAL '1 days'
+      );
     `);
 
     // 10. Hóa đơn tài chính & OCR (finance_invoices) - Khớp 100% và Sai lệch
@@ -840,22 +896,29 @@ export class AppController {
       ('EXECUTIVE_DIGEST_GENERATED', 'DAILY_24H', 'Khởi tạo thành công bản báo cáo điều hành 24h định kỳ gửi Ban Giám Đốc', '{"sla_rate": "100%"}'::jsonb, 'EXECUTIVE_REPORT', NOW() - INTERVAL '2 hours');
     `);
 
-    return {
-      status: 'success',
-      message: '✅ Khởi tạo thành công 100% bộ dữ liệu Mock toàn diện 14 ngày (2 tuần), bao quát đủ 9 Micro-Workflows và tất cả các nhánh nghiệp vụ!',
-      data_summary: {
-        time_range: '14 ngày (17/10/2026 -> 30/10/2026)',
-        total_triage_logs: 16,
-        total_tickets: 5,
-        total_drafts_hitl: 5,
-        total_daily_summaries: 14,
-        total_crm_customers: 4,
-        total_crm_deals: 4,
-        total_invoices_ocr: 5,
-        total_quarantine_threats: 4,
-        total_audit_logs: 6
-      },
-      timestamp: new Date().toISOString(),
-    };
+      return {
+        status: 'success',
+        message: '✅ Khởi tạo thành công 100% bộ dữ liệu Mock toàn diện 14 ngày (2 tuần), bao quát đủ 9 Micro-Workflows và tất cả các nhánh nghiệp vụ!',
+        data_summary: {
+          time_range: '14 ngày (17/10/2026 -> 30/10/2026)',
+          total_triage_logs: 16,
+          total_tickets: 5,
+          total_drafts_hitl: 5,
+          total_daily_summaries: 14,
+          total_crm_customers: 4,
+          total_crm_deals: 4,
+          total_invoices_ocr: 5,
+          total_quarantine_threats: 4,
+          total_audit_logs: 6
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (err: any) {
+      return {
+        status: 'error',
+        message: err.message,
+        stack: err.stack,
+      };
+    }
   }
 }
