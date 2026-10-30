@@ -410,14 +410,16 @@ export class AppController {
       const invRes = await this.db.query(
         `INSERT INTO finance_invoices (
           invoice_number, seller_tax_id, seller_name, buyer_name, buyer_email,
-          issue_date, subtotal, vat_amount, total_amount, math_status, file_storage_path
-        ) VALUES ($1, '0401987654', 'Công ty CP Phần Mềm VKU', 'Công ty TNHH Giải Pháp Số', $2, CURRENT_DATE, $3, $4, $5, $6, $7)
+          issue_date, subtotal, vat_amount, total_amount, math_status, file_storage_path, created_at
+        ) VALUES ($1, '0401987654', 'Công ty CP Phần Mềm VKU', 'Công ty TNHH Giải Pháp Số', $2, CURRENT_DATE, $3, $4, $5, $6, $7, NOW())
         ON CONFLICT (invoice_number) DO UPDATE SET
+          issue_date = CURRENT_DATE,
           subtotal = EXCLUDED.subtotal,
           vat_amount = EXCLUDED.vat_amount,
           total_amount = EXCLUDED.total_amount,
           math_status = EXCLUDED.math_status,
-          file_storage_path = EXCLUDED.file_storage_path
+          file_storage_path = EXCLUDED.file_storage_path,
+          created_at = NOW()
         RETURNING *;`,
         [invoiceNumber, senderEmail, subtotal, vat, total, mathStatus, attachmentName || '01_hoa_don_hop_le_VALIDATED.txt']
       );
@@ -450,13 +452,50 @@ export class AppController {
         ]
       ).catch(e => console.warn('Insert system_audit_logs error:', e.message));
 
-      // Nếu lệch tiền ➔ Gửi email cảnh báo gian lận cho Kế toán trưởng
+      // Nếu lệch tiền ➔ Gửi email cảnh báo gian lận cho Kế toán trưởng & bên phát hành
       if (!isMathValid) {
         await this.mailService.sendInvoiceDiscrepancyAlert(invoice, 'tranngo170770@gmail.com')
           .catch(e => console.warn('Mail Finance err:', e.message));
         emailsDispatched.push(`Cảnh báo gian lận số học gửi Kế toán trưởng (tranngo170770@gmail.com)`);
+
+        await this.mailService.sendMail(
+          senderEmail,
+          `[THÔNG BÁO TẠM DỪNG THANH TOÁN] Hóa đơn ${invoiceNumber} có sai lệch số học`,
+          `
+            <p>Kính gửi quý đối tác <b>${senderName}</b>,</p>
+            <p>Phòng Tài Chính - Kế Toán thông báo hóa đơn <b>${invoiceNumber}</b> đang bị tạm dừng thanh toán do hệ thống AI OCR phát hiện sai lệch số học:</p>
+            <p>Tiền hàng (<b>${subtotal.toLocaleString('vi-VN')} đ</b>) + Thuế VAT (<b>${vat.toLocaleString('vi-VN')} đ</b>) ≠ Tổng thanh toán ghi trên hóa đơn (<b>${total.toLocaleString('vi-VN')} đ</b>).</p>
+            <p style="color:#dc2626;font-weight:bold;">Chênh lệch kê khống: +${discrepancy.toLocaleString('vi-VN')} đ</p>
+            <p>Kính đề nghị quý đối tác kiểm tra lại số liệu và cung cấp hóa đơn điều chỉnh.</p>
+            <p>Trân trọng,<br/><b>Ban Tài Chính Kế Toán Doanh Nghiệp</b></p>
+          `,
+          'Enterprise Finance Department'
+        ).catch(e => console.warn('Mail customer discrepancy err:', e.message));
+        emailsDispatched.push(`Thông báo tạm dừng thanh toán gửi Bên phát hành (${senderEmail})`);
       } else {
-        // Gửi email xác nhận hóa đơn hợp lệ cho khách hàng / bên phát hành
+        // 1. Gửi thông báo phê duyệt thanh toán nội bộ cho Kế toán trưởng (tranngo170770@gmail.com)
+        await this.mailService.sendMail(
+          'tranngo170770@gmail.com',
+          `[DUYỆT CHI HÓA ĐƠN] Chứng từ ${invoiceNumber} đối soát khớp 100% (${total.toLocaleString('vi-VN')} đ)`,
+          `
+            <div style="font-family:sans-serif;padding:10px;">
+              <h2 style="color:#16a34a;margin-top:0;">✅ Thông Báo Hóa Đơn Khớp 100% Đủ Điều Kiện Thanh Toán</h2>
+              <p>Hệ thống AI OCR vừa đối soát tự động chứng từ từ <b>${senderName}</b> (${senderEmail}):</p>
+              <table width="100%" cellpadding="8" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin:15px 0;">
+                <tr><td style="color:#64748b;">Số Hóa Đơn:</td><td><b style="font-family:monospace;color:#0f172a;">${invoiceNumber}</b></td></tr>
+                <tr><td style="color:#64748b;">1. Tiền hàng:</td><td><b>${subtotal.toLocaleString('vi-VN')} đ</b></td></tr>
+                <tr><td style="color:#64748b;">2. Thuế VAT:</td><td><b>${vat.toLocaleString('vi-VN')} đ</b></td></tr>
+                <tr><td style="color:#64748b;">3. Tổng thanh toán:</td><td style="color:#16a34a;font-weight:bold;font-size:15px;">${total.toLocaleString('vi-VN')} đ</td></tr>
+                <tr><td style="color:#64748b;">Kết quả kiểm toán:</td><td><span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:12px;">KHỚP 100% (VALIDATED)</span></td></tr>
+              </table>
+              <p style="color:#475569;font-size:13px;">Chứng từ đã được chuyển sang danh sách sẵn sàng quyết toán.</p>
+            </div>
+          `,
+          'Enterprise Internal Alert'
+        ).catch(e => console.warn('Mail internal finance alert err:', e.message));
+        emailsDispatched.push(`Thông báo duyệt chi gửi Kế toán trưởng (tranngo170770@gmail.com)`);
+
+        // 2. Gửi email xác nhận hóa đơn hợp lệ cho khách hàng / bên phát hành
         await this.mailService.sendMail(
           senderEmail,
           `[XÁC NHẬN HÓA ĐƠN HỢP LỆ] Đã tiếp nhận chứng từ ${invoiceNumber}`,
