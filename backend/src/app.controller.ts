@@ -195,16 +195,6 @@ export class AppController {
     // NHÁNH 1: TECHNICAL & GENERAL ➔ KHỞI TẠO VÉ & DỰ THẢO PHẢN HỒI AI
     // -------------------------------------------------------------------------
     if (category === 'Technical' || category === 'General') {
-      // Gửi email xác nhận tiếp nhận gửi Khách hàng
-      await this.mailService.confirmCustomerTicketReceived({
-        ticket_code: code,
-        sender_email: senderEmail,
-        title: subject,
-        priority,
-        assigned_to: 'Nguyễn Văn An',
-      }).catch(e => console.warn('Mail confirmation err:', e.message));
-      emailsDispatched.push(`Thư xác nhận tiếp nhận tự động gửi Khách hàng (${senderEmail})`);
-
       // Lưu Ticket (trạng thái OPEN để hiển thị ngay trong danh sách lọc)
       const tRes = await this.db.query(
         `INSERT INTO tickets (
@@ -215,11 +205,6 @@ export class AppController {
         [code, senderEmail, subject, textBody, category, priority, slaDeadline]
       );
       const savedTicket = tRes.rows[0];
-
-      // Gửi email giao việc cho Kỹ thuật viên / Chuyên viên hỗ trợ
-      await this.mailService.notifyEnterpriseNewTicket(savedTicket)
-        .catch(e => console.warn('Mail KTV err:', e.message));
-      emailsDispatched.push(`Thông báo giao việc Kỹ thuật viên (tranngo170770@gmail.com)`);
 
       // AI RAG sinh bản nháp HTML
       let proposedSubject = '';
@@ -334,24 +319,8 @@ export class AppController {
       deal.company_name = companyName;
       deal.phone = phone;
 
-      // 1. Gửi email thông báo Lead VIP cho chuyên viên Sales (tranngo170770@gmail.com)
-      await this.mailService.notifySalesNewLead(cust, deal, 'tranngo170770@gmail.com')
-        .catch(e => console.warn('Mail Sales err:', e.message));
-      emailsDispatched.push(`Thông báo Cơ hội Khách hàng VIP gửi Chuyên viên Sales (tranngo170770@gmail.com)`);
-
-      // 2. Gửi thư xác nhận tiếp nhận báo giá cho khách hàng
-      await this.mailService.sendMail(
-        senderEmail,
-        `[TIẾP NHẬN YÊU CẦU BÁO GIÁ] Cảm ơn quý khách ${senderName} đã quan tâm giải pháp`,
-        `
-          <p>Kính gửi quý khách <b>${senderName}</b> (${companyName}),</p>
-          <p>Bộ phận Kinh Doanh đã nhận được yêu cầu tư vấn &amp; báo giá gói giải pháp của quý khách.</p>
-          <p>Chuyên viên tư vấn giải pháp <b>Lê Thị Bích</b> sẽ trực tiếp liên hệ lại qua số điện thoại <b>${phone}</b> hoặc email trong vòng 2 giờ làm việc để gửi hồ sơ đề xuất &amp; lịch demo.</p>
-          <p>Trân trọng cảm ơn quý khách!<br/><b>Phòng Phát Triển Kinh Doanh Enterprise</b></p>
-        `,
-        'Enterprise Sales Team'
-      ).catch(e => console.warn('Mail customer sales confirm err:', e.message));
-      emailsDispatched.push(`Thư xác nhận tiếp nhận báo giá gửi Khách hàng (${senderEmail})`);
+      // Chuẩn đồ án: Luồng 7 (Node 10) trên n8n tự động gửi email thông báo Sales Lead qua SMTP
+      emailsDispatched.push(`Cơ hội kinh doanh mới đã được ghi nhận trên CRM Pipeline`);
 
       branchResult = {
         type: 'SALES_LEAD_DISCOVERY',
@@ -454,64 +423,8 @@ export class AppController {
         ]
       ).catch(e => console.warn('Insert system_audit_logs error:', e.message));
 
-      // Nếu lệch tiền ➔ Gửi email cảnh báo gian lận cho Kế toán trưởng & bên phát hành
-      if (!isMathValid) {
-        await this.mailService.sendInvoiceDiscrepancyAlert(invoice, 'tranngo170770@gmail.com')
-          .catch(e => console.warn('Mail Finance err:', e.message));
-        emailsDispatched.push(`Cảnh báo gian lận số học gửi Kế toán trưởng (tranngo170770@gmail.com)`);
-
-        await this.mailService.sendMail(
-          senderEmail,
-          `[THÔNG BÁO TẠM DỪNG THANH TOÁN] Hóa đơn ${invoiceNumber} có sai lệch số học`,
-          `
-            <p>Kính gửi quý đối tác <b>${senderName}</b>,</p>
-            <p>Phòng Tài Chính - Kế Toán thông báo hóa đơn <b>${invoiceNumber}</b> đang bị tạm dừng thanh toán do hệ thống AI OCR phát hiện sai lệch số học:</p>
-            <p>Tiền hàng (<b>${subtotal.toLocaleString('vi-VN')} đ</b>) + Thuế VAT (<b>${vat.toLocaleString('vi-VN')} đ</b>) ≠ Tổng thanh toán ghi trên hóa đơn (<b>${total.toLocaleString('vi-VN')} đ</b>).</p>
-            <p style="color:#dc2626;font-weight:bold;">Chênh lệch kê khống: +${discrepancy.toLocaleString('vi-VN')} đ</p>
-            <p>Kính đề nghị quý đối tác kiểm tra lại số liệu và cung cấp hóa đơn điều chỉnh.</p>
-            <p>Trân trọng,<br/><b>Ban Tài Chính Kế Toán Doanh Nghiệp</b></p>
-          `,
-          'Enterprise Finance Department'
-        ).catch(e => console.warn('Mail customer discrepancy err:', e.message));
-        emailsDispatched.push(`Thông báo tạm dừng thanh toán gửi Bên phát hành (${senderEmail})`);
-      } else {
-        // 1. Gửi thông báo phê duyệt thanh toán nội bộ cho Kế toán trưởng (tranngo170770@gmail.com)
-        await this.mailService.sendMail(
-          'tranngo170770@gmail.com',
-          `[DUYỆT CHI HÓA ĐƠN] Chứng từ ${invoiceNumber} đối soát khớp 100% (${total.toLocaleString('vi-VN')} đ)`,
-          `
-            <div style="font-family:sans-serif;padding:10px;">
-              <h2 style="color:#16a34a;margin-top:0;">✅ Thông Báo Hóa Đơn Khớp 100% Đủ Điều Kiện Thanh Toán</h2>
-              <p>Hệ thống AI OCR vừa đối soát tự động chứng từ từ <b>${senderName}</b> (${senderEmail}):</p>
-              <table width="100%" cellpadding="8" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin:15px 0;">
-                <tr><td style="color:#64748b;">Số Hóa Đơn:</td><td><b style="font-family:monospace;color:#0f172a;">${invoiceNumber}</b></td></tr>
-                <tr><td style="color:#64748b;">1. Tiền hàng:</td><td><b>${subtotal.toLocaleString('vi-VN')} đ</b></td></tr>
-                <tr><td style="color:#64748b;">2. Thuế VAT:</td><td><b>${vat.toLocaleString('vi-VN')} đ</b></td></tr>
-                <tr><td style="color:#64748b;">3. Tổng thanh toán:</td><td style="color:#16a34a;font-weight:bold;font-size:15px;">${total.toLocaleString('vi-VN')} đ</td></tr>
-                <tr><td style="color:#64748b;">Kết quả kiểm toán:</td><td><span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:12px;">KHỚP 100% (VALIDATED)</span></td></tr>
-              </table>
-              <p style="color:#475569;font-size:13px;">Chứng từ đã được chuyển sang danh sách sẵn sàng quyết toán.</p>
-            </div>
-          `,
-          'Enterprise Internal Alert'
-        ).catch(e => console.warn('Mail internal finance alert err:', e.message));
-        emailsDispatched.push(`Thông báo duyệt chi gửi Kế toán trưởng (tranngo170770@gmail.com)`);
-
-        // 2. Gửi email xác nhận hóa đơn hợp lệ cho khách hàng / bên phát hành
-        await this.mailService.sendMail(
-          senderEmail,
-          `[XÁC NHẬN HÓA ĐƠN HỢP LỆ] Đã tiếp nhận chứng từ ${invoiceNumber}`,
-          `
-            <p>Kính gửi quý đối tác <b>${senderName}</b>,</p>
-            <p>Phòng Tài Chính - Kế Toán xác nhận đã tiếp nhận hóa đơn <b>${invoiceNumber}</b>.</p>
-            <p>Hệ thống AI OCR đã đối soát tính đúng đắn số học: Tiền hàng <b>${subtotal.toLocaleString('vi-VN')} đ</b> + Thuế VAT <b>${vat.toLocaleString('vi-VN')} đ</b> = Tổng <b>${total.toLocaleString('vi-VN')} đ</b> (Khớp 100%).</p>
-            <p>Chứng từ đã được chuyển sang trạng thái <b>VALIDATED</b> và lập lịch thanh toán theo quy định.</p>
-            <p>Trân trọng,<br/><b>Ban Tài Chính Kế Toán Doanh Nghiệp</b></p>
-          `,
-          'Enterprise Finance Department'
-        ).catch(e => console.warn('Mail customer invoice confirm err:', e.message));
-        emailsDispatched.push(`Xác nhận hóa đơn hợp lệ gửi Bên phát hành (${senderEmail})`);
-      }
+      // Chuẩn đồ án: Luồng 9 (Node 9) trên n8n tự động gửi email cho Kế toán trưởng qua SMTP
+      emailsDispatched.push(`Hóa đơn đã được lưu và kiểm toán số học (${mathStatus})`);
 
       branchResult = {
         type: 'FINANCE_INVOICE_OCR',

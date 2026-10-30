@@ -134,19 +134,7 @@ export class TicketsService {
       }).catch((e) => this.logger.warn(`Could not insert initial AI comment: ${e.message}`));
     }
 
-    // Gửi email thật đồng thời qua Brevo HTTPS API
     const savedTicket = res.rows[0];
-    if (savedTicket) {
-      await Promise.allSettled([
-        this.mailService.notifyEnterpriseNewTicket(savedTicket).catch((e) => {
-          this.logger.warn(`Could not send real email to enterprise: ${e.message}`);
-        }),
-        this.mailService.confirmCustomerTicketReceived(savedTicket).catch((e) => {
-          this.logger.warn(`Could not send real confirmation to customer: ${e.message}`);
-        }),
-      ]);
-    }
-
     return { status: 'created', ticket: savedTicket };
   }
 

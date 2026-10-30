@@ -14,6 +14,10 @@ echo "🚀 [1/3] Khởi động Cơ sở dữ liệu PostgreSQL 16 & n8n Engine.
 echo "======================================================================"
 docker compose up -d
 
+# Tự động đồng bộ và kích hoạt 9 workflows chuẩn 12 nodes của 3 thành viên
+bash ./import_workflows_to_n8n.sh
+
+
 echo ""
 echo "======================================================================"
 echo "🚀 [2/3] Dọn dẹp cổng cũ & Chuẩn bị môi trường..."

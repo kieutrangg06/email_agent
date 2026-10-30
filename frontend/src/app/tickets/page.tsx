@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { API_BASE_URL } from '../../lib/api';
+import { API_BASE_URL, N8N_WEBHOOK_URL } from '../../lib/api';
 import {
   RefreshCw,
   Search,
@@ -121,6 +121,7 @@ export default function TicketsPage() {
   const [custAttachmentSize, setCustAttachmentSize] = useState(0);
   const [custAttachmentContent, setCustAttachmentContent] = useState('');
   const [isSubmittingCustEmail, setIsSubmittingCustEmail] = useState(false);
+  const [useN8nWebhook, setUseN8nWebhook] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,7 +306,7 @@ export default function TicketsPage() {
     }
   };
 
-  // Khách hàng gửi email thật vào hệ thống (AI Inbound Pipeline)
+  // Khách hàng gửi email vào hệ thống theo Chuẩn Đồ Án (Duy nhất qua n8n Webhook Luồng 1)
   const handleSendCustomerEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!custName || !custEmail || !custSubject || !custBody) {
@@ -313,40 +314,38 @@ export default function TicketsPage() {
       return;
     }
     setIsSubmittingCustEmail(true);
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/inbound/process-email`, {
+      // THEO ĐÚNG PLAN: Bắn duy nhất vào n8n Webhook Ingest Luồng 1 (Không gọi kênh nào khác để triệt tiêu việc gửi lặp)
+      const n8nRes = await fetch(`${N8N_WEBHOOK_URL}/m1-flow1-ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sender_name: custName,
+          from: custEmail,
+          name: custName,
           sender_email: custEmail,
+          sender_name: custName,
           subject: custSubject,
+          text: custBody,
           body: custBody,
           attachment_name: custAttachmentName,
           attachment_content: custAttachmentContent,
         }),
       });
-      const data = await res.json();
 
-      if (data.action === 'QUARANTINED') {
-        showToast('🛡️ AI Phát Hiện Đe Dọa An Ninh!', `Email đã bị cô lập vào Kho Cách Ly (Vault): ${data.reason}`, 'error');
-        setActiveTab('quarantine');
-      } else {
-        const cat = data.category_detected || 'Technical';
-        const pri = data.priority_detected || 'P1 - Critical';
+      if (n8nRes.ok) {
         showToast(
-          'Tiếp nhận & Xử lý thành công!',
-          `🤖 AI Phân Loại: [${cat}] & Ưu Tiên: [${pri}] ➜ Đã phát email thật đến các hòm thư!`,
+          '⚡ n8n Webhook Đã Kích Hoạt!',
+          'Email đã vào Luồng 1 n8n (DAG 12 Nodes). n8n đang tự động phân loại và gửi email điều hành duy nhất!',
           'success'
         );
-        if (cat === 'Technical') setActiveTab('tickets');
-        else if (cat === 'General') setActiveTab('triage');
+        setShowCustomerModal(false);
+        setTimeout(() => reloadAll(), 2500);
+      } else {
+        throw new Error('n8n Webhook trả về mã lỗi: ' + n8nRes.status);
       }
-
-      setShowCustomerModal(false);
-      await reloadAll();
-    } catch {
-      showToast('Lỗi gửi thư', 'Không thể kết nối đến Backend', 'error');
+    } catch (err: any) {
+      showToast('Lỗi gửi thư', 'Không thể kết nối đến n8n Webhook Engine: ' + err.message, 'error');
     } finally {
       setIsSubmittingCustEmail(false);
     }
@@ -1412,6 +1411,17 @@ export default function TicketsPage() {
                   onChange={(e) => setCustBody(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-400 text-xs text-slate-800 leading-relaxed"
                 />
+              </div>
+
+              {/* Kênh xử lý chuẩn Đồ Án */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-purple-50/80 border border-purple-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700">Kênh điều phối:</span>
+                  <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-purple-100 text-purple-800 border border-purple-300">
+                    ⚡ n8n Webhook Ingest (Chuẩn Đồ Án 9 Luồng)
+                  </span>
+                </div>
+                <span className="text-[11px] text-purple-700 font-medium">DAG 12 Nodes</span>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-rose-100">

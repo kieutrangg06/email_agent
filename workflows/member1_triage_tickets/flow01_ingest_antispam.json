@@ -1,0 +1,401 @@
+{
+  "id": "96BvBRGhR7jcUjTf",
+  "name": "Flow 01 - Email Ingest & Anti-Spam",
+  "nodes": [
+    {
+      "id": "f1-node-01",
+      "name": "Webhook Ingest Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "email-ingest",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m1-flow1-ingest",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-02",
+      "name": "Payload Normalization",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        490,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\n// Extract pure email from sender field using regex\nconst rawSender = payload.sender_email || payload.from || payload.sender || 'client@enterprise.com';\nconst senderMatch = String(rawSender).match(/<([^>]+)>/);\nconst cleanSender = (senderMatch ? senderMatch[1] : String(rawSender)).trim().toLowerCase();\n\n// Extract sender name\nconst senderName = payload.sender_name || payload.name || (senderMatch ? rawSender.split('<')[0].replace(/[\"']/g, '').trim() : cleanSender.split('@')[0]);\n\n// Clean HTML tags from body\nconst rawBody = payload.body || payload.text || payload.content || payload.html || '';\nconst cleanBody = String(rawBody).replace(/<[^>]*>?/gm, ' ').replace(/\\s+/g, ' ').trim();\n\n// Normalize subject\nconst rawSubject = payload.subject || 'Không có tiêu đề';\nconst cleanSubject = String(rawSubject).trim();\n\n// Normalize attachments\nconst attachments = payload.attachments || [];\nconst receivedAt = new Date().toISOString();\n\nreturn [{\n  json: {\n    ...payload,\n    sender_email: cleanSender,\n    sender_name: senderName,\n    subject: cleanSubject,\n    body: cleanBody,\n    clean_body: cleanBody,\n    attachments: attachments,\n    received_at: receivedAt,\n    raw_payload: payload\n  }\n}];"
+      }
+    },
+    {
+      "id": "f1-node-03",
+      "name": "System/No-Reply Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst email = String(item.sender_email || '').toLowerCase();\nconst subject = String(item.subject || '').toLowerCase();\n\n// Filter out no-reply@, mailer-daemon@, postmaster@, noreply@\nconst isSystemEmail = email.includes('no-reply@') || \n                      email.includes('noreply@') || \n                      email.includes('mailer-daemon@') || \n                      email.includes('postmaster@') ||\n                      email.startsWith('no-reply') ||\n                      email.startsWith('noreply') ||\n                      email.startsWith('mailer-daemon') ||\n                      email.startsWith('postmaster') ||\n                      subject.includes('delivery status notification') ||\n                      subject.includes('undelivered mail') ||\n                      subject.includes('auto-submitted');\n\nreturn [{\n  json: {\n    ...item,\n    is_system_email: isSystemEmail,\n    filter_reason: isSystemEmail ? 'Email hệ thống tự sinh / No-reply / Mailer-Daemon' : null\n  }\n}];"
+      }
+    },
+    {
+      "id": "f1-node-04",
+      "name": "Check Sender Reputation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        990,
+        300
+      ],
+      "alwaysOutputData": true,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'http://localhost:4000/api/v1/audit/reputation?email=' + encodeURIComponent($('Payload Normalization').first().json.sender_email) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-05",
+      "name": "AI Spam & Phishing Classifier Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1240,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ `Analyze this inbound email for spam, phishing, malicious intent, or legitimate business inquiry. Respond strictly in JSON: {\"is_spam\": boolean, \"is_phishing\": boolean, \"spam_confidence\": number, \"reason\": \"string\"}. Email from: ${$('Payload Normalization').first().json.sender_email}, Subject: ${$('Payload Normalization').first().json.subject}, Body: ${$('Payload Normalization').first().json.body}` }}",
+        "options": {
+          "systemMessage": "You are Agent 9 (AI Classification & Phishing Agent) in an enterprise email gateway. You must classify emails into spam, phishing, or legitimate inquiries and output strictly valid JSON."
+        }
+      }
+    },
+    {
+      "id": "f1-node-06",
+      "name": "IF Clean & High Reputation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1490,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ (function() {\n  const norm = $('Payload Normalization').first().json;\n  const sysFilter = $('System/No-Reply Filter').first().json;\n  const rep = $('Check Sender Reputation').first().json;\n  const aiResp = $json;\n\n  if (sysFilter.is_system_email === true) return false;\n\n  let isSpam = false;\n  let isPhishing = false;\n  let aiText = '';\n\n  if (aiResp && aiResp.output) {\n    aiText = String(aiResp.output);\n  } else if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n    aiText = aiResp.candidates[0].content.parts[0].text;\n  }\n\n  if (aiText) {\n    try {\n      const cleanJson = aiText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();\n      const parsed = JSON.parse(cleanJson);\n      isSpam = Boolean(parsed.is_spam);\n      isPhishing = Boolean(parsed.is_phishing);\n    } catch(e) {}\n  } else {\n    const text = (norm.subject + ' ' + (norm.body || '')).toLowerCase();\n    isSpam = text.includes('crypto') || text.includes('trúng thưởng') || text.includes('lừa đảo') || text.includes('phishing');\n  }\n\n  const repScore = (rep.reputation_score !== undefined && rep.reputation_score !== null) ? Number(rep.reputation_score) : 100;\n  const isBlocked = rep.is_blocked === true;\n\n  return (repScore >= 20) && (isSpam === false) && (isPhishing === false) && (isBlocked === false);\n})() }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f1-node-07",
+      "name": "Quarantine Vault",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1740,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/quarantine",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('Payload Normalization').first().json.sender_email,\n  subject: $('Payload Normalization').first().json.subject,\n  raw_payload: $('Payload Normalization').first().json.raw_payload || $('Payload Normalization').first().json,\n  quarantine_reason: $('System/No-Reply Filter').first().json.is_system_email ? 'System/No-reply email rejected' : 'Quarantined by AI Spam & Phishing Classifier / Sender strike'\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-08",
+      "name": "Security Alert Mailer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1990,
+        440
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranngo170770@gmail.com",
+        "subject": "={{ '🚨 [SECURITY SOC] Cảnh báo Email Bị Cách Ly: ' + $('Payload Normalization').first().json.sender_email }}",
+        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo An Ninh</title></head>\n<body style=\"margin:0;padding:20px;background:#0f172a;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.3);\">\n    <div style=\"background:#dc2626;padding:24px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:20px;\">🛡️ CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP</h2>\n      <p style=\"margin:6px 0 0 0;font-size:13px;opacity:0.9;\">Phát hiện email vi phạm chính sách bảo mật và đã được cách ly</p>\n    </div>\n    <div style=\"padding:24px;\">\n      <table width=\"100%\" cellpadding=\"8\" style=\"font-size:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;\">\n        <tr><td style=\"font-weight:bold;color:#64748b;\" width=\"35%\">Người gửi:</td><td style=\"color:#b91c1c;font-weight:bold;\">${$('Payload Normalization').first().json.sender_email}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Tiêu đề:</td><td>${$('Payload Normalization').first().json.subject}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Lý do cách ly:</td><td>${$('System/No-Reply Filter').first().json.is_system_email ? 'System/No-reply filter' : 'AI Spam/Phishing Detection'}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Khu vực lưu trữ:</td><td><code>email_quarantine_vault</code></td></tr>\n      </table>\n      <div style=\"margin-top:20px;text-align:center;\">\n        <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-weight:bold;display:inline-block;\">Xem Bảng Điều Khiển Quản Trị</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>` }}",
+        "text": "={{ 'Cảnh báo an ninh: Email từ ' + $('Payload Normalization').first().json.sender_email + ' với tiêu đề \"' + $('Payload Normalization').first().json.subject + '\" đã bị cách ly.' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-09",
+      "name": "Update Sender Strike Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1740,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/reputation/strike",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  sender_email: $('Payload Normalization').first().json.sender_email\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-10",
+      "name": "Format Clean Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        180
+      ],
+      "parameters": {
+        "jsCode": "const norm = $('Payload Normalization').first().json;\nconst rep = $('Check Sender Reputation').first().json;\n\nreturn [{\n  json: {\n    ...norm,\n    IS_CLEAN_VERIFIED: true,\n    is_clean: true,\n    reputation_score: (rep.reputation_score !== undefined && rep.reputation_score !== null) ? rep.reputation_score : 100,\n    verified_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "f1-node-11",
+      "name": "Audit Ingest Pass",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1990,
+        180
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source: 'flow01',\n  event_type: 'INBOUND_CLEAN_EMAIL_ACCEPTED',\n  workflow_id: 'flow01',\n  description: 'Inbound clean email accepted and verified through anti-spam filter',\n  payload_snapshot: $('Format Clean Payload').first().json,\n  payload: $('Format Clean Payload').first().json\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-12",
+      "name": "Trigger Workflow 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2240,
+        180
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/m1-flow2-triage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Format Clean Payload').first().json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f1-node-05-model",
+      "name": "Google Gemini Chat Model (Agent 9)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Ingest Trigger": {
+      "main": [
+        [
+          {
+            "node": "Payload Normalization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payload Normalization": {
+      "main": [
+        [
+          {
+            "node": "System/No-Reply Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System/No-Reply Filter": {
+      "main": [
+        [
+          {
+            "node": "Check Sender Reputation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sender Reputation": {
+      "main": [
+        [
+          {
+            "node": "AI Spam & Phishing Classifier Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Clean & High Reputation": {
+      "main": [
+        [
+          {
+            "node": "Format Clean Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine Vault",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Sender Strike Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quarantine Vault": {
+      "main": [
+        [
+          {
+            "node": "Security Alert Mailer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Clean Payload": {
+      "main": [
+        [
+          {
+            "node": "Audit Ingest Pass",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Ingest Pass": {
+      "main": [
+        [
+          {
+            "node": "Trigger Workflow 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 9)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Spam & Phishing Classifier Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Spam & Phishing Classifier Agent": {
+      "main": [
+        [
+          {
+            "node": "IF Clean & High Reputation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "instanceId": "email-automation"
+  }
+}

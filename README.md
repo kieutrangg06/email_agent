@@ -219,17 +219,28 @@ Mỗi workflow được thiết kế đúng **12 nodes DAG**; các dây nối (c
 ## 5. TOÀN BỘ CÂU LỆNH KHỞI CHẠY & TẮT DỰ ÁN
 
 ### 5.1. Khởi chạy 1 chạm toàn bộ hệ thống
-Tại thư mục gốc `/home/kieu-trang/email-automation`:
+Tại thư mục gốc `/home/kieu-trang/email-automation-plan`:
 ```bash
 ./run_all.sh
 ```
 *Script sẽ tự động:*
 1. Khởi động container `enterprise_db` (Postgres 16 + pgvector) và `enterprise_n8n`.
-2. Đồng bộ 9 Workflows JSON vào database n8n và kích hoạt `active = true`.
+2. Tự động đồng bộ và nạp 9 Workflows JSON từ 3 thư mục thành viên (`workflows/member1_...`, `workflows/member2_...`, `workflows/member3_...`) vào n8n và kích hoạt `active = true`.
 3. Bật NestJS Backend trên cổng 4000.
 4. Bật Next.js Frontend trên cổng 3000.
 
-### 5.2. Tắt 1 chạm toàn bộ hệ thống
+### 5.2. Mở cổng Host/Internet cho Hội Đồng chấm thi (Cloudflare Tunnel - 0đ)
+Theo đúng Phương án 2 của Báo cáo Đề xuất:
+```bash
+# Mở cổng giao diện Next.js Web UI ra Internet cho Hội đồng truy cập:
+./start_tunnel.sh 3000
+
+# Hoặc mở cổng n8n Workflow Engine ra Internet:
+./start_tunnel.sh 5678
+```
+*Cloudflare Tunnel sẽ cấp ngay 1 URL HTTPS công khai (ví dụ `https://xxx.trycloudflare.com`) để Hội đồng dùng điện thoại hoặc laptop cá nhân mở và đánh giá trực tiếp.*
+
+### 5.3. Tắt 1 chạm toàn bộ hệ thống
 ```bash
 ./stop_all.sh
 ```

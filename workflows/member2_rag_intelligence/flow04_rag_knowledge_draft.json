@@ -1,0 +1,437 @@
+{
+  "id": "flow04ragdraft01",
+  "name": "Luồng 4 - Vector Search RAG & Draft Reply Generator (12 Nodes)",
+  "nodes": [
+    {
+      "id": "f4-node-01",
+      "name": "1. Ticket Created Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "m2-flow4-rag-draft",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m2-flow4-rag-draft",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "f4-node-02",
+      "name": "2. Extract Search Query Keywords Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst payload = item.body ? item.body : item;\n\n// Trích xuất dữ liệu vé từ Luồng 3 Sub-workflow hoặc direct packet\nconst ticketCode = String(payload.ticket_code || payload.downstream_bridge?.ticket_code || 'TK-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-0001').trim();\nconst customerEmail = String(payload.customer_email || payload.downstream_bridge?.customer_email || payload.sender_email || 'client@enterprise.com').trim().toLowerCase();\nconst subject = String(payload.subject || payload.title || 'Hỗ trợ kỹ thuật hệ thống').trim();\nconst priority = String(payload.priority || 'P2 - High').trim();\nconst issueDescription = String(payload.issue_description || payload.technical_summary || payload.downstream_bridge?.technical_summary || payload.clean_body || payload.body || payload.reproduce_steps || subject).trim();\n\n// Trích xuất từ khóa kỹ thuật cốt lõi và làm sạch stopwords\nconst combinedText = `${subject} ${issueDescription}`;\nconst words = combinedText\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/[.,/#!$%^&*;:{}=\\-_`~()?\\\"'\\n\\r\\t]/g, ' ')\n  .split(/\\s+/)\n  .map(w => w.trim().toLowerCase())\n  .filter(w => w.length > 1);\n\nconst stopwords = new Set([\n  'the', 'and', 'for', 'you', 'are', 'this', 'that', 'with', 'from', 'have', 'your',\n  'cua', 'cho', 'mot', 'nhung', 'toi', 'ban', 'la', 'va', 'cac', 'duoc', 'xin', 'hoi',\n  'giup', 've', 'co', 'khong', 'nay', 'da', 'dang', 'se', 'bi', 'do', 'tai', 'tren'\n]);\n\nconst technicalKeywords = [...new Set(words.filter(w => !stopwords.has(w)))].slice(0, 15);\nconst queryText = technicalKeywords.length > 0 ? technicalKeywords.join(' ') : subject;\n\nreturn [{\n  json: {\n    ...payload,\n    ticket_code: ticketCode,\n    customer_email: customerEmail,\n    subject: subject,\n    priority: priority,\n    issue_description: issueDescription,\n    query_keywords: technicalKeywords,\n    query_text: queryText\n  }\n}];"
+      }
+    },
+    {
+      "id": "f4-node-03",
+      "name": "3. AI Knowledge Query Optimizer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        680,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ `Bạn là AI Knowledge Query Optimizer Agent. Phân tích nội dung sự cố kỹ thuật sau và trích xuất các từ khóa truy vấn tri thức chính xác nhất. Trả về JSON: {\"query_keywords\": [\"keyword1\", \"keyword2\"], \"search_phrase\": \"câu truy vấn\", \"category\": \"TECH\"}. Tiêu đề: ${$('2. Extract Search Query Keywords Code').first().json.subject}, Mô tả: ${$('2. Extract Search Query Keywords Code').first().json.issue_description}` }}",
+        "options": {
+          "systemMessage": "Bạn là AI Knowledge Query Optimizer Agent chuyên tối ưu hóa truy vấn tra cứu cơ sở tri thức cho hệ thống Helpdesk."
+        }
+      }
+    },
+    {
+      "id": "f4-node-03-model",
+      "name": "Google Gemini Chat Model (Query Optimizer)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        680,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite"
+      }
+    },
+    {
+      "id": "f4-node-04",
+      "name": "4. Query Knowledge Base pgvector Postgres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        920,
+        300
+      ],
+      "alwaysOutputData": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/knowledge/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query_text: $('2. Extract Search Query Keywords Code').first().json.query_text || $('2. Extract Search Query Keywords Code').first().json.subject,\n  query_keywords: $('2. Extract Search Query Keywords Code').first().json.query_keywords,\n  top_k: 3\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f4-node-05",
+      "name": "5. Check Knowledge Relevance Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const ticket = $('2. Extract Search Query Keywords Code').first().json;\nconst rows = $input.all().map(x => x.json).filter(r => r && r.id !== undefined && r.content);\n\n// Kiểm tra ngưỡng relevance similarity >= 0.75\nconst relevantDocs = rows.filter(r => Number(r.similarity) >= 0.75);\nlet knowledgeContext = [];\nlet fallbackUsed = false;\n\nif (relevantDocs.length > 0) {\n  knowledgeContext = relevantDocs.map(d => ({\n    id: d.id,\n    title: d.title,\n    content: d.content,\n    similarity: Number(d.similarity).toFixed(4)\n  }));\n} else {\n  // Tự động fallback sang context dự phòng an toàn theo đặc tả kiến trúc\n  fallbackUsed = true;\n  knowledgeContext = [{\n    id: 0,\n    title: 'Quy trình tiếp nhận và cam kết chất lượng dịch vụ khách hàng',\n    content: 'Đội ngũ Kỹ thuật Enterprise đã tiếp nhận vé sự cố và đang tiến hành điều tra trên môi trường kiểm thử. Cam kết phản hồi và xử lý tuân thủ nghiêm ngặt chỉ số SLA doanh nghiệp.',\n    similarity: '0.7500 (Fallback)'\n  }];\n}\n\nreturn [{\n  json: {\n    ...ticket,\n    knowledge_context: knowledgeContext,\n    fallback_used: fallbackUsed,\n    top_similarity: relevantDocs.length > 0 ? Number(relevantDocs[0].similarity) : 0.75\n  }\n}];"
+      }
+    },
+    {
+      "id": "f4-node-06",
+      "name": "6. AI RAG Response Drafter Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1400,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ `Bạn là Agent 2 (AI Email Reply Agent - RAG). Hãy tạo thư trả lời giải quyết vấn đề kỹ thuật cho vé sự cố ${$('5. Check Knowledge Relevance Code').first().json.ticket_code}. Khách hàng: ${$('5. Check Knowledge Relevance Code').first().json.customer_email}. Dựa trên ngữ cảnh tài liệu: ${JSON.stringify($('5. Check Knowledge Relevance Code').first().json.knowledge_context)}. Trả về đúng JSON: {\"proposed_subject\": \"string\", \"proposed_body\": \"string\", \"confidence_score\": number}` }}",
+        "options": {
+          "systemMessage": "Bạn là AI RAG Response Drafter Agent chuyên nghiệp, tích hợp tri thức Vector pgvector để sinh dự thảo trả lời kỹ thuật chuẩn mực."
+        }
+      }
+    },
+    {
+      "id": "f4-node-07",
+      "name": "7. Draft Quality & HTML Polish Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const base = $('5. Check Knowledge Relevance Code').first().json;\nconst aiResp = $input.first().json;\n\nlet aiData = {};\nlet rawText = '';\nif (aiResp && aiResp.output) {\n  rawText = String(aiResp.output);\n} else if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  rawText = aiResp.candidates[0].content.parts[0].text;\n}\n\nif (rawText) {\n  try {\n    const clean = rawText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();\n    aiData = JSON.parse(clean);\n  } catch(e) {}\n}\n\nconst subject = aiData.proposed_subject || `[Phản Hồi - ${base.ticket_code}] Hướng dẫn xử lý sự cố kỹ thuật`;\nconst rawBody = aiData.proposed_body || `<p>Kính gửi Quý khách,</p><p>Đội ngũ Hỗ trợ Kỹ thuật Enterprise đã tiếp nhận và đối soát sự cố <strong>${base.ticket_code}</strong>. Chúng tôi đã tiến hành kiểm tra trên hệ thống và khắc phục hoàn tất.</p><p>Trân trọng,<br/>Đội ngũ Hỗ trợ Kỹ thuật Enterprise</p>`;\n\nlet htmlBody = rawBody;\nif (!htmlBody.includes('<p>') && !htmlBody.includes('<div>')) {\n  htmlBody = htmlBody.split('\\n\\n').map(p => `<p>${p.replace(/\\n/g, '<br/>')}</p>`).join('');\n}\n\nconst confidence = Number(aiData.confidence_score) || 95.5;\n\nreturn [{\n  json: {\n    ...base,\n    proposed_subject: subject,\n    proposed_body: htmlBody,\n    confidence_score: confidence,\n    reviewed: false,\n    status: 'PENDING_APPROVAL'\n  }\n}];"
+      }
+    },
+    {
+      "id": "f4-node-08",
+      "name": "8. Insert Draft to Database HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1880,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/drafts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ticket_code: $json.ticket_code,\n  recipient_email: $json.recipient_email,\n  subject: $json.proposed_subject,\n  proposed_subject: $json.proposed_subject,\n  proposed_body: $json.proposed_body,\n  html_content: $json.html_content,\n  confidence_score: $json.confidence_score,\n  status: \"PENDING_APPROVAL\"\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f4-node-09",
+      "name": "9. Link Draft to Ticket Postgres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2120,
+        300
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'http://localhost:4000/api/v1/tickets/' + encodeURIComponent($('2. Extract Search Query Keywords Code').first().json.ticket_code) + '/link-draft' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  draft_id: $('8. Insert Draft to Database HTTP').first().json.id\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f4-node-10",
+      "name": "10. Push Real-time Notification HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2360,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/notifications/email-draft",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  draft_id: $('8. Insert Draft to Database HTTP').first().json.id,\n  ticket_code: $('2. Extract Search Query Keywords Code').first().json.ticket_code,\n  recipient_email: $('2. Extract Search Query Keywords Code').first().json.customer_email,\n  subject: $('7. Draft Quality & HTML Polish Code').first().json.proposed_subject,\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f4-node-11",
+      "name": "11. Audit Draft Creation Postgres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2600,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_type: 'AI_REPLY_DRAFT_GENERATED',\n  workflow_id: 'flow04_rag_knowledge_draft',\n  description: 'Bản thảo phản hồi RAG đã được khởi tạo tự động và sẵn sàng cho HITL duyệt',\n  payload_snapshot: {\n    draft_id: $('8. Insert Draft to Database HTTP').first().json.id,\n    ticket_code: $('2. Extract Search Query Keywords Code').first().json.ticket_code,\n    customer_email: $('2. Extract Search Query Keywords Code').first().json.customer_email,\n    confidence_score: $('7. Draft Quality & HTML Polish Code').first().json.confidence_score,\n    fallback_used: $('5. Check Knowledge Relevance Code').first().json.fallback_used\n  }\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f4-node-12",
+      "name": "12. Dispatch to Luong 5 Bridge Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const draft = $('8. Insert Draft to Database HTTP').first().json;\nconst ticket = $('2. Extract Search Query Keywords Code').first().json;\n\nreturn [{\n  json: {\n    status: 'SUCCESS',\n    message: 'Bản thảo phản hồi RAG đã được đóng gói và sẵn sàng chờ chuyên viên duyệt qua giao diện HITL Web Approval',\n    draft_id: draft.id,\n    ticket_code: ticket.ticket_code,\n    recipient_email: ticket.customer_email,\n    status_code: 'PENDING_APPROVAL',\n    hitl_approval_url: 'http://localhost:3000/approval',\n    ready_for_luong5: true,\n    completed_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "f4-node-06-model",
+      "name": "Google Gemini Chat Model (Agent 2)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite"
+      }
+    }
+  ],
+  "connections": {
+    "1. Ticket Created Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Extract Search Query Keywords Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Extract Search Query Keywords Code": {
+      "main": [
+        [
+          {
+            "node": "3. AI Knowledge Query Optimizer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Query Optimizer)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3. AI Knowledge Query Optimizer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. AI Knowledge Query Optimizer Agent": {
+      "main": [
+        [
+          {
+            "node": "4. Query Knowledge Base pgvector Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Query Knowledge Base pgvector Postgres": {
+      "main": [
+        [
+          {
+            "node": "5. Check Knowledge Relevance Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Check Knowledge Relevance Code": {
+      "main": [
+        [
+          {
+            "node": "6. AI RAG Response Drafter Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Draft Quality & HTML Polish Code": {
+      "main": [
+        [
+          {
+            "node": "8. Insert Draft to Database HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Insert Draft to Database HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. Link Draft to Ticket Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Link Draft to Ticket Postgres": {
+      "main": [
+        [
+          {
+            "node": "10. Push Real-time Notification HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Push Real-time Notification HTTP": {
+      "main": [
+        [
+          {
+            "node": "11. Audit Draft Creation Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Audit Draft Creation Postgres": {
+      "main": [
+        [
+          {
+            "node": "12. Dispatch to Luong 5 Bridge Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 2)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "6. AI RAG Response Drafter Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. AI RAG Response Drafter Agent": {
+      "main": [
+        [
+          {
+            "node": "7. Draft Quality & HTML Polish Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}

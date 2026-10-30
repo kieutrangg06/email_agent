@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { API_BASE_URL } from '../../lib/api';
+import { API_BASE_URL, N8N_WEBHOOK_URL } from '../../lib/api';
 import {
   CheckCircle2,
   XCircle,
@@ -164,48 +164,31 @@ export default function ApprovalPage() {
     });
 
     try {
-      // 1. Call Luồng 5 n8n Webhook
+      // THEO ĐÚNG PLAN: Kích hoạt duy nhất qua n8n Luồng 5 (Human-in-the-Loop Web Approval)
       const webhookPayload = {
         draft_id: draft.id,
+        ticket_code: draft.ticket_code,
         reviewer_email: reviewerEmail,
         modified_subject: finalSubject,
         modified_body: finalBody,
         action: 'APPROVE_SEND',
       };
 
-      try {
-        await fetch('http://localhost:5678/webhook/m2-flow5-approval', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload),
-        });
-      } catch {
-        // n8n webhook might be asynchronous
-      }
-
-      // 2. Call NestJS backend PATCH /api/v1/drafts/:id/status
-      const patchRes = await fetch(`${API_BASE_URL}/api/v1/drafts/${draft.id}/status`, {
-        method: 'PATCH',
+      const res = await fetch(`${N8N_WEBHOOK_URL}/m2-flow5-approval`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'SENT',
-          reviewed_by: reviewerEmail,
-          proposed_subject: finalSubject,
-          proposed_body: finalBody,
-          subject: finalSubject,
-          html_content: finalBody,
-        }),
+        body: JSON.stringify(webhookPayload),
       });
 
-      if (patchRes.ok) {
+      if (res.ok) {
         setActionMsg({
           type: 'success',
-          text: `Bản thảo #${draft.id} (${draft.ticket_code}) đã được DUYỆT & GỬI thành công! Email đã gửi tới khách hàng và vé đã chuyển sang RESOLVED.`,
+          text: `Bản thảo #${draft.id} (${draft.ticket_code}) đã được n8n Luồng 5 DUYỆT & GỬI thành công qua SMTP! Vé đã chuyển sang RESOLVED.`,
         });
         setEditingDraftId(null);
-        fetchDrafts();
+        setTimeout(() => fetchDrafts(), 2500);
       } else {
-        throw new Error('Cập nhật trạng thái backend thất bại');
+        throw new Error('n8n Luồng 5 Webhook trả về lỗi: ' + res.status);
       }
     } catch (err: any) {
       setActionMsg({

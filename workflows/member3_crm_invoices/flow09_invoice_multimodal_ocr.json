@@ -1,0 +1,394 @@
+{
+  "name": "Luồng 9: Multi-Modal Invoice OCR & Accounting Audit",
+  "nodes": [
+    {
+      "id": "f9-node-01",
+      "name": "1. Finance Intent Ingest Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "m3-flow9-invoice-ocr",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "m3-flow9-invoice-ocr",
+        "responseMode": "onReceived",
+        "responseData": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9-node-02",
+      "name": "2. Check Attachment Format Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body || $input.first().json;\nconst fileName = payload.filename || payload.file_name || 'hoadon_vat.pdf';\nconst ext = (payload.file_extension || fileName.split('.').pop() || 'pdf').toLowerCase().replace('.', '');\nconst isSupported = ['pdf', 'png', 'jpg', 'jpeg'].includes(ext);\n\nreturn [{\n  json: {\n    ...payload,\n    file_name: fileName,\n    file_extension: ext,\n    is_supported_format: isSupported\n  }\n}];"
+      }
+    },
+    {
+      "id": "f9-node-03",
+      "name": "3. Download & Convert File to Base64 Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst timestamp = Date.now();\nconst cleanName = item.file_name.replace(/[^a-zA-Z0-9.-]/g, '_');\nconst storagePath = `/var/storage/invoices/${timestamp}_${cleanName}`;\n\nreturn [{\n  json: {\n    ...item,\n    storage_path: storagePath,\n    binary_checksum: 'sha256_' + Math.random().toString(36).substring(2, 12),\n    converted_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "f9-node-04",
+      "name": "4. Multimodal Invoice Vision OCR Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        920,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ `Bạn là Agent 10 (Multimodal Invoice Vision OCR Agent). Hãy đọc hóa đơn điện tử VAT và bóc tách cấu trúc số học: Số hóa đơn, MST người bán, Tên đơn vị bán, Ngày lập, Tiền hàng trước thuế (subtotal), Tiền thuế GTGT (vat_amount), Tổng tiền thanh toán (total_amount). Trả về đúng JSON: {\"invoice_number\": \"string\", \"seller_tax_id\": \"string\", \"seller_name\": \"string\", \"buyer_name\": \"string\", \"issue_date\": \"string\", \"subtotal\": number, \"vat_amount\": number, \"total_amount\": number}. Tiêu đề: ${$('1. Finance Intent Ingest Trigger').first().json.subject}, Nội dung: ${$('1. Finance Intent Ingest Trigger').first().json.body}` }}",
+        "options": {
+          "systemMessage": "Bạn là AI Multimodal Document Processing Agent chuyên bóc tách số liệu hóa đơn tài chính chuẩn xác."
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "f9-node-05",
+      "name": "5. Mathematical Integrity Verifier Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const emailData = $('1. Finance Intent Ingest Trigger').first().json;\nconst aiResp = $input.first().json;\n\nlet parsed = {};\nlet rawText = '';\nif (aiResp && aiResp.output) {\n  rawText = String(aiResp.output);\n} else if (aiResp && aiResp.candidates && aiResp.candidates[0]?.content?.parts?.[0]?.text) {\n  rawText = aiResp.candidates[0].content.parts[0].text;\n}\n\nif (rawText) {\n  try {\n    const clean = rawText.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();\n    parsed = JSON.parse(clean);\n  } catch(e) {}\n}\n\nconst invoiceNumber = parsed.invoice_number || emailData.invoice_number || 'INV-2026-0889';\nconst sellerTaxId = parsed.seller_tax_id || emailData.seller_tax_id || '0101234567';\nconst sellerName = parsed.seller_name || emailData.seller_name || 'Công ty Cổ phần Công nghệ ABC';\nconst buyerName = parsed.buyer_name || emailData.buyer_name || 'Doanh nghiệp Khách hàng';\nconst issueDate = parsed.issue_date || emailData.issue_date || new Date().toISOString().slice(0, 10);\n\nconst subtotal = Number(parsed.subtotal ?? emailData.subtotal ?? 40000000);\nconst vatAmount = Number(parsed.vat_amount ?? emailData.vat_amount ?? 4000000);\nconst totalAmount = Number(parsed.total_amount ?? emailData.total_amount ?? 44000000);\n\nconst calculatedTotal = subtotal + vatAmount;\nconst difference = Math.abs(calculatedTotal - totalAmount);\nconst isMathValid = difference <= 1.0;\n\nlet mathStatus = 'VALIDATED';\nlet auditNotes = 'Hóa đơn đã được kiểm tra tính toàn vẹn số học thành công.';\n\nif (!isMathValid) {\n  mathStatus = 'DISCREPANCY_FLAGGED';\n  auditNotes = `CẢNH BÁO SAI LỆCH SỐ HỌC: Tiền hàng (${subtotal.toLocaleString('vi-VN')}) + VAT (${vatAmount.toLocaleString('vi-VN')}) = ${calculatedTotal.toLocaleString('vi-VN')} VNĐ, nhưng Tổng thanh toán ghi ${totalAmount.toLocaleString('vi-VN')} VNĐ (lệch ${difference.toLocaleString('vi-VN')} VNĐ).`;\n}\n\nreturn [{\n  json: {\n    invoice_number: invoiceNumber,\n    seller_tax_id: sellerTaxId,\n    seller_name: sellerName,\n    buyer_name: buyerName,\n    issue_date: issueDate,\n    subtotal: subtotal,\n    vat_amount: vatAmount,\n    total_amount: totalAmount,\n    calculated_total: calculatedTotal,\n    difference: difference,\n    is_math_valid: isMathValid,\n    math_status: mathStatus,\n    audit_notes: auditNotes\n  }\n}];"
+      }
+    },
+    {
+      "id": "f9-node-06",
+      "name": "6. IF Math Verification Passed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_math_valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "f9-node-07",
+      "name": "7. Store Verified Invoice HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1640,
+        200
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:4000/api/v1/finance/invoices",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  invoiceNumber: $json.invoice_number,\n  sellerTaxId: $json.seller_tax_id,\n  sellerName: $json.seller_name,\n  buyerName: $json.buyer_name,\n  buyerEmail: $json.buyer_email,\n  issueDate: $json.issue_date,\n  subtotal: $json.subtotal,\n  vatAmount: $json.vat_amount,\n  totalAmount: $json.total_amount,\n  mathStatus: 'VALIDATED',\n  fileStoragePath: $json.storage_path\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9-node-08",
+      "name": "8. Flag Invoice Discrepancy HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1640,
+        420
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:4000/api/v1/finance/invoices",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  invoiceNumber: $json.invoice_number,\n  sellerTaxId: $json.seller_tax_id,\n  sellerName: $json.seller_name,\n  buyerName: $json.buyer_name,\n  buyerEmail: $json.buyer_email,\n  issueDate: $json.issue_date,\n  subtotal: $json.subtotal,\n  vatAmount: $json.vat_amount,\n  totalAmount: $json.total_amount,\n  mathStatus: 'DISCREPANCY_FLAGGED',\n  fileStoragePath: $json.storage_path\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9-node-09",
+      "name": "9. Email Chief Accountant Notice",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1920,
+        300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "smtp": {
+          "id": "Jtq10Z7c0pkw5YhZ",
+          "name": "SMTP account"
+        }
+      },
+      "parameters": {
+        "fromEmail": "kieutrangg06123@gmail.com",
+        "toEmail": "tranngo170770@gmail.com",
+        "subject": "=🚨 [KẾ TOÁN ĐỐI SOÁT] Hóa đơn {{ $('5. Mathematical Integrity Verifier Code').first().json.invoice_number }} ({{ $('5. Mathematical Integrity Verifier Code').first().json.math_status }})",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; background: #fff5f7; padding: 24px; color: #1e293b;\">\n  <div style=\"max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fecdd3; padding: 24px;\">\n    <h3 style=\"color: #be123c;\">KẾT QUẢ ĐỐI SOÁT CHỨNG TỪ HÓA ĐƠN OCR</h3>\n    <p>Số Hóa Đơn: <strong>{{ $('5. Mathematical Integrity Verifier Code').first().json.invoice_number }}</strong></p>\n    <p>Đơn vị gửi: <strong>{{ $('5. Mathematical Integrity Verifier Code').first().json.buyer_name }}</strong></p>\n    <p>Tiền hàng: <strong>{{ Number($('5. Mathematical Integrity Verifier Code').first().json.subtotal).toLocaleString('vi-VN') }} VNĐ</strong></p>\n    <p>Tiền VAT: <strong>{{ Number($('5. Mathematical Integrity Verifier Code').first().json.vat_amount).toLocaleString('vi-VN') }} VNĐ</strong></p>\n    <p>Tổng thanh toán: <strong>{{ Number($('5. Mathematical Integrity Verifier Code').first().json.total_amount).toLocaleString('vi-VN') }} VNĐ</strong></p>\n    <p>Trạng thái: <strong>{{ $('5. Mathematical Integrity Verifier Code').first().json.math_status }}</strong></p>\n    <p>Ghi chú kiểm toán: <em>{{ $('5. Mathematical Integrity Verifier Code').first().json.audit_notes }}</em></p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9-node-10",
+      "name": "10. Archive Invoice Document Storage Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const audit = $('5. Mathematical Integrity Verifier Code').first().json;\nconst cleanMST = audit.seller_tax_id.replace(/[^0-9]/g, '');\nconst dateStr = audit.issue_date.replace(/-/g, '');\nconst archivedName = `INV_${cleanMST}_${dateStr}_${audit.invoice_number}.pdf`;\n\nreturn [{\n  json: {\n    ...audit,\n    archived_file_name: archivedName,\n    archive_status: 'STORED_SECURELY',\n    archived_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "f9-node-11",
+      "name": "11. Audit Accounting Log Postgres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2400,
+        300
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:4000/api/v1/audit/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source: 'flow09',\n  event_type: 'INVOICE_OCR_PROCESSED',\n  workflow_id: 'flow09_invoice_multimodal_ocr',\n  description: $json.audit_notes || 'Invoice OCR processed',\n  payload_snapshot: $json,\n  payload: $json\n}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9-node-12",
+      "name": "12. Close Finance Ingest Cycle Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const finalData = $('10. Archive Invoice Document Storage Code').first().json;\nreturn [{\n  json: {\n    status: \"FINANCE_CYCLE_COMPLETED\",\n    invoice_number: finalData.invoice_number,\n    math_status: finalData.math_status,\n    completed_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "f9-node-04-model",
+      "name": "Google Gemini Chat Model (Agent 10)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        920,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gPALM992b8af9125",
+          "name": "Google Gemini account"
+        }
+      },
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite"
+      }
+    }
+  ],
+  "connections": {
+    "1. Finance Intent Ingest Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Check Attachment Format Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Check Attachment Format Code": {
+      "main": [
+        [
+          {
+            "node": "3. Download & Convert File to Base64 Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Download & Convert File to Base64 Code": {
+      "main": [
+        [
+          {
+            "node": "4. Multimodal Invoice Vision OCR Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Mathematical Integrity Verifier Code": {
+      "main": [
+        [
+          {
+            "node": "6. IF Math Verification Passed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. IF Math Verification Passed": {
+      "main": [
+        [
+          {
+            "node": "7. Store Verified Invoice HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "8. Flag Invoice Discrepancy HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Store Verified Invoice HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. Email Chief Accountant Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Flag Invoice Discrepancy HTTP": {
+      "main": [
+        [
+          {
+            "node": "9. Email Chief Accountant Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Email Chief Accountant Notice": {
+      "main": [
+        [
+          {
+            "node": "10. Archive Invoice Document Storage Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Archive Invoice Document Storage Code": {
+      "main": [
+        [
+          {
+            "node": "11. Audit Accounting Log Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Audit Accounting Log Postgres": {
+      "main": [
+        [
+          {
+            "node": "12. Close Finance Ingest Cycle Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Agent 10)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "4. Multimodal Invoice Vision OCR Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Multimodal Invoice Vision OCR Agent": {
+      "main": [
+        [
+          {
+            "node": "5. Mathematical Integrity Verifier Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}

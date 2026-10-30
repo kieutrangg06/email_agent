@@ -221,25 +221,6 @@ export class DraftsService {
 
     const updated = res.rows[0];
 
-    // Gửi email thật qua SMTP khi trạng thái là SENT (Phê duyệt)
-    if (updated && isSent) {
-      try {
-        if (!updated.recipient_email && updated.ticket_code) {
-          const tRes = await this.db.query(
-            'SELECT customer_email, sender_email FROM tickets WHERE ticket_code = $1',
-            [updated.ticket_code],
-          );
-          if (tRes.rows.length > 0) {
-            updated.recipient_email = tRes.rows[0].customer_email || tRes.rows[0].sender_email;
-          }
-        }
-        await this.mailService.sendApprovedReplyToCustomer(updated);
-        this.logger.log(`Approved reply successfully dispatched to ${updated.recipient_email}`);
-      } catch (e: any) {
-        this.logger.error(`Could not dispatch approved reply to customer: ${e.message}`);
-      }
-    }
-
     // If status is SENT, update ticket status to RESOLVED
     if (updated && updated.ticket_code && isSent) {
       try {
