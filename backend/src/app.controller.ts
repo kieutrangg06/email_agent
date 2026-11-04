@@ -252,15 +252,36 @@ export class AppController {
         `;
       }
 
+      // Kiểm tra chế độ Dual-Mode (HUMAN vs AI_FULL) từ system_settings
+      let draftStatus = 'PENDING_APPROVAL';
+      let isAiAutoPilot = false;
+      try {
+        const modeRes = await this.db.query("SELECT value FROM system_settings WHERE key = 'approval_mode' LIMIT 1");
+        if (modeRes.rows.length > 0) {
+          const modeVal = typeof modeRes.rows[0].value === 'string' ? JSON.parse(modeRes.rows[0].value) : modeRes.rows[0].value;
+          if (modeVal.mode === 'AI_FULL' && 98.8 >= (Number(modeVal.confidence_threshold) || 75)) {
+            draftStatus = 'AUTO_SENT';
+            isAiAutoPilot = true;
+          }
+        }
+      } catch (err: any) {
+        console.warn('Mode check error:', err.message);
+      }
+
       const draftRes = await this.db.query(
         `INSERT INTO email_drafts (
           ticket_id, ticket_code, recipient_email, sender_name,
           subject, proposed_subject, proposed_body, html_content,
           original_subject, original_body, knowledge_context,
-          confidence_score, status
-        ) VALUES ($1, $2, $3, $4, $5, $5, $6, $6, $7, $8, '[]'::jsonb, 98.8, 'PENDING_APPROVAL')
+          confidence_score, status, thread_id, version,
+          sent_at, reviewed_at, reviewed_by
+        ) VALUES ($1, $2, $3, $4, $5, $5, $6, $6, $7, $8, '[]'::jsonb, 98.8, $9, $2, 1,
+          ${isAiAutoPilot ? 'NOW()' : 'NULL'},
+          ${isAiAutoPilot ? 'NOW()' : 'NULL'},
+          ${isAiAutoPilot ? "'AI_AUTONOMOUS_AGENT'" : 'NULL'}
+        )
         RETURNING *;`,
-        [savedTicket.id, code, senderEmail, senderName, proposedSubject, proposedBody, subject, textBody]
+        [savedTicket.id, code, senderEmail, senderName, proposedSubject, proposedBody, subject, textBody, draftStatus]
       );
       const createdDraft = draftRes.rows[0];
 
@@ -270,13 +291,27 @@ export class AppController {
         [createdDraft.id, savedTicket.id]
       ).catch(() => {});
 
+      // Nếu đang ở chế độ AI_FULL: tự động chuyển phát email phản hồi qua SMTP luôn
+      if (isAiAutoPilot) {
+        try {
+          await this.mailService.sendApprovedReplyToCustomer(createdDraft);
+          await this.db.query(
+            "UPDATE tickets SET status = 'RESOLVED', resolved_at = NOW() WHERE id = $1;",
+            [savedTicket.id]
+          ).catch(() => {});
+          emailsDispatched.push(`AI tự động chuyển phát thư phản hồi giải pháp tới Khách hàng (${senderEmail})`);
+        } catch (sendErr: any) {
+          console.error('AI Auto-pilot send error:', sendErr.message);
+        }
+      }
+
       branchResult = {
         type: `${category.toUpperCase()}_SUPPORT_DISPATCH`,
         ticket_code: code,
         assigned_to: 'Nguyễn Văn An (tranngo170770@gmail.com)',
         sla_hours: `${slaHours} giờ`,
         sla_deadline: slaDeadline,
-        ai_draft_status: 'PENDING_APPROVAL (Chờ duyệt)',
+        ai_draft_status: isAiAutoPilot ? 'AUTO_SENT (AI Đã tự động gửi)' : 'PENDING_APPROVAL (Chờ duyệt)',
         draft_id: createdDraft.id,
       };
     }

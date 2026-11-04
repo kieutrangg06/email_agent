@@ -21,7 +21,18 @@ import {
   ShieldCheck,
   Bot,
   Check,
+  Zap,
+  Layers,
+  History,
 } from 'lucide-react';
+
+interface InboundMessage {
+  email_id: string | number;
+  sent_at: string;
+  sender: string;
+  subject: string;
+  body: string;
+}
 
 interface Draft {
   id: number;
@@ -42,19 +53,38 @@ interface Draft {
   sla_due_at?: string;
   first_response_sla?: string;
   knowledge_context?: any[];
+  thread_id?: string;
+  version?: number;
+  superseded_by?: number;
+  unreplied_emails_count?: number;
+  aggregated_inbound_messages?: InboundMessage[];
   created_at?: string;
   reviewed_at?: string;
   sent_at?: string;
   reviewed_by?: string;
 }
 
+interface ApprovalSettings {
+  mode: 'HUMAN' | 'AI_FULL';
+  debounce_seconds: number;
+  confidence_threshold: number;
+}
+
 export default function ApprovalPage() {
   const [allDrafts, setAllDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'PENDING_APPROVAL' | 'ALL' | 'SENT' | 'REJECTED'>('PENDING_APPROVAL');
+  const [statusFilter, setStatusFilter] = useState<'PENDING_APPROVAL' | 'ALL' | 'SENT' | 'REJECTED' | 'SUPERSEDED'>('PENDING_APPROVAL');
   const [reviewerEmail, setReviewerEmail] = useState('tranngo170770@gmail.com');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  // Dual-mode state
+  const [approvalSettings, setApprovalSettings] = useState<ApprovalSettings>({
+    mode: 'HUMAN',
+    debounce_seconds: 30,
+    confidence_threshold: 75,
+  });
+  const [modeUpdating, setModeUpdating] = useState(false);
 
   // Editing state
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
@@ -63,6 +93,21 @@ export default function ApprovalPage() {
 
   // Expand email details
   const [expandedDrafts, setExpandedDrafts] = useState<Record<number, boolean>>({});
+
+  const fetchSettings = () => {
+    fetch(`${API_BASE_URL}/api/v1/drafts/settings/mode`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.mode) {
+          setApprovalSettings({
+            mode: data.mode,
+            debounce_seconds: data.debounce_seconds || 30,
+            confidence_threshold: data.confidence_threshold || 75,
+          });
+        }
+      })
+      .catch((err) => console.warn('Could not fetch approval mode:', err));
+  };
 
   const fetchDrafts = () => {
     setLoading(true);
@@ -84,12 +129,43 @@ export default function ApprovalPage() {
   };
 
   useEffect(() => {
+    fetchSettings();
     fetchDrafts();
   }, []);
+
+  // Toggle Mode
+  const handleToggleMode = async (targetMode: 'HUMAN' | 'AI_FULL') => {
+    if (approvalSettings.mode === targetMode) return;
+    setModeUpdating(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/drafts/settings/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: targetMode }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setApprovalSettings(updated);
+        setActionMsg({
+          type: 'success',
+          text: targetMode === 'AI_FULL'
+            ? '⚡ Đã chuyển sang chế độ AI Tự Động: AI sẽ tự động soạn và gửi email qua SMTP ngay khi nhận thư (độ tin cậy ≥ 75%).'
+            : '👤 Đã chuyển sang chế độ Duyệt Thủ Công: Mọi thư do AI soạn thảo đều dừng ở hàng chờ duyệt để chuyên viên kiểm tra.',
+        });
+      }
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: `Lỗi đổi chế độ: ${err.message}` });
+    } finally {
+      setModeUpdating(false);
+    }
+  };
 
   // Filter drafts based on active tab
   const displayedDrafts = useMemo(() => {
     if (statusFilter === 'ALL') return allDrafts;
+    if (statusFilter === 'SENT') {
+      return allDrafts.filter((d) => d.status === 'SENT' || d.status === 'APPROVED_SENT' || d.status === 'AUTO_SENT');
+    }
     return allDrafts.filter((d) => d.status === statusFilter);
   }, [allDrafts, statusFilter]);
 
@@ -97,12 +173,13 @@ export default function ApprovalPage() {
   const stats = useMemo(() => {
     const total = allDrafts.length;
     const pending = allDrafts.filter((d) => d.status === 'PENDING_APPROVAL').length;
-    const sent = allDrafts.filter((d) => d.status === 'SENT').length;
+    const sent = allDrafts.filter((d) => d.status === 'SENT' || d.status === 'APPROVED_SENT' || d.status === 'AUTO_SENT').length;
     const rejected = allDrafts.filter((d) => d.status === 'REJECTED').length;
+    const superseded = allDrafts.filter((d) => d.status === 'SUPERSEDED').length;
     const avgScore = total > 0
       ? (allDrafts.reduce((acc, d) => acc + (Number(d.confidence_score) || 92), 0) / total).toFixed(1)
       : '93.5';
-    return { total, pending, sent, rejected, avgScore };
+    return { total, pending, sent, rejected, superseded, avgScore };
   }, [allDrafts]);
 
   // Real-time notification listener via Server-Sent Events (SSE)
@@ -113,10 +190,25 @@ export default function ApprovalPage() {
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload.event === 'AI_REPLY_DRAFT_GENERATED' || payload.event === 'DRAFT_STATUS_UPDATED') {
+          if (payload.type === 'APPROVAL_MODE_CHANGED') {
+            setApprovalSettings((prev) => ({ ...prev, mode: payload.mode }));
+          }
+          if (
+            payload.event === 'AI_REPLY_DRAFT_GENERATED' ||
+            payload.event === 'DRAFT_STATUS_UPDATED' ||
+            payload.type === 'DRAFT_SUPERSEDED' ||
+            payload.type === 'DRAFT_CREATED' ||
+            payload.type === 'DRAFT_AUTO_SENT'
+          ) {
             setActionMsg({
               type: 'info',
-              text: `🔔 Nhận thông báo thời gian thực: ${payload.event === 'AI_REPLY_DRAFT_GENERATED' ? 'Có bản nháp mới cho ' + (payload.ticket_code || 'vé') : 'Bản thảo #' + payload.draft_id + ' đã đổi trạng thái'}`,
+              text: `🔔 Nhận thông báo thời gian thực: ${
+                payload.type === 'DRAFT_SUPERSEDED'
+                  ? 'Khách vừa gửi thêm thư trong cuộc hội thoại! Bản nháp đã được gộp và cập nhật v2.'
+                  : payload.type === 'DRAFT_AUTO_SENT'
+                  ? 'AI vừa tự động chuyển phát email qua SMTP!'
+                  : 'Bản thảo đã được cập nhật trạng thái mới'
+              }`,
             });
             fetchDrafts();
           }
@@ -152,15 +244,23 @@ export default function ApprovalPage() {
     setEditBody('');
   };
 
-  // Duyệt & Gửi: Triggers Luồng 5 Webhook and updates DB
+  // Duyệt & Gửi
   const handleApproveAndSend = async (draft: Draft) => {
+    if (draft.status === 'SUPERSEDED') {
+      setActionMsg({
+        type: 'error',
+        text: `⚠️ Bản thảo #${draft.id} đã lỗi thời do khách hàng đã gửi thêm email mới. Nút gửi đã khóa để bảo vệ hệ thống.`,
+      });
+      return;
+    }
+
     setActionLoading(draft.id);
     const finalSubject = editingDraftId === draft.id ? editSubject : (draft.subject || draft.proposed_subject);
     const finalBody = editingDraftId === draft.id ? editBody : (draft.html_content || draft.proposed_body);
 
     setActionMsg({
       type: 'info',
-      text: `Đang gửi email phản hồi tới khách hàng...`,
+      text: `Đang gửi email phản hồi tới khách hàng qua SMTP...`,
     });
 
     try {
@@ -197,15 +297,17 @@ export default function ApprovalPage() {
         }),
       });
 
-      if (patchRes.ok) {
+      const data = await patchRes.json();
+
+      if (patchRes.ok && data.success !== false) {
         setActionMsg({
           type: 'success',
-          text: `Bản thảo #${draft.id} (${draft.ticket_code}) đã được DUYỆT & GỬI thành công! Email đã gửi tới khách hàng và vé đã chuyển sang RESOLVED.`,
+          text: `Bản thảo #${draft.id} (${draft.ticket_code || 'Cuộc hội thoại'}) đã được DUYỆT & GỬI thành công! Email đã gửi tới khách hàng và vé đã chuyển sang RESOLVED.`,
         });
         setEditingDraftId(null);
         fetchDrafts();
       } else {
-        throw new Error('Cập nhật trạng thái backend thất bại');
+        throw new Error(data.message || 'Cập nhật trạng thái backend thất bại');
       }
     } catch (err: any) {
       setActionMsg({
@@ -232,7 +334,7 @@ export default function ApprovalPage() {
       if (res.ok) {
         setActionMsg({
           type: 'info',
-          text: `🚫 Bản thảo #${draft.id} (${draft.ticket_code}) đã bị TỪ CHỐI (REJECTED). Không gửi email ra bên ngoài.`,
+          text: `🚫 Bản thảo #${draft.id} (${draft.ticket_code || ''}) đã bị TỪ CHỐI (REJECTED). Không gửi email ra bên ngoài.`,
         });
         fetchDrafts();
       }
@@ -256,7 +358,7 @@ export default function ApprovalPage() {
       if (res.ok) {
         setActionMsg({
           type: 'success',
-          text: `✅ Đã gửi lại email thành công tới ${draft.recipient_email}! Vui lòng kiểm tra hộp thư đến (và thư mục Spam/Quảng cáo).`,
+          text: `✅ Đã gửi lại email thành công tới ${draft.recipient_email}! Vui lòng kiểm tra hộp thư đến.`,
         });
       } else {
         throw new Error('Gửi lại email thất bại');
@@ -305,17 +407,54 @@ export default function ApprovalPage() {
       )}
 
       {/* Page Header Card */}
-      <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/40 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
-            Phê Duyệt Thư Phản Hồi
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
+              Phê Duyệt Thư Phản Hồi
+            </h1>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200">
+              Dual-Mode &amp; Threading
+            </span>
+          </div>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
             Kiểm duyệt và tinh chỉnh bản thảo trả lời do AI đề xuất trước khi gửi thư chính thức tới khách hàng.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Header Right Actions: Dual-Mode Toggle & Refresh */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Dual-Mode Segmented Control */}
+          <div className="bg-rose-50/80 p-1 rounded-xl border border-rose-200/80 flex items-center gap-1 shadow-xs">
+            <button
+              onClick={() => handleToggleMode('HUMAN')}
+              disabled={modeUpdating}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                approvalSettings.mode === 'HUMAN'
+                  ? 'bg-white text-rose-700 shadow-xs border border-rose-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="AI soạn thảo dừng ở hàng chờ duyệt để chuyên viên kiểm tra trước khi gửi"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-rose-500" />
+              <span>Duyệt Thủ Công (Human)</span>
+            </button>
+
+            <button
+              onClick={() => handleToggleMode('AI_FULL')}
+              disabled={modeUpdating}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                approvalSettings.mode === 'AI_FULL'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="AI tự động gửi email qua SMTP ngay khi nhận thư (độ tin cậy ≥ 75%)"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>Tự Động Gửi (AI)</span>
+            </button>
+          </div>
+
           <button
             onClick={fetchDrafts}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-slate-700 text-xs sm:text-sm font-medium transition shadow-xs"
@@ -327,7 +466,17 @@ export default function ApprovalPage() {
         </div>
       </div>
 
-      {/* KPI Stats Ribbon */}
+      {/* Mode Status Pill Note */}
+      {approvalSettings.mode === 'AI_FULL' && (
+        <div className="bg-cyan-50/80 border border-cyan-200 px-4 py-2 rounded-xl text-xs text-cyan-800 flex items-center gap-2">
+          <Zap className="w-4 h-4 text-cyan-600 shrink-0" />
+          <span>
+            <strong>Chế độ AI Tự Động đang bật:</strong> Mọi email gửi đến hệ thống có độ tin cậy ≥ 75% sẽ được AI tự động soạn và chuyển phát ngay qua SMTP mà không cần bấm duyệt.
+          </span>
+        </div>
+      )}
+
+      {/* KPI Stats Ribbon (5 Thẻ Ban Đầu Chuẩn Mực) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-white p-4 rounded-2xl border border-rose-150 shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
@@ -382,37 +531,28 @@ export default function ApprovalPage() {
 
       {/* Navigation Filter Tabs */}
       <div className="flex border-b border-rose-200/80 gap-2 overflow-x-auto pb-1">
-        {(['PENDING_APPROVAL', 'ALL', 'SENT', 'REJECTED'] as const).map((filter) => {
-          const isActive = statusFilter === filter;
-          const count =
-            filter === 'PENDING_APPROVAL'
-              ? stats.pending
-              : filter === 'ALL'
-              ? stats.total
-              : filter === 'SENT'
-              ? stats.sent
-              : stats.rejected;
+        {[
+          { key: 'PENDING_APPROVAL', label: `Chờ Duyệt (${stats.pending})`, icon: Clock },
+          { key: 'ALL', label: `Tất Cả (${stats.total})`, icon: Inbox },
+          { key: 'SENT', label: `Đã Gửi (${stats.sent})`, icon: CheckCircle2 },
+          { key: 'SUPERSEDED', label: `Đã Thay Thế (${stats.superseded})`, icon: History },
+          { key: 'REJECTED', label: `Từ Chối (${stats.rejected})`, icon: XCircle },
+        ].map((tab) => {
+          const isActive = statusFilter === tab.key;
+          const Icon = tab.icon;
 
           return (
             <button
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key as any)}
               className={`pb-3 px-4 text-xs sm:text-sm font-bold transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
                 isActive
                   ? 'border-rose-500 text-rose-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              {filter === 'PENDING_APPROVAL' && <Clock className="w-4 h-4" />}
-              {filter === 'ALL' && <Inbox className="w-4 h-4" />}
-              {filter === 'SENT' && <CheckCircle2 className="w-4 h-4" />}
-              {filter === 'REJECTED' && <XCircle className="w-4 h-4" />}
-              <span>
-                {filter === 'PENDING_APPROVAL' && `Chờ Duyệt (${count})`}
-                {filter === 'ALL' && `Tất Cả (${count})`}
-                {filter === 'SENT' && `Đã Gửi (${count})`}
-                {filter === 'REJECTED' && `Từ Chối (${count})`}
-              </span>
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
             </button>
           );
         })}
@@ -435,6 +575,7 @@ export default function ApprovalPage() {
             {statusFilter === 'PENDING_APPROVAL' && 'Không có bản thảo nào đang chờ duyệt'}
             {statusFilter === 'SENT' && 'Chưa có bản thảo nào đã gửi'}
             {statusFilter === 'REJECTED' && 'Chưa có bản thảo nào bị từ chối'}
+            {statusFilter === 'SUPERSEDED' && 'Không có bản thảo nào bị thay thế'}
             {statusFilter === 'ALL' && 'Không có bản thảo nào trong hệ thống'}
           </p>
           <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-md mx-auto">
@@ -444,6 +585,8 @@ export default function ApprovalPage() {
               ? 'Các email đã được duyệt và chuyển phát thành công qua SMTP sẽ được lưu trữ tại đây.'
               : statusFilter === 'REJECTED'
               ? 'Các bản thảo bị từ chối không gửi ra bên ngoài sẽ hiển thị tại đây.'
+              : statusFilter === 'SUPERSEDED'
+              ? 'Các bản thảo đã bị thay thế bởi email mới hơn trong cùng một cuộc trò chuyện để tránh gửi nhầm bản cũ.'
               : 'Toàn bộ danh sách bản thảo trong cơ sở dữ liệu.'}
           </p>
         </div>
@@ -454,18 +597,37 @@ export default function ApprovalPage() {
             const isExpanded = expandedDrafts[draft.id] || false;
             const subjectToShow = isEditing ? editSubject : (draft.subject || draft.proposed_subject);
             const bodyToShow = isEditing ? editBody : (draft.html_content || draft.proposed_body);
+            const isSuperseded = draft.status === 'SUPERSEDED';
+            const isAutoSent = draft.status === 'AUTO_SENT';
+            const unrepliedCount = Number(draft.unreplied_emails_count) || 1;
+            const inboundList = Array.isArray(draft.aggregated_inbound_messages) ? draft.aggregated_inbound_messages : [];
 
             return (
               <div
                 key={draft.id}
-                className="bg-white rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/20 overflow-hidden transition hover:shadow-md hover:border-rose-200"
+                className={`bg-white rounded-3xl border border-rose-150 shadow-sm shadow-rose-100/20 overflow-hidden transition hover:shadow-md hover:border-rose-200 ${
+                  isSuperseded ? 'opacity-75 bg-slate-50/50' : ''
+                }`}
               >
-                {/* Card Header */}
+                {/* Card Header (Giữ nguyên cấu trúc ban đầu) */}
                 <div className="p-5 bg-rose-50/40 border-b border-rose-100 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="font-mono text-xs font-bold px-2.5 py-1 bg-white text-rose-700 border border-rose-200 rounded-lg shadow-xs">
                       {draft.ticket_code || `DRAFT-#${draft.id}`}
                     </span>
+
+                    {/* Version Badge */}
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                      Version {draft.version || 1}
+                    </span>
+
+                    {/* Multi-email Aggregated Badge nếu có gộp thư */}
+                    {unrepliedCount > 1 && (
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                        <Layers className="w-3 h-3" />
+                        <span>Đã gộp {unrepliedCount} thư</span>
+                      </span>
+                    )}
 
                     {draft.priority && (
                       <span
@@ -485,12 +647,24 @@ export default function ApprovalPage() {
                       className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${
                         draft.status === 'PENDING_APPROVAL'
                           ? 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
-                          : draft.status === 'SENT'
+                          : draft.status === 'AUTO_SENT'
+                          ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                          : draft.status === 'SENT' || draft.status === 'APPROVED_SENT'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : draft.status === 'SUPERSEDED'
+                          ? 'bg-slate-200 text-slate-700 border border-slate-300'
                           : 'bg-rose-50 text-rose-700 border border-rose-200'
                       }`}
                     >
-                      {draft.status === 'PENDING_APPROVAL' ? 'CHỜ DUYỆT' : draft.status === 'SENT' ? 'ĐÃ GỬI' : 'TỪ CHỐI'}
+                      {draft.status === 'PENDING_APPROVAL'
+                        ? 'CHỜ DUYỆT'
+                        : draft.status === 'AUTO_SENT'
+                        ? 'AI ĐÃ GỬI'
+                        : draft.status === 'SENT' || draft.status === 'APPROVED_SENT'
+                        ? 'ĐÃ GỬI'
+                        : draft.status === 'SUPERSEDED'
+                        ? 'ĐÃ THAY THẾ'
+                        : 'TỪ CHỐI'}
                     </span>
                   </div>
 
@@ -539,12 +713,13 @@ export default function ApprovalPage() {
                 {/* Card Body */}
                 <div className="p-6 space-y-5">
                   {/* Customer Inquiry Snapshot */}
-                  {(draft.original_subject || draft.original_body) && (
+                  {(draft.original_subject || draft.original_body || inboundList.length > 0) && (
                     <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80 text-xs space-y-2">
                       <div className="flex items-center justify-between text-slate-600">
                         <span className="font-bold text-slate-800 flex items-center gap-1.5">
                           <Mail className="w-3.5 h-3.5 text-rose-500" />
-                          Email gốc từ khách hàng ({draft.sender_name || draft.recipient_email}):
+                          Email gốc từ khách hàng ({draft.sender_name || draft.recipient_email})
+                          {inboundList.length > 1 && ` [${inboundList.length} thư trong hội thoại]`}:
                         </span>
                         <button
                           onClick={() => toggleExpand(draft.id)}
@@ -565,12 +740,27 @@ export default function ApprovalPage() {
                       </div>
 
                       <div className="text-slate-700 font-medium">
-                        <strong className="text-slate-900">Tiêu đề:</strong> {draft.original_subject}
+                        <strong className="text-slate-900">Tiêu đề:</strong> {draft.original_subject || draft.subject}
                       </div>
 
-                      {isExpanded && draft.original_body && (
-                        <div className="text-slate-600 mt-2 p-3 bg-white rounded-xl border border-slate-200 whitespace-pre-wrap leading-relaxed shadow-inner">
-                          {draft.original_body}
+                      {isExpanded && (
+                        <div className="space-y-2 mt-2">
+                          {inboundList.length > 1 ? (
+                            inboundList.map((msg, i) => (
+                              <div key={i} className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                  <strong className="text-indigo-700">Thư #{i + 1} ({msg.sender || draft.recipient_email})</strong>
+                                  <span>{msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString('vi-VN') : ''}</span>
+                                </div>
+                                <p className="text-slate-700 font-medium">{msg.subject}</p>
+                                <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-slate-600 p-3 bg-white rounded-xl border border-slate-200 whitespace-pre-wrap leading-relaxed shadow-inner">
+                              {draft.original_body || 'Không có nội dung chi tiết.'}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -614,6 +804,7 @@ export default function ApprovalPage() {
                       </label>
                     </div>
 
+                    {/* RENDER HTML ĐẸP MẮT (CHỐNG LỖI RAW HTML) */}
                     {isEditing ? (
                       <textarea
                         rows={10}
@@ -659,6 +850,11 @@ export default function ApprovalPage() {
                         • Duyệt bởi: {draft.reviewed_by}
                       </span>
                     )}
+                    {isSuperseded && draft.superseded_by && (
+                      <span className="text-amber-700 font-semibold ml-2">
+                        • Thay thế bởi bản nháp #{draft.superseded_by}
+                      </span>
+                    )}
                   </div>
 
                   {draft.status === 'PENDING_APPROVAL' && (
@@ -691,7 +887,13 @@ export default function ApprovalPage() {
                     </div>
                   )}
 
-                  {draft.status === 'SENT' && (
+                  {isSuperseded && (
+                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                      Đã khóa gửi vì bản thảo đã có phiên bản mới hơn
+                    </span>
+                  )}
+
+                  {(draft.status === 'SENT' || draft.status === 'APPROVED_SENT') && (
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-xl shadow-xs">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -711,6 +913,13 @@ export default function ApprovalPage() {
                         <span>Gửi lại Email</span>
                       </button>
                     </div>
+                  )}
+
+                  {isAutoSent && (
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-bold rounded-xl shadow-xs">
+                      <Bot className="w-4 h-4 text-cyan-600" />
+                      <span>AI đã tự động gửi qua SMTP</span>
+                    </span>
                   )}
 
                   {draft.status === 'REJECTED' && (
