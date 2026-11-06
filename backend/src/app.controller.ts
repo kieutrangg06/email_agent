@@ -69,6 +69,23 @@ export class AppController {
     const attachmentContent = body.attachment_content || '';
     const combinedContent = `${subject} ${textBody} ${attachmentName} ${attachmentContent}`.toLowerCase();
 
+    // 🚀 Đồng bộ kích hoạt n8n Cloud Orchestrator (PikaPods 24/24)
+    const n8nCloudWebhook = process.env.N8N_WEBHOOK_URL || 'https://berserk-quail.pikapod.net/webhook/m1-flow1-ingest';
+    fetch(n8nCloudWebhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender_name: senderName,
+        sender_email: senderEmail,
+        subject,
+        body: textBody,
+        attachment_name: attachmentName,
+        attachment_content: attachmentContent,
+      }),
+    }).catch((err) => {
+      console.warn(`Could not dispatch to n8n Cloud Webhook: ${err.message}`);
+    });
+
     // =========================================================================
     // 🛡️ BƯỚC 1: EMAIL INGEST & BẢO MẬT (THREAT DETECTION)
     // =========================================================================
