@@ -90,12 +90,22 @@ export class TicketsService {
     const assignedAgentId = data.assigned_agent_id ? parseInt(String(data.assigned_agent_id), 10) : null;
     const ticketStatus = data.status || 'PENDING';
 
-    const pri = String(priority);
-    let slaInterval = '8 hours';
-    if (pri.includes('P1')) slaInterval = '2 hours';
-    else if (pri.includes('P2')) slaInterval = '4 hours';
-    else if (pri.includes('P3')) slaInterval = '8 hours';
-    else if (pri.includes('P4')) slaInterval = '24 hours';
+    const pri = String(priority).toUpperCase();
+    let normPriority = 'P2 - High';
+    let slaInterval = '4 hours';
+    if (pri.includes('P1')) {
+      normPriority = 'P1 - Critical';
+      slaInterval = '1 hour';
+    } else if (pri.includes('P2')) {
+      normPriority = 'P2 - High';
+      slaInterval = '4 hours';
+    } else if (pri.includes('P3')) {
+      normPriority = 'P3 - Medium';
+      slaInterval = '24 hours';
+    } else if (pri.includes('P4')) {
+      normPriority = 'P4 - Low';
+      slaInterval = '48 hours';
+    }
 
     const res = await this.db.query(
       `INSERT INTO tickets 
@@ -113,7 +123,7 @@ export class TicketsService {
          assigned_agent_id = EXCLUDED.assigned_agent_id,
          status = EXCLUDED.status
        RETURNING *;`,
-      [code, senderEmail, title, description, summary, category, priority, assignedAgentId, assignedTo, agentEmail, ticketStatus]
+      [code, senderEmail, title, description, summary, category, normPriority, assignedAgentId, assignedTo, agentEmail, ticketStatus]
     );
 
     if (agentEmail) {
@@ -271,20 +281,49 @@ export class TicketsService {
     const bodySnippet = String(data.body || data.clean_body || data.body_snippet || '').substring(0, 250);
     const department = data.department || data.classified_department || 'TECH';
     const category = data.category || 'Technical';
-    const priority = data.priority || 'P2 - High';
-    const sentiment = data.sentiment || 'Trung tinh';
+    
+    // Chuẩn hóa Priority P1 - P4 và SLA Deadline chuẩn ITIL
+    let rawPriority = String(data.priority || 'P2').toUpperCase();
+    let normPriority = 'P2 - High';
+    let slaInterval = '4 hours';
+    if (rawPriority.includes('P1')) {
+      normPriority = 'P1 - Critical';
+      slaInterval = '1 hour';
+    } else if (rawPriority.includes('P2')) {
+      normPriority = 'P2 - High';
+      slaInterval = '4 hours';
+    } else if (rawPriority.includes('P3')) {
+      normPriority = 'P3 - Medium';
+      slaInterval = '24 hours';
+    } else if (rawPriority.includes('P4')) {
+      normPriority = 'P4 - Low';
+      slaInterval = '48 hours';
+    }
+
+    const sentiment = data.sentiment || (rawPriority.includes('P1') ? 'Khan cap' : 'Trung tinh');
     const confidence = Number(data.confidence_score || data.confidence || 0.95);
     const urgency = data.urgency_reason || 'AI Triage Auto';
+    const slaDeadline = data.sla_deadline || null;
 
-    const res = await this.db.query(
-      `INSERT INTO email_triage_logs (
-        inbound_email, sender_email, sender_name, subject, body_snippet, 
-        classified_department, category, priority, sentiment, 
-        confidence_score, urgency_reason, sla_deadline, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW() + INTERVAL '24 hours', 'PENDING')
-      RETURNING *;`,
-      [inbound, sender, name, subject, bodySnippet, department, category, priority, sentiment, confidence, urgency],
-    );
+    const query = slaDeadline
+      ? `INSERT INTO email_triage_logs (
+          inbound_email, sender_email, sender_name, subject, body_snippet, 
+          classified_department, category, priority, sentiment, 
+          confidence_score, urgency_reason, sla_deadline, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'PROCESSED')
+        RETURNING *;`
+      : `INSERT INTO email_triage_logs (
+          inbound_email, sender_email, sender_name, subject, body_snippet, 
+          classified_department, category, priority, sentiment, 
+          confidence_score, urgency_reason, sla_deadline, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW() + INTERVAL '${slaInterval}', 'PROCESSED')
+        RETURNING *;`;
+
+    const params = slaDeadline
+      ? [inbound, sender, name, subject, bodySnippet, department, category, normPriority, sentiment, confidence, urgency, slaDeadline]
+      : [inbound, sender, name, subject, bodySnippet, department, category, normPriority, sentiment, confidence, urgency];
+
+    const res = await this.db.query(query, params);
     return res.rows[0];
   }
 
