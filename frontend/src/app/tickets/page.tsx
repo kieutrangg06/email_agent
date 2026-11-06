@@ -1292,13 +1292,13 @@ export default function TicketsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setCustName('Nhà cung cấp lạ');
+                    setCustName('Công ty Thiết Bị An Phát');
                     setCustEmail('trangltk.24it@vku.udn.vn');
-                    setCustSubject('[GỬI HÓA ĐƠN VAT] Thanh toán dịch vụ bảo trì HD-FAKE-002');
-                    setCustBody('Kính gửi kế toán, gửi hóa đơn HD-FAKE-002: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 15.000.000 đ (kê khống lệch 4 triệu).');
-                    setCustAttachmentName('hoa_don_fake.pdf');
+                    setCustSubject('[GỬI HÓA ĐƠN VAT] Đối soát chi phí bảo trì hệ thống HD-AUDIT-002');
+                    setCustBody('Kính gửi bộ phận kế toán, đơn vị gửi hóa đơn đối soát HD-AUDIT-002: Tiền hàng 10.000.000 đ, thuế VAT 1.000.000 đ, tổng thanh toán là 15.000.000 đ (Đề nghị kiểm toán xác minh số dư lệch 4 triệu).');
+                    setCustAttachmentName('hoa_don_doi_soat.pdf');
                     setCustAttachmentSize(189000);
-                    setCustAttachmentContent('HÓA ĐƠN GTGT SAI LỆCH SỐ HỌC\nSố HĐ: HD-FAKE-002\nTiền hàng: 10.000.000 VNĐ\nThuế VAT 10%: 1.000.000 VNĐ\nTổng thanh toán ghi khống: 15.000.000 VNĐ (Sai lệch số học 4.000.000 VNĐ so với thực tế)');
+                    setCustAttachmentContent('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nHÓA ĐƠN ĐIỆN TỬ GTGT (VAT)\nSố HĐ: HD-AUDIT-002\nĐơn vị bán: Công ty Thiết Bị An Phát\nĐơn vị mua: Công ty TNHH Giải Pháp Số\nTiền hàng chưa thuế: 10.000.000 VNĐ\nThuế suất GTGT 10%: 1.000.000 VNĐ\nTổng cộng tiền thanh toán ghi: 15.000.000 VNĐ\n(Lệch 4.000.000 VNĐ cần cảnh báo Kế toán trưởng)');
                   }}
                   className="p-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 font-bold text-left transition flex flex-col gap-0.5"
                 >
