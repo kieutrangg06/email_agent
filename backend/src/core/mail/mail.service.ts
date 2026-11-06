@@ -5,6 +5,8 @@ import * as nodemailer from 'nodemailer';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter;
+  // Deduplication guard: Ngăn chặn gửi email trùng lặp trong 60 giây
+  private static sentEmailCache = new Map<string, number>();
 
   constructor() {
     this.transporter = nodemailer.createTransport({
@@ -17,6 +19,16 @@ export class MailService {
   }
 
   async sendMail(to: string, subject: string, html: string, fromName = 'Enterprise AI Helpdesk') {
+    // Deduplication check
+    const dedupKey = `${to.trim().toLowerCase()}_${subject.trim().toLowerCase()}`;
+    const now = Date.now();
+    const lastSent = MailService.sentEmailCache.get(dedupKey);
+    if (lastSent && now - lastSent < 60000) {
+      this.logger.warn(`[Deduplication Guard] Bỏ qua gửi email trùng lặp tới ${to} với tiêu đề: "${subject}" (đã gửi cách đây ${Math.round((now - lastSent)/1000)}s)`);
+      return { success: true, deduplicated: true };
+    }
+    MailService.sentEmailCache.set(dedupKey, now);
+
     const fromEmail = process.env.SMTP_USER || 'kieutrangg06123@gmail.com';
     const brevoApiKey =
       process.env.BREVO_API_KEY ||

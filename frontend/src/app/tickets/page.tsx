@@ -314,29 +314,60 @@ export default function TicketsPage() {
     }
     setIsSubmittingCustEmail(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/inbound/process-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender_name: custName,
-          sender_email: custEmail,
-          subject: custSubject,
-          body: custBody,
-          attachment_name: custAttachmentName,
-          attachment_content: custAttachmentContent,
-        }),
-      });
-      const data = await res.json();
+      const n8nWebhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || 'https://berserk-quail.pikapod.net/webhook/m1-flow1-ingest';
+      let data: any = null;
+      let usedN8n = false;
 
-      if (data.action === 'QUARANTINED') {
+      // 1. Gửi qua n8n Cloud Webhook Orchestrator (PikaPods 24/24)
+      try {
+        const n8nRes = await fetch(n8nWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender_name: custName,
+            sender_email: custEmail,
+            subject: custSubject,
+            body: custBody,
+            attachment_name: custAttachmentName,
+            attachment_content: custAttachmentContent,
+          }),
+        });
+        if (n8nRes.ok) {
+          usedN8n = true;
+          data = await n8nRes.json();
+        }
+      } catch (n8nErr) {
+        console.warn('n8n Webhook unreachable, falling back to direct API', n8nErr);
+      }
+
+      // 2. Dự phòng: Nếu n8n không phản hồi, gọi trực tiếp Backend Inbound API
+      if (!usedN8n) {
+        const res = await fetch(`${API_BASE_URL}/api/v1/inbound/process-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender_name: custName,
+            sender_email: custEmail,
+            subject: custSubject,
+            body: custBody,
+            attachment_name: custAttachmentName,
+            attachment_content: custAttachmentContent,
+          }),
+        });
+        data = await res.json();
+      }
+
+      if (data?.action === 'QUARANTINED') {
         showToast('🛡️ AI Phát Hiện Đe Dọa An Ninh!', `Email đã bị cô lập vào Kho Cách Ly (Vault): ${data.reason}`, 'error');
         setActiveTab('quarantine');
       } else {
-        const cat = data.category_detected || 'Technical';
-        const pri = data.priority_detected || 'P1 - Critical';
+        const cat = data?.category_detected || 'Technical';
+        const pri = data?.priority_detected || 'P1 - Critical';
         showToast(
           'Tiếp nhận & Xử lý thành công!',
-          `🤖 AI Phân Loại: [${cat}] & Ưu Tiên: [${pri}] ➜ Đã phát email thật đến các hòm thư!`,
+          usedN8n
+            ? `🚀 Đã xử lý qua n8n Cloud Orchestrator (PikaPods 24/24)! Đang thực thi 9 luồng DAG!`
+            : `🤖 AI Phân Loại: [${cat}] & Ưu Tiên: [${pri}] ➜ Đã phát email thật đến các hòm thư!`,
           'success'
         );
         if (cat === 'Technical') setActiveTab('tickets');
@@ -344,9 +375,12 @@ export default function TicketsPage() {
       }
 
       setShowCustomerModal(false);
-      await reloadAll();
+      // Đợi 1.5 giây để n8n hoàn thành ghi dữ liệu vào CSDL rồi nạp lại
+      setTimeout(() => {
+        reloadAll();
+      }, 1500);
     } catch {
-      showToast('Lỗi gửi thư', 'Không thể kết nối đến Backend', 'error');
+      showToast('Lỗi gửi thư', 'Không thể kết nối đến máy chủ', 'error');
     } finally {
       setIsSubmittingCustEmail(false);
     }

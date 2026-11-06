@@ -264,7 +264,7 @@ export default function ApprovalPage() {
     });
 
     try {
-      // 1. Call Luồng 5 n8n Webhook
+      // 1. Call Luồng 5 n8n Webhook (PikaPods Cloud 24/24)
       const webhookPayload = {
         draft_id: draft.id,
         reviewer_email: reviewerEmail,
@@ -274,7 +274,8 @@ export default function ApprovalPage() {
       };
 
       try {
-        await fetch('http://localhost:5678/webhook/m2-flow5-approval', {
+        const n8nApprovalUrl = process.env.NEXT_PUBLIC_N8N_APPROVAL_URL || 'https://berserk-quail.pikapod.net/webhook/m2-flow5-approval';
+        await fetch(n8nApprovalUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(webhookPayload),
