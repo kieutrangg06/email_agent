@@ -31,7 +31,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/reviewers/validate",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/reviewers/validate",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -58,7 +58,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{ 'http://localhost:4000/api/v1/drafts/' + Number($('1. Human Action Webhook Trigger').first().json.body?.draft_id || $('1. Human Action Webhook Trigger').first().json.draft_id || 1) }}",
+        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/drafts/' + Number($('1. Human Action Webhook Trigger').first().json.body?.draft_id || $('1. Human Action Webhook Trigger').first().json.draft_id || 1) }}",
         "options": {}
       }
     },
@@ -130,7 +130,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{ 'http://localhost:4000/api/v1/drafts/' + $('4. Email Address Validation Code').first().json.draft_id + '/status' }}",
+        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/drafts/' + $('4. Email Address Validation Code').first().json.draft_id + '/status' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -157,7 +157,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{ 'http://localhost:4000/api/v1/tickets/' + $('4. Email Address Validation Code').first().json.ticket_code + '/status' }}",
+        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/tickets/' + $('4. Email Address Validation Code').first().json.ticket_code + '/status' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -184,7 +184,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/tickets/comments",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/tickets/comments",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -224,7 +224,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/audit/logs",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -251,7 +251,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/audit/logs",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

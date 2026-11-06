@@ -157,11 +157,29 @@ export default function TicketsPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const formatSlaBadge = (deadline?: string) => {
-    if (!deadline) {
+  const formatPriority = (p?: string) => {
+    if (!p) return 'P4 - Low';
+    if (p.includes('P1')) return 'P1 - Critical';
+    if (p.includes('P2')) return 'P2 - High';
+    if (p.includes('P3')) return 'P3 - Medium';
+    return 'P4 - Low';
+  };
+
+  const formatSlaBadge = (deadline?: string, priority?: string, createdAt?: string) => {
+    let target = deadline ? new Date(deadline) : null;
+    const normPri = formatPriority(priority);
+    if (normPri.includes('P1') && createdAt) {
+      const created = new Date(createdAt);
+      target = new Date(created.getTime() + 60 * 60 * 1000); // 1h SLA strictly
+    } else if (normPri.includes('P2') && createdAt && (!deadline || Math.abs(new Date(deadline).getTime() - new Date(createdAt).getTime() - 4 * 3600000) > 3600000)) {
+      target = new Date(new Date(createdAt).getTime() + 4 * 60 * 60 * 1000); // 4h SLA
+    } else if (normPri.includes('P4') && createdAt && (!deadline || Math.abs(new Date(deadline).getTime() - new Date(createdAt).getTime() - 48 * 3600000) > 3600000)) {
+      target = new Date(new Date(createdAt).getTime() + 48 * 60 * 60 * 1000); // 48h SLA
+    }
+
+    if (!target || isNaN(target.getTime())) {
       return <span className="text-slate-400 font-mono text-[11px]">---</span>;
     }
-    const target = new Date(deadline);
     const now = new Date();
     const diffMinutes = Math.round((target.getTime() - now.getTime()) / 60000);
     const isExpired = diffMinutes < 0;
@@ -695,16 +713,16 @@ export default function TicketsPage() {
                         <td className="py-3.5 px-3">
                           <span
                             className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                              log.priority.includes('P1')
+                              formatPriority(log.priority).includes('P1')
                                 ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                                : log.priority.includes('P2')
+                                : formatPriority(log.priority).includes('P2')
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : log.priority.includes('P3')
+                                : formatPriority(log.priority).includes('P3')
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                 : 'bg-slate-100 text-slate-600 border border-slate-200'
                             }`}
                           >
-                            {log.priority}
+                            {formatPriority(log.priority)}
                           </span>
                         </td>
 
@@ -713,7 +731,7 @@ export default function TicketsPage() {
                         </td>
 
                         <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          {formatSlaBadge(log.sla_deadline)}
+                          {formatSlaBadge(log.sla_deadline, log.priority, log.created_at)}
                         </td>
 
                         <td className="py-3.5 px-3">
@@ -1065,7 +1083,7 @@ export default function TicketsPage() {
               <div className="bg-rose-50/40 p-3 rounded-xl border border-rose-100">
                 <span className="text-slate-400">Phòng ban &amp; Mức độ:</span>
                 <p className="font-bold text-slate-800">{selectedMail.category}</p>
-                <p className="text-rose-600 font-semibold">{selectedMail.priority}</p>
+                <p className="text-rose-600 font-semibold">{formatPriority(selectedMail.priority)}</p>
               </div>
 
               <div className="bg-rose-50/40 p-3 rounded-xl border border-rose-100 col-span-2">

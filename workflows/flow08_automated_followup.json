@@ -31,7 +31,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "http://localhost:4000/api/v1/crm/deals/stale",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/crm/deals/stale",
         "options": {}
       }
     },
@@ -60,7 +60,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "={{ 'http://localhost:4000/api/v1/crm/deals/' + $json.deal_id }}",
+        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/crm/deals/' + $json.deal_id }}",
         "options": {}
       }
     },
@@ -196,7 +196,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/audit/logs",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

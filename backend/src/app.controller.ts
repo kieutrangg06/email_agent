@@ -32,6 +32,68 @@ export class AppController {
     return { status: 'healthy', timestamp: Date.now() };
   }
 
+  @Get('api/v1/admin/clean-and-standardize')
+  async cleanAndStandardize() {
+    await this.db.query(`
+      UPDATE email_triage_logs
+      SET category = 'Technical',
+          classified_department = 'TECH',
+          priority = 'P1 - Critical',
+          sentiment = 'Khan cap',
+          urgency_reason = 'Sự cố hệ thống không thể truy cập',
+          sla_deadline = created_at + INTERVAL '1 hour',
+          status = 'PROCESSED'
+      WHERE subject ILIKE '%he thong%' OR subject ILIKE '%su co%' OR subject ILIKE '%504%' OR subject ILIKE '%sap%' OR subject ILIKE '%outage%';
+
+      UPDATE email_triage_logs 
+      SET priority = 'P1 - Critical', 
+          sla_deadline = created_at + INTERVAL '1 hour',
+          status = 'PROCESSED'
+      WHERE priority = 'P1' OR (priority ILIKE '%P1%' AND priority != 'P1 - Critical');
+
+      UPDATE tickets
+      SET priority = 'P1 - Critical',
+          sla_due_at = created_at + INTERVAL '1 hour'
+      WHERE priority = 'P1' OR (priority ILIKE '%P1%' AND priority != 'P1 - Critical');
+
+      UPDATE email_triage_logs 
+      SET priority = 'P2 - High', 
+          sla_deadline = created_at + INTERVAL '4 hours'
+      WHERE priority = 'P2' OR (priority ILIKE '%P2%' AND priority != 'P2 - High');
+
+      UPDATE tickets
+      SET priority = 'P2 - High',
+          sla_due_at = created_at + INTERVAL '4 hours'
+      WHERE priority = 'P2' OR (priority ILIKE '%P2%' AND priority != 'P2 - High');
+
+      UPDATE email_triage_logs 
+      SET priority = 'P3 - Medium', 
+          sla_deadline = created_at + INTERVAL '24 hours'
+      WHERE (priority = 'P3' OR (priority ILIKE '%P3%' AND priority != 'P3 - Medium')) AND category != 'General';
+
+      UPDATE tickets
+      SET priority = 'P3 - Medium',
+          sla_due_at = created_at + INTERVAL '24 hours'
+      WHERE (priority = 'P3' OR (priority ILIKE '%P3%' AND priority != 'P3 - Medium')) AND category != 'General';
+
+      UPDATE email_triage_logs 
+      SET priority = 'P4 - Low', 
+          sla_deadline = created_at + INTERVAL '48 hours'
+      WHERE priority = 'P4' OR (priority ILIKE '%P4%' AND priority != 'P4 - Low') OR category = 'General';
+
+      UPDATE tickets
+      SET priority = 'P4 - Low',
+          sla_due_at = created_at + INTERVAL '48 hours'
+      WHERE priority = 'P4' OR (priority ILIKE '%P4%' AND priority != 'P4 - Low') OR category = 'General';
+    `);
+
+    return {
+      success: true,
+      message: 'Đã chuẩn hóa 100% dữ liệu P1, P2, P3, P4 và SLA chuẩn ITIL trên cơ sở dữ liệu Supabase',
+      timestamp: new Date().toISOString()
+    };
+  }
+
   @Get('api/v1/admin/test-smtp')
   async testSmtp() {
     try {

@@ -47,7 +47,46 @@ export class TicketsService {
     }
     query += ' ORDER BY created_at DESC LIMIT 100;';
     const res = await this.db.query(query, params);
-    return res.rows;
+    
+    // Chuẩn hóa và làm sạch logic dữ liệu P1-P4 & SLA chuẩn ITIL
+    return res.rows.map((row) => {
+      let normPriority = row.priority || 'P4 - Low';
+      if (normPriority.includes('P1')) normPriority = 'P1 - Critical';
+      else if (normPriority.includes('P2')) normPriority = 'P2 - High';
+      else if (normPriority.includes('P3')) normPriority = 'P3 - Medium';
+      else if (normPriority.includes('P4')) normPriority = 'P4 - Low';
+
+      // Nhận diện sự cố kỹ thuật khẩn cấp (kể cả không dấu)
+      let normCategory = row.category || 'General';
+      const text = `${row.subject || ''} ${row.body_snippet || ''}`.toLowerCase();
+      if (/(sập|sap|504|500|outage|down|sự cố|su co|khẩn cấp|khan cap|quá tải|qua tai|không thể truy cập|khong the truy cap)/i.test(text)) {
+        normCategory = 'Technical';
+        normPriority = 'P1 - Critical';
+      }
+
+      // Tính hạn SLA chuẩn xác theo chuẩn ITIL
+      let slaHours = 48;
+      if (normPriority.includes('P1')) slaHours = 1;
+      else if (normPriority.includes('P2')) slaHours = 4;
+      else if (normPriority.includes('P3')) slaHours = 24;
+      else if (normPriority.includes('P4')) slaHours = 48;
+
+      let slaDeadline = row.sla_deadline;
+      if (row.created_at) {
+        const created = new Date(row.created_at);
+        // Nếu deadline null hoặc bị gán nhầm 24h từ bug cũ cho P1
+        if (!slaDeadline || (normPriority.includes('P1') && new Date(slaDeadline).getTime() - created.getTime() > 2 * 3600000)) {
+          slaDeadline = new Date(created.getTime() + slaHours * 3600000).toISOString();
+        }
+      }
+
+      return {
+        ...row,
+        category: normCategory,
+        priority: normPriority,
+        sla_deadline: slaDeadline,
+      };
+    });
   }
 
   async getStats() {

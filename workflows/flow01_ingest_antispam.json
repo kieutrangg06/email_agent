@@ -58,7 +58,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "={{ 'http://localhost:4000/api/v1/audit/reputation?email=' + encodeURIComponent($('Payload Normalization').first().json.sender_email) }}",
+        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/audit/reputation?email=' + encodeURIComponent($('Payload Normalization').first().json.sender_email) }}",
         "options": {}
       }
     },
@@ -111,7 +111,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/audit/quarantine",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/quarantine",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -147,7 +147,7 @@
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "tranngo170770@gmail.com",
         "subject": "={{ '🚨 [SECURITY SOC] Cảnh báo Email Bị Cách Ly: ' + $('Payload Normalization').first().json.sender_email }}",
-        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo An Ninh</title></head>\n<body style=\"margin:0;padding:20px;background:#0f172a;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.3);\">\n    <div style=\"background:#dc2626;padding:24px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:20px;\">🛡️ CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP</h2>\n      <p style=\"margin:6px 0 0 0;font-size:13px;opacity:0.9;\">Phát hiện email vi phạm chính sách bảo mật và đã được cách ly</p>\n    </div>\n    <div style=\"padding:24px;\">\n      <table width=\"100%\" cellpadding=\"8\" style=\"font-size:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;\">\n        <tr><td style=\"font-weight:bold;color:#64748b;\" width=\"35%\">Người gửi:</td><td style=\"color:#b91c1c;font-weight:bold;\">${$('Payload Normalization').first().json.sender_email}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Tiêu đề:</td><td>${$('Payload Normalization').first().json.subject}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Lý do cách ly:</td><td>${$('System/No-Reply Filter').first().json.is_system_email ? 'System/No-reply filter' : 'AI Spam/Phishing Detection'}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Khu vực lưu trữ:</td><td><code>email_quarantine_vault</code></td></tr>\n      </table>\n      <div style=\"margin-top:20px;text-align:center;\">\n        <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-weight:bold;display:inline-block;\">Xem Bảng Điều Khiển Quản Trị</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>` }}",
+        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo An Ninh</title></head>\n<body style=\"margin:0;padding:20px;background:#0f172a;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.3);\">\n    <div style=\"background:#dc2626;padding:24px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:20px;\">🛡️ CẢNH BÁO AN NINH EMAIL DOANH NGHIỆP</h2>\n      <p style=\"margin:6px 0 0 0;font-size:13px;opacity:0.9;\">Phát hiện email vi phạm chính sách bảo mật và đã được cách ly</p>\n    </div>\n    <div style=\"padding:24px;\">\n      <table width=\"100%\" cellpadding=\"8\" style=\"font-size:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;\">\n        <tr><td style=\"font-weight:bold;color:#64748b;\" width=\"35%\">Người gửi:</td><td style=\"color:#b91c1c;font-weight:bold;\">${$('Payload Normalization').first().json.sender_email}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Tiêu đề:</td><td>${$('Payload Normalization').first().json.subject}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Lý do cách ly:</td><td>${$('System/No-Reply Filter').first().json.is_system_email ? 'System/No-reply filter' : 'AI Spam/Phishing Detection'}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#64748b;\">Khu vực lưu trữ:</td><td><code>email_quarantine_vault</code></td></tr>\n      </table>\n      <div style=\"margin-top:20px;text-align:center;\">\n        <a href=\"https://email-automation-vku.onrender.com/tickets\" style=\"background:#dc2626;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-weight:bold;display:inline-block;\">Xem Bảng Điều Khiển Quản Trị</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>` }}",
         "text": "={{ 'Cảnh báo an ninh: Email từ ' + $('Payload Normalization').first().json.sender_email + ' với tiêu đề \"' + $('Payload Normalization').first().json.subject + '\" đã bị cách ly.' }}",
         "options": {}
       }
@@ -163,7 +163,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/audit/reputation/strike",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/reputation/strike",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -203,7 +203,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:4000/api/v1/audit/logs",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -231,7 +231,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:5678/webhook/m1-flow2-triage",
+        "url": "https://berserk-quail.pikapod.net/webhook/m1-flow2-triage",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
