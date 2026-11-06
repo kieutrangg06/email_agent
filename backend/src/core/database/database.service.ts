@@ -27,6 +27,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     // Tự động chuẩn hóa toàn bộ dữ liệu P1, P2, P3, P4 và SLA chuẩn ITIL
     this.pool.query(`
+      -- 0. Chuẩn hóa Hóa đơn / VAT / Quyết toán sang Finance P3 - Medium (SLA 24h)
+      UPDATE email_triage_logs
+      SET category = 'Finance',
+          classified_department = 'FINANCE',
+          priority = 'P3 - Medium',
+          sentiment = 'neutral',
+          urgency_reason = 'Bóc tách hóa đơn & Kiểm toán số học VAT',
+          sla_deadline = created_at + INTERVAL '24 hours',
+          status = 'PROCESSED'
+      WHERE subject ILIKE '%hóa đơn%' OR subject ILIKE '%hoa don%' OR subject ILIKE '%vat%' OR subject ILIKE '%quyết toán%' OR subject ILIKE '%quyet toan%' OR subject ILIKE '%invoice%';
+
       -- 1. Chuẩn hóa sự cố kỹ thuật khẩn cấp (kể cả không dấu) sang Technical P1 - Critical (SLA 1h)
       UPDATE email_triage_logs
       SET category = 'Technical',

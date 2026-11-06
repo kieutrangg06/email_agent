@@ -56,10 +56,14 @@ export class TicketsService {
       else if (normPriority.includes('P3')) normPriority = 'P3 - Medium';
       else if (normPriority.includes('P4')) normPriority = 'P4 - Low';
 
-      // Nhận diện sự cố kỹ thuật khẩn cấp (kể cả không dấu)
+      // Nhận diện ưu tiên theo từ khóa: Hóa đơn/Finance, Kỹ thuật khẩn cấp P1
       let normCategory = row.category || 'General';
       const text = `${row.subject || ''} ${row.body_snippet || ''}`.toLowerCase();
-      if (/(sập|sap|504|500|outage|down|sự cố|su co|khẩn cấp|khan cap|quá tải|qua tai|không thể truy cập|khong the truy cap)/i.test(text)) {
+      
+      if (/(hóa đơn|hoa don|invoice|vat|thuế|thue|quyết toán|quyet toan|đối soát|doi soat|chứng từ|chung tu)/i.test(text)) {
+        normCategory = 'Finance';
+        normPriority = 'P3 - Medium';
+      } else if (/(sập|sap|504|500|outage|down|sự cố|su co|khẩn cấp|khan cap|quá tải|qua tai|không thể truy cập|khong the truy cap)/i.test(text)) {
         normCategory = 'Technical';
         normPriority = 'P1 - Critical';
       }
@@ -318,8 +322,16 @@ export class TicketsService {
     const name = data.sender_name || 'Khách hàng';
     const subject = data.subject || 'Không có tiêu đề';
     const bodySnippet = String(data.body || data.clean_body || data.body_snippet || '').substring(0, 250);
-    const department = data.department || data.classified_department || 'TECH';
-    const category = data.category || 'Technical';
+    let department = data.department || data.classified_department || 'TECH';
+    let category = data.category || 'Technical';
+    
+    // Kiểm tra ưu tiên từ khóa: Hóa đơn -> FINANCE / P3 - Medium
+    const fullText = `${subject} ${bodySnippet}`.toLowerCase();
+    if (/(hóa đơn|hoa don|invoice|vat|thuế|thue|quyết toán|quyet toan|đối soát|doi soat|chứng từ|chung tu)/i.test(fullText)) {
+      department = 'FINANCE';
+      category = 'Finance';
+      data.priority = 'P3 - Medium';
+    }
     
     // Chuẩn hóa Priority P1 - P4 và SLA Deadline chuẩn ITIL
     let rawPriority = String(data.priority || 'P2').toUpperCase();
