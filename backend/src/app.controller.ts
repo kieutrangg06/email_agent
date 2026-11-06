@@ -32,6 +32,16 @@ export class AppController {
     return { status: 'healthy', timestamp: Date.now() };
   }
 
+  @Get('api/health')
+  getApiHealth() {
+    return { status: 'healthy', timestamp: Date.now() };
+  }
+
+  @Get('api/v1/health')
+  getApiV1Health() {
+    return { status: 'healthy', timestamp: Date.now() };
+  }
+
   @Get('api/v1/admin/clean-and-standardize')
   async cleanAndStandardize() {
     await this.db.query(`
