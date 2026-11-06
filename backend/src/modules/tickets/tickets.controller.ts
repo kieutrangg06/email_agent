@@ -51,6 +51,11 @@ export class TicketsController {
     return this.ticketsService.getQuarantineLogs();
   }
 
+  @Post('triage/quarantine/delete-invoices')
+  async deleteInvoiceQuarantines() {
+    return this.ticketsService.deleteInvoiceQuarantineLogs();
+  }
+
   @Post('triage/quarantine')
   async saveQuarantineLog(@Body() body: any) {
     return this.ticketsService.saveQuarantineLog(body);

@@ -288,16 +288,27 @@ export class TicketsService {
     const res = await this.db.query(`
       SELECT id, sender_email, subject, quarantine_reason as reason, raw_payload as payload, created_at, 'email_quarantine_vault' as source
       FROM email_quarantine_vault
+      WHERE subject NOT ILIKE '%hóa đơn%' AND subject NOT ILIKE '%hoa don%' AND subject NOT ILIKE '%vat%' AND subject NOT ILIKE '%quyết toán%'
       UNION ALL
       SELECT id, COALESCE(payload->>'sender_email', payload->>'from', 'unknown') as sender_email, 
              COALESCE(payload->>'subject', event_type) as subject,
              event_type as reason, payload, created_at, source
       FROM system_audit_logs 
-      WHERE event_type LIKE '%QUARANTINE%' OR event_type LIKE '%BLACKLIST%' OR event_type LIKE '%SPAM%'
+      WHERE (event_type LIKE '%QUARANTINE%' OR event_type LIKE '%BLACKLIST%' OR event_type LIKE '%SPAM%')
+        AND (payload->>'subject' NOT ILIKE '%hóa đơn%' OR payload->>'subject' IS NULL)
       ORDER BY created_at DESC 
       LIMIT 100;
     `);
     return res.rows;
+  }
+
+  async deleteInvoiceQuarantineLogs() {
+    const res = await this.db.query(`
+      DELETE FROM email_quarantine_vault 
+      WHERE subject ILIKE '%hóa đơn%' OR subject ILIKE '%hoa don%' OR subject ILIKE '%vat%' OR subject ILIKE '%quyết toán%' OR subject ILIKE '%HD-%'
+      RETURNING *;
+    `);
+    return { success: true, deletedCount: res.rowCount, deleted: res.rows };
   }
 
   async saveQuarantineLog(data: any) {
