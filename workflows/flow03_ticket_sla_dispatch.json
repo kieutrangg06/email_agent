@@ -224,20 +224,35 @@
         300
       ],
       "parameters": {
-        "jsCode": "const finalData = $('5. Least-Busy Load Balancer Code').first().json;\nreturn [{\n  json: {\n    status: 'SUCCESS',\n    ticket_code: finalData.ticket_code,\n    title: finalData.title,\n    assigned_to: finalData.assigned_to,\n    agent_email: finalData.agent_email,\n    priority: finalData.priority,\n    sla_deadline: finalData.sla_deadline,\n    affected_module: finalData.affected_module,\n    reproduce_steps: finalData.reproduce_steps,\n    technical_summary: finalData.technical_summary,\n    search_query: `${finalData.affected_module} ${finalData.title}`\n  }\n}];"
+        "jsCode": "const finalData = $('5. Least-Busy Load Balancer Code').first().json;\nconst ticketGen = $('3. Generate Ticket Code ID Code').first().json;\n\nreturn [{\n  json: {\n    status: 'SUCCESS',\n    ticket_code: finalData.ticket_code,\n    title: finalData.title,\n    subject: finalData.title,\n    assigned_to: finalData.assigned_to,\n    agent_email: finalData.agent_email,\n    customer_email: ticketGen.customer_email || finalData.customer_email || finalData.sender_email || 'trangltk.24it@vku.udn.vn',\n    priority: finalData.priority,\n    sla_deadline: finalData.sla_deadline,\n    affected_module: finalData.affected_module,\n    reproduce_steps: finalData.reproduce_steps,\n    technical_summary: finalData.technical_summary,\n    issue_description: finalData.reproduce_steps || finalData.technical_summary || finalData.title,\n    search_query: `${finalData.affected_module || 'Hạ tầng'} ${finalData.title || 'Sự cố'}`,\n    ready_for_member2: true,\n    status: 'QUEUED_FOR_TV2_RAG'\n  }\n}];"
       }
     },
     {
       "id": "f3-node-12",
-      "name": "12. Trigger Luong 4 Sub-Workflow Code",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "12. Trigger Luong 4 Sub-Workflow HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2840,
         300
       ],
+      "onError": "continueRegularOutput",
       "parameters": {
-        "jsCode": "async function sendWebhook(path, data) {\n  try {\n    const res = await fetch('https://berserk-quail.pikapod.net' + path, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(data)\n    });\n    return res.status;\n  } catch (e) {\n    return 500;\n  }\n}\n\nconst current = $input.first().json;\nconst ticketGen = $('3. Generate Ticket Code ID Code').first().json;\n\nconst bridgePayload = {\n  ticket_code: current.ticket_code,\n  title: current.title,\n  subject: current.title,\n  customer_email: ticketGen.customer_email || current.customer_email || current.sender_email || 'trangltk.24it@vku.udn.vn',\n  priority: current.priority,\n  issue_description: current.reproduce_steps || current.technical_summary || current.title,\n  technical_summary: current.technical_summary,\n  search_query: current.search_query,\n  affected_module: current.affected_module,\n  ready_for_member2: true,\n  status: 'QUEUED_FOR_TV2_RAG'\n};\n\nawait sendWebhook('/webhook/m2-flow4-rag-draft', bridgePayload);\n\nreturn [{\n  json: {\n    status: 'COMPLETED',\n    message: 'Quy trình tạo vé và điều phối SLA hoàn tất thành công. Đã tự động kích hoạt Luồng 4 RAG Draft.',\n    ticket_code: current.ticket_code,\n    assigned_agent: current.assigned_to,\n    priority: current.priority,\n    sla_deadline: current.sla_deadline,\n    downstream_bridge: bridgePayload,\n    dispatched_at: new Date().toISOString()\n  }\n}];"
+        "method": "POST",
+        "url": "https://berserk-quail.pikapod.net/webhook/m2-flow4-rag-draft",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
       }
     },
     {
@@ -364,7 +379,7 @@
       "main": [
         [
           {
-            "node": "12. Trigger Luong 4 Sub-Workflow Code",
+            "node": "12. Trigger Luong 4 Sub-Workflow HTTP",
             "type": "main",
             "index": 0
           }

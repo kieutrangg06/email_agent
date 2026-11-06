@@ -179,6 +179,13 @@ export class AppController {
   // =========================================================================
   @Post('api/v1/analytics/send-daily-digest')
   async triggerDailyDigest() {
+    // 1. Kích hoạt Luồng 6 trên n8n Cloud PikaPods 24/7
+    fetch('https://berserk-quail.pikapod.net/webhook/m2-flow6-digest-trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ triggered_at: new Date().toISOString() }),
+    }).catch(() => {});
+
     const stats = await this.db.query(`
       SELECT 
         (SELECT COUNT(*) FROM email_triage_logs) as total,
@@ -202,6 +209,13 @@ export class AppController {
   // =========================================================================
   @Post('api/v1/crm/trigger-followup')
   async triggerSalesFollowup(@Body() body: any) {
+    // 1. Kích hoạt Luồng 8 trên n8n Cloud PikaPods 24/7
+    fetch('https://berserk-quail.pikapod.net/webhook/m3-flow8-followup-trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ triggered_at: new Date().toISOString(), target_email: body.email }),
+    }).catch(() => {});
+
     const targetEmail = body.email || 'trangltk.24it@vku.udn.vn';
     const dRes = await this.db.query(
       `SELECT * FROM crm_deals ORDER BY created_at DESC LIMIT 1;`

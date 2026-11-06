@@ -215,20 +215,35 @@
         300
       ],
       "parameters": {
-        "jsCode": "const current = $('Compute SLA Window').first().json;\nreturn [{\n  json: {\n    sender_email: current.sender_email,\n    sender_name: current.sender_name,\n    subject: current.subject,\n    title: current.subject,\n    body: current.clean_body || current.body,\n    department: current.department,\n    department_code: current.department_code,\n    category: current.category,\n    priority: current.priority,\n    sentiment: current.sentiment,\n    confidence: current.confidence,\n    confidence_score: current.confidence_score,\n    urgency_reason: current.urgency_reason,\n    sla_deadline: current.sla_deadline,\n    sla_due_at: current.sla_due_at,\n    sla_hours: current.sla_hours,\n    tracking_code: current.tracking_code\n  }\n}];"
+        "jsCode": "const current = $('Compute SLA Window').first().json;\nconst dept = String(current.department_code || current.department || '').toUpperCase();\nlet targetWebhook = 'm1-flow3-ticket';\nif (dept.includes('SALES')) {\n  targetWebhook = 'm3-flow7-crm-lead';\n} else if (dept.includes('FINANCE')) {\n  targetWebhook = 'm3-flow9-invoice-ocr';\n} else {\n  targetWebhook = 'm1-flow3-ticket';\n}\n\nreturn [{\n  json: {\n    sender_email: current.sender_email,\n    customer_email: current.sender_email,\n    sender_name: current.sender_name,\n    subject: current.subject,\n    title: current.subject,\n    body: current.clean_body || current.body,\n    description: current.clean_body || current.body,\n    department: current.department,\n    department_code: current.department_code,\n    category: current.category,\n    priority: current.priority,\n    sentiment: current.sentiment,\n    confidence: current.confidence,\n    confidence_score: current.confidence_score,\n    urgency_reason: current.urgency_reason,\n    sla_deadline: current.sla_deadline,\n    sla_due_at: current.sla_due_at,\n    sla_hours: current.sla_hours,\n    tracking_code: current.tracking_code,\n    target_webhook: targetWebhook\n  }\n}];"
       }
     },
     {
       "id": "f2-node-12",
       "name": "Route to Downstream",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         2990,
         300
       ],
+      "onError": "continueRegularOutput",
       "parameters": {
-        "jsCode": "async function sendWebhook(path, data) {\n  try {\n    const res = await fetch('https://berserk-quail.pikapod.net' + path, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(data)\n    });\n    return res.status;\n  } catch (e) {\n    return 500;\n  }\n}\n\nconst packet = $input.first().json;\nconst dept = String(packet.department_code || packet.department || '').toUpperCase();\n\nlet targetRoute = '';\nlet targetStatus = 200;\n\nif (dept === 'TECH' || dept.includes('TECH')) {\n  targetRoute = '/webhook/m1-flow3-ticket';\n  targetStatus = await sendWebhook('/webhook/m1-flow3-ticket', packet);\n} else if (dept === 'SALES') {\n  targetRoute = '/webhook/m3-flow7-crm-lead';\n  targetStatus = await sendWebhook('/webhook/m3-flow7-crm-lead', packet);\n} else if (dept === 'FINANCE') {\n  targetRoute = '/webhook/m3-flow9-invoice-ocr';\n  targetStatus = await sendWebhook('/webhook/m3-flow9-invoice-ocr', packet);\n} else {\n  targetRoute = 'GENERAL_QUEUE';\n}\n\nreturn [{\n  json: {\n    status: 'ROUTED',\n    department: dept,\n    target_route: targetRoute,\n    http_status: targetStatus,\n    payload: packet,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "method": "POST",
+        "url": "={{ 'https://berserk-quail.pikapod.net/webhook/' + $json.target_webhook }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
       }
     },
     {

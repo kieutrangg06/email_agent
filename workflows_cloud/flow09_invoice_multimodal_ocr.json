@@ -121,7 +121,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:4000/api/v1/finance/invoices",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/finance/invoices",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  invoiceNumber: $json.invoice_number,\n  sellerTaxId: $json.seller_tax_id,\n  sellerName: $json.seller_name,\n  buyerName: $json.buyer_name,\n  buyerEmail: $json.buyer_email,\n  issueDate: $json.issue_date,\n  subtotal: $json.subtotal,\n  vatAmount: $json.vat_amount,\n  totalAmount: $json.total_amount,\n  mathStatus: 'VALIDATED',\n  fileStoragePath: $json.storage_path\n}) }}",
@@ -140,7 +140,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:4000/api/v1/finance/invoices",
+        "url": "https://email-automation-api-a377.onrender.com/api/v1/finance/invoices",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  invoiceNumber: $json.invoice_number,\n  sellerTaxId: $json.seller_tax_id,\n  sellerName: $json.seller_name,\n  buyerName: $json.buyer_name,\n  buyerEmail: $json.buyer_email,\n  issueDate: $json.issue_date,\n  subtotal: $json.subtotal,\n  vatAmount: $json.vat_amount,\n  totalAmount: $json.total_amount,\n  mathStatus: 'DISCREPANCY_FLAGGED',\n  fileStoragePath: $json.storage_path\n}) }}",
