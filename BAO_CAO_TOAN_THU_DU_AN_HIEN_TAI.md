@@ -619,19 +619,28 @@ Trên giao diện Web Next.js tại trang Hộp Thư & Quản Trị Vé (`/ticke
 
 ---
 
-### 🔄 QUY TRÌNH TIẾP NỐI: PHÊ DUYỆT HUMAN-IN-THE-LOOP (LUỒNG 5) TRÊN WEB
+### 🔄 QUY TRÌNH TIẾP NỐI: BỘ ĐIỀU KHIỂN LƯỠNG CHẾ ĐỘ (DUAL-MODE: HUMAN VS AI AUTO-PILOT) & CHỐNG GHI ĐÈ HỘI THOẠI
 Sau khi Kịch bản 1 hoặc 5 tạo ra bản nháp RAG thành công:
-1. Chuyên viên mở trang Duyệt Thư Nháp (`http://localhost:3000/approval` hoặc trên Cloud Web).
-2. Màn hình hiển thị: Câu hỏi gốc của khách hàng, trích dẫn tài liệu từ `knowledge_base` (cosine > 0.75), và khung soạn thảo thư do AI tạo sẵn.
-3. Chuyên viên kiểm tra, có thể chỉnh sửa lại câu từ trực tiếp trên giao diện rồi bấm **"Duyệt & Gửi Email"**.
-4. **Điều gì xảy ra ở Luồng 5 n8n?**
-   - Giao diện Web gửi request tới Webhook `/webhook/m2-flow5-approval`.
-   - Node 2 xác thực quyền hạn của chuyên viên phê duyệt.
-   - Node 5 kích hoạt gửi email thực tế qua Gmail SMTP (hoặc Brevo API trên Cloud) từ `kieutrangg06123@gmail.com` đến `trangltk.24it@vku.udn.vn`.
-   - Node 7 cập nhật bản nháp thành `SENT`.
-   - Node 8 đổi trạng thái vé trong bảng `tickets` thành `RESOLVED` (Đã giải quyết - Thẻ xanh).
-   - Node 10 & 11 tính toán độ trễ, ghi nhận chỉ số tuân thủ cam kết SLA (`MET_SLA`).
-   - Bản nháp tự động biến mất khỏi hàng đợi chờ duyệt trên UI, vé chuyển sang trạng thái hoàn tất.
+Hệ thống vận hành cơ chế **Lưỡng chế độ điều khiển (Dual-Mode Controller)** linh hoạt:
+
+1. **Chế độ 1: Kiểm duyệt thủ công (Human-in-the-Loop - Mặc định):**
+   - Bản thảo dừng ở trạng thái `PENDING_APPROVAL`, nằm tại giao diện [http://localhost:3000/approval](http://localhost:3000/approval) (hoặc Cloud Web).
+   - Màn hình hiển thị: Câu hỏi gốc của khách hàng, trích dẫn tài liệu từ `knowledge_base` (cosine > 0.75), và khung soạn thảo thư do AI tạo sẵn.
+   - Chuyên viên kiểm tra, có thể chỉnh sửa lại câu từ trực tiếp trên giao diện rồi bấm **"Duyệt & Gửi Email"**.
+   - **Luồng 5 n8n kích hoạt:** Xác thực quyền hạn $\rightarrow$ gửi email SMTP/Brevo $\rightarrow$ đổi bản nháp sang `SENT` $\rightarrow$ đổi vé sang `RESOLVED` $\rightarrow$ ghi nhận `MET_SLA`.
+
+2. **Chế độ 2: Tự động phê duyệt & Phát thư độc lập (AI Auto-Pilot):**
+   - Khi bật chế độ `AI_FULL`, AI tự động đánh giá Điểm tin cậy (Confidence Score).
+   - **Nếu Điểm tin cậy $\ge 75\%$:** AI **tự động phê duyệt ngay lập tức**, phát email trả lời tới khách hàng qua SMTP/Brevo, đổi bản thảo sang `AUTO_SENT` (gán nhãn `reviewed_by = 'AI_AUTONOMOUS_AGENT'`), và tự động đóng vé sang `RESOLVED`. Con người không cần thao tác bất kỳ bước nào!
+   - **Lưới an toàn (AI Safety-Net):** Nếu Điểm tin cậy $< 75\%$, AI tự động giữ lại bản thảo ở hàng chờ duyệt thủ công và ghi log `AI_SAFETY_NET_TRIGGERED` để đảm bảo an toàn nghiệp vụ tuyệt đối.
+   - **Cơ chế Auto-Sweep:** Ngay khi người quản trị gạt công tắc sang `AI_FULL`, hệ thống tự động quét sạch toàn bộ các bản thảo đang chờ duyệt đủ điều kiện $\ge 75\%$ để gửi đi tức thì.
+
+3. **Cơ chế Chống ghi đè hội thoại (Conversation Threading & Anti-Overwrite):**
+   - Định danh chuỗi email bằng `thread_id`.
+   - Nếu khách hàng gửi liên tiếp nhiều email trong khi câu hỏi trước chưa được duyệt:
+     - Bản thảo cũ tự động chuyển sang trạng thái `SUPERSEDED` và bị khóa nút gửi.
+     - Hệ thống sinh bản thảo mới Version $N+1$ tổng hợp toàn bộ các câu hỏi trước đó (`aggregated_inbound_messages`).
+     - Ngăn ngừa triệt để lỗi chuyên viên duyệt nhầm bản thảo cũ hoặc gửi thư trả lời thiếu sót thông tin.
 
 ---
 
@@ -674,12 +683,16 @@ Giao diện người dùng được xây dựng hoàn toàn bằng Next.js 14 Ap
 - Đồng hồ đếm ngược SLA: Đếm lùi thời gian thực theo hạn cam kết SLA.
 - Tab "Kho Cách Ly (Quarantine Vault)": Theo dõi các email lừa đảo, thư rác, tệp đính kèm độc hại bị AI chặn đứng ở Luồng 1.
 
-### 10.3. Trang Phê Duyệt Thư Nháp Human-in-the-Loop (`/approval`)
-- Cơ chế cốt lõi HITL: Nơi nhân viên CSKH/KTV kiểm soát chất lượng câu trả lời của AI trước khi gửi cho khách hàng.
-- Hiển thị song song:
-  - Bên trái: Nội dung câu hỏi của khách và trích lục tài liệu tham chiếu từ `knowledge_base` (pgvector).
-  - Bên phải: Dự thảo câu trả lời do Gemini RAG soạn thảo.
-- Nút "Duyệt & Gửi Email": Kích hoạt Luồng 5 n8n gửi email qua SMTP/Brevo API và tự động đổi vé sang `RESOLVED`.
+### 10.3. Trang Phê Duyệt Thư Nháp Human-in-the-Loop & AI Auto-Pilot (`/approval`)
+- **Công tắc Lưỡng chế độ (Dual-Mode Segmented Control):**
+  - **Duyệt Thủ Công (Human):** Dành cho quy trình thẩm định cẩn trọng, mọi thư AI soạn đều chờ người duyệt.
+  - **Tự Động Gửi (AI):** Chế độ AI Auto-Pilot, tự động phê duyệt và phát thư qua SMTP/Brevo nếu điểm tin cậy $\ge 75\%$.
+- **Hiển thị song song & Thông minh:**
+  - Bên trái: Nội dung câu hỏi gốc của khách hàng, lịch sử hội thoại gộp đa lượt (`v1`, `v2`,...), và trích lục tài liệu tham chiếu từ `knowledge_base` (pgvector).
+  - Bên phải: Dự thảo câu trả lời do Gemini RAG soạn thảo (đã qua định dạng HTML chuẩn hóa).
+  - Huy hiệu trạng thái động: `CHỜ DUYỆT`, `ĐÃ GỬI (SENT)`, `AI ĐÃ TỰ ĐỘNG GỬI (AUTO_SENT)`, `ĐÃ BỊ THAY THẾ (SUPERSEDED)`.
+- **Nút "Duyệt & Gửi Email":** Kích hoạt Luồng 5 n8n gửi email qua SMTP/Brevo API và tự động đổi vé sang `RESOLVED`.
+- **Khóa an toàn:** Tự động vô hiệu hóa nút gửi đối với các bản thảo đã bị `SUPERSEDED`, tránh gửi nhầm thông tin lỗi thời.
 
 ### 10.4. Trang Khách Hàng & Cơ Hội Bán Hàng CRM (`/crm`)
 - Bảng Kanban 5 Cột: Mới Tiếp Nhận (`NEW_INQUIRY`), Đã Báo Giá (`QUOTED`), Cần Chăm Sóc Lại (`COLD_LEAD`), Chốt Thành Công (`WON`), Thất Bại (`LOST`).
@@ -859,3 +872,23 @@ curl -s "https://email-automation-api-a377.onrender.com/api/v1/admin/clean-and-s
 > **Đáp án trả lời phản biện xuất sắc:**  
 > *"Dạ thưa Thầy/Cô, các nền tảng Cloud Free Tier như Render áp dụng chính sách bảo mật mạng nghiêm ngặt bằng cách chặn tất cả các cổng TCP ra ngoài như 25, 465, 587 nhằm ngăn chặn hành vi phát tán thư rác tự động.  
 > Để khắc phục, trên môi trường Cloud, nhóm đã chuyển đổi cổng phát thư sang sử dụng Brevo Transactional REST API qua giao thức HTTPS cổng 443 với mã hóa TLS 1.3. Vì cổng 443 là cổng web tiêu chuẩn, mọi yêu cầu phát thư được đóng gói thành các lời gọi API RESTful được thông qua hoàn toàn, đảm bảo email được gửi đi tức thời với tỷ lệ vào hộp thư chính (Primary Inbox) đạt 100%."*
+
+---
+
+### 🎯 Câu 11: Cơ chế Lưỡng chế độ (Dual-Mode: HUMAN vs AI_FULL) và AI Auto-Pilot vận hành ra sao? Làm thế nào đảm bảo an toàn không gửi nhầm email khi AI tự động bắn thư?
+> **Đáp án trả lời phản biện xuất sắc:**  
+> *"Dạ thưa Thầy/Cô, hệ thống được trang bị bộ điều khiển Lưỡng chế độ (Dual-Mode Controller):  
+> 1. Ở chế độ `HUMAN` (Mặc định): Mọi bản thảo AI tạo ra đều dừng ở trạng thái `PENDING_APPROVAL` để chuyên viên rà soát trên Web trước khi bấm gửi.  
+> 2. Ở chế độ `AI_FULL` (AI Auto-Pilot): AI tự động phê duyệt và chuyển phát thư ngay tới khách hàng qua Brevo/SMTP nếu Điểm tin cậy $\ge 75\%$, đồng thời tự động đóng vé sang `RESOLVED`.  
+> 3. Lưới an toàn nghiệp vụ (AI Safety-Net): Để triệt tiêu rủi ro gửi nhầm nội dung sai lệch, bất kỳ email nào có điểm tin cậy dưới $75\%$ (thông tin không chắc chắn hoặc tài liệu RAG có độ tương đồng thấp) thì dù đang ở chế độ `AI_FULL`, AI vẫn tự động thu hồi quyền tự gửi, giữ bản thảo lại hàng đợi chờ duyệt thủ công và ghi log cảnh báo `AI_SAFETY_NET_TRIGGERED`. Nhờ đó, tính tự động hóa đạt mức tối đa nhưng vẫn kiểm soát an toàn 100%."*
+
+---
+
+### 🎯 Câu 12: Hệ thống xử lý tình huống Khách hàng gửi liên tiếp nhiều email trong cùng một cuộc hội thoại (Multi-turn Conversation Threading) như thế nào để không bị ghi đè hay gửi trùng lặp?
+> **Đáp án trả lời phản biện xuất sắc:**  
+> *"Dạ thưa Thầy/Cô, trong thực tế khách hàng thường gửi thêm thư bổ sung câu hỏi khi thư trước chưa kịp trả lời. Nếu xử lý thô sơ, hệ thống sẽ sinh ra nhiều bản nháp rời rạc hoặc đè mất nội dung cũ.  
+> Nhóm đã thiết kế cơ chế Chống ghi đè hội thoại (Conversation Threading & Anti-Overwrite):  
+> - Các thư trong cùng một chủ đề được nhóm theo `thread_id`.  
+> - Khi nhận được thư mới trong khi bản nháp trước đó vẫn đang chờ duyệt (`PENDING_APPROVAL`), hệ thống tự động đánh dấu bản nháp cũ thành `SUPERSEDED` và khóa nút gửi.  
+> - Đồng thời, hệ thống tạo bản nháp mới Version $N+1$, gộp chung toàn bộ lịch sử câu hỏi vào trường `aggregated_inbound_messages` để AI sinh câu trả lời tổng hợp toàn diện nhất.  
+> - Nếu chuyên viên cố tình duyệt bản thảo cũ đã lỗi thời, hệ thống sẽ chặn lại với thông báo yêu cầu duyệt bản thảo mới nhất, bảo đảm câu trả lời gửi đến khách hàng luôn đầy đủ và chuẩn xác nhất."*
