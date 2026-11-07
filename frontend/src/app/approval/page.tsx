@@ -274,7 +274,7 @@ export default function ApprovalPage() {
       };
 
       try {
-        const n8nApprovalUrl = process.env.NEXT_PUBLIC_N8N_APPROVAL_URL || 'https://berserk-quail.pikapod.net/webhook/m2-flow5-approval';
+        const n8nApprovalUrl = process.env.NEXT_PUBLIC_N8N_APPROVAL_URL || (API_BASE_URL.includes('localhost') ? 'http://localhost:5678/webhook/m2-flow5-approval' : 'https://berserk-quail.pikapod.net/webhook/m2-flow5-approval');
         await fetch(n8nApprovalUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

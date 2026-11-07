@@ -32,7 +32,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "method": "GET",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/departments",
+        "url": "http://localhost:4000/api/v1/departments",
         "options": {}
       }
     },
@@ -78,7 +78,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/tickets/triage/logs",
+        "url": "http://localhost:4000/api/v1/tickets/triage/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -148,7 +148,7 @@
         "fromEmail": "kieutrangg06123@gmail.com",
         "toEmail": "tranngo170770@gmail.com",
         "subject": "={{ '🚨 [KHẨN CẤP P1] SỰ CỐ HỆ THỐNG: ' + $('Compute SLA Window').first().json.subject }}",
-        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo Khẩn Cấp P1</title></head>\n<body style=\"margin:0;padding:20px;background:#0f172a;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.5);\">\n    <div style=\"background:#dc2626;padding:25px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:22px;\">🚨 BÁO ĐỘNG SỰ CỐ KHẨN CẤP CẤP ĐỘ P1</h2>\n      <p style=\"margin:6px 0 0 0;font-size:14px;opacity:0.9;\">Cam kết phản hồi trong vòng 1 GIỜ</p>\n    </div>\n    <div style=\"padding:25px;\">\n      <p style=\"color:#b91c1c;font-weight:bold;\">Hệ thống phát hiện email sự cố nghiêm trọng:</p>\n      <table width=\"100%\" cellpadding=\"8\" style=\"background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;\">\n        <tr><td width=\"30%\" style=\"font-weight:bold;color:#991b1b;\">Người gửi:</td><td>${$('Compute SLA Window').first().json.sender_email}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Tiêu đề:</td><td>${$('Compute SLA Window').first().json.subject}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Phòng ban:</td><td>${$('Compute SLA Window').first().json.category} (${$('Compute SLA Window').first().json.department})</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Lý do khẩn cấp:</td><td>${$('Compute SLA Window').first().json.urgency_reason}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Hạn chót SLA:</td><td><strong>${$('Compute SLA Window').first().json.formatted_deadline} (1 GIỜ)</strong></td></tr>\n      </table>\n      <div style=\"margin-top:20px;text-align:center;\">\n        <a href=\"https://email-automation-vku.onrender.com/tickets\" style=\"background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;\">Xử Lý Ngay Trên Dashboard</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>` }}",
+        "html": "={{ `<!DOCTYPE html>\n<html lang=\"vi\">\n<head><meta charset=\"UTF-8\"><title>Cảnh Báo Khẩn Cấp P1</title></head>\n<body style=\"margin:0;padding:20px;background:#0f172a;font-family:sans-serif;color:#1e293b;\">\n  <div style=\"max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.5);\">\n    <div style=\"background:#dc2626;padding:25px;color:#fff;text-align:center;\">\n      <h2 style=\"margin:0;font-size:22px;\">🚨 BÁO ĐỘNG SỰ CỐ KHẨN CẤP CẤP ĐỘ P1</h2>\n      <p style=\"margin:6px 0 0 0;font-size:14px;opacity:0.9;\">Cam kết phản hồi trong vòng 1 GIỜ</p>\n    </div>\n    <div style=\"padding:25px;\">\n      <p style=\"color:#b91c1c;font-weight:bold;\">Hệ thống phát hiện email sự cố nghiêm trọng:</p>\n      <table width=\"100%\" cellpadding=\"8\" style=\"background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;\">\n        <tr><td width=\"30%\" style=\"font-weight:bold;color:#991b1b;\">Người gửi:</td><td>${$('Compute SLA Window').first().json.sender_email}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Tiêu đề:</td><td>${$('Compute SLA Window').first().json.subject}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Phòng ban:</td><td>${$('Compute SLA Window').first().json.category} (${$('Compute SLA Window').first().json.department})</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Lý do khẩn cấp:</td><td>${$('Compute SLA Window').first().json.urgency_reason}</td></tr>\n        <tr><td style=\"font-weight:bold;color:#991b1b;\">Hạn chót SLA:</td><td><strong>${$('Compute SLA Window').first().json.formatted_deadline} (1 GIỜ)</strong></td></tr>\n      </table>\n      <div style=\"margin-top:20px;text-align:center;\">\n        <a href=\"http://localhost:3000/tickets\" style=\"background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;\">Xử Lý Ngay Trên Dashboard</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>` }}",
         "text": "={{ 'CẢNH BÁO ĐỎ P1: Sự cố ' + $('Compute SLA Window').first().json.subject + ' từ ' + $('Compute SLA Window').first().json.sender_email + ' - Hạn cam kết: 1 giờ' }}",
         "options": {}
       }
@@ -189,7 +189,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
+        "url": "http://localhost:4000/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -230,7 +230,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://berserk-quail.pikapod.net/webhook/' + $json.target_webhook }}",
+        "url": "={{ 'http://localhost:5678/webhook/' + $json.target_webhook }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

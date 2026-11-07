@@ -31,7 +31,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/crm/deals/stale",
+        "url": "http://localhost:4000/api/v1/crm/deals/stale",
         "options": {}
       }
     },
@@ -60,7 +60,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/crm/deals/' + $json.deal_id }}",
+        "url": "={{ 'http://localhost:4000/api/v1/crm/deals/' + $json.deal_id }}",
         "options": {}
       }
     },
@@ -132,7 +132,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "PATCH",
-        "url": "=https://email-automation-api-a377.onrender.com/api/v1/crm/deals/{{ $('5. Check Follow-up Stage Code').first().json.deal_id }}/activity",
+        "url": "=http://localhost:4000/api/v1/crm/deals/{{ $('5. Check Follow-up Stage Code').first().json.deal_id }}/activity",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  stage: $('5. Check Follow-up Stage Code').first().json.current_count >= 2 ? 'COLD_LEAD' : 'QUOTED'\n}) }}",
@@ -196,7 +196,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
+        "url": "http://localhost:4000/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

@@ -140,11 +140,12 @@ export class AppController {
     const attachmentName = body.attachment_name || body.filename || '';
     const attachmentContent = body.attachment_content || '';
 
-    // Gửi DUY NHẤT qua n8n Cloud Webhook Orchestrator (PikaPods 24/24)
-    const n8nCloudWebhook = process.env.N8N_WEBHOOK_URL || 'https://berserk-quail.pikapod.net/webhook/m1-flow1-ingest';
+    // Điều phối qua n8n Webhook Orchestrator (Tự động thích ứng Localhost port 5678 hoặc Cloud PikaPods)
+    const n8nBaseUrl = process.env.N8N_BASE_URL || (process.env.DATABASE_URL?.includes('supabase') ? 'https://berserk-quail.pikapod.net' : 'http://localhost:5678');
+    const n8nWebhook = process.env.N8N_WEBHOOK_URL || `${n8nBaseUrl}/webhook/m1-flow1-ingest`;
     
     try {
-      const n8nRes = await fetch(n8nCloudWebhook, {
+      const n8nRes = await fetch(n8nWebhook, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,8 +161,8 @@ export class AppController {
       const data = await n8nRes.json().catch(() => ({}));
       return {
         success: true,
-        message: 'Email đã được chuyển giao độc quyền cho n8n Cloud Orchestrator (PikaPods 24/24)',
-        orchestrator: 'n8n Cloud',
+        message: 'Email đã được chuyển giao thành công cho n8n Orchestrator',
+        orchestrator: n8nBaseUrl.includes('localhost') ? 'n8n Local (Port 5678)' : 'n8n Cloud (PikaPods)',
         data,
         timestamp: new Date().toISOString(),
       };
@@ -179,8 +180,9 @@ export class AppController {
   // =========================================================================
   @Post('api/v1/analytics/send-daily-digest')
   async triggerDailyDigest() {
-    // 1. Kích hoạt Luồng 6 trên n8n Cloud PikaPods 24/7
-    fetch('https://berserk-quail.pikapod.net/webhook/m2-flow6-digest-trigger', {
+    // 1. Kích hoạt Luồng 6 trên n8n Orchestrator (Localhost hoặc Cloud PikaPods)
+    const n8nBaseUrl = process.env.N8N_BASE_URL || (process.env.DATABASE_URL?.includes('supabase') ? 'https://berserk-quail.pikapod.net' : 'http://localhost:5678');
+    fetch(`${n8nBaseUrl}/webhook/m2-flow6-digest-trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ triggered_at: new Date().toISOString() }),
@@ -209,8 +211,9 @@ export class AppController {
   // =========================================================================
   @Post('api/v1/crm/trigger-followup')
   async triggerSalesFollowup(@Body() body: any) {
-    // 1. Kích hoạt Luồng 8 trên n8n Cloud PikaPods 24/7
-    fetch('https://berserk-quail.pikapod.net/webhook/m3-flow8-followup-trigger', {
+    // 1. Kích hoạt Luồng 8 trên n8n Orchestrator (Localhost hoặc Cloud PikaPods)
+    const n8nBaseUrl = process.env.N8N_BASE_URL || (process.env.DATABASE_URL?.includes('supabase') ? 'https://berserk-quail.pikapod.net' : 'http://localhost:5678');
+    fetch(`${n8nBaseUrl}/webhook/m3-flow8-followup-trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ triggered_at: new Date().toISOString(), target_email: body.email }),

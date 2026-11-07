@@ -332,11 +332,11 @@ export default function TicketsPage() {
     }
     setIsSubmittingCustEmail(true);
     try {
-      const n8nWebhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || 'https://berserk-quail.pikapod.net/webhook/m1-flow1-ingest';
+      const n8nWebhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || (API_BASE_URL.includes('localhost') ? 'http://localhost:5678/webhook/m1-flow1-ingest' : 'https://berserk-quail.pikapod.net/webhook/m1-flow1-ingest');
       let data: any = null;
       let usedN8n = false;
 
-      // 1. Gửi qua n8n Cloud Webhook Orchestrator (PikaPods 24/24)
+      // 1. Gửi qua n8n Orchestrator (Tự động nhận diện n8n Local port 5678 hoặc n8n PikaPods Cloud)
       try {
         const n8nRes = await fetch(n8nWebhookUrl, {
           method: 'POST',

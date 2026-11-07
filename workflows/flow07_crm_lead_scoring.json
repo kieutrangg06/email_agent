@@ -80,7 +80,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://email-automation-api-a377.onrender.com/api/v1/crm/customers/by-email?email=' + encodeURIComponent($json.sender_email || '') }}",
+        "url": "={{ 'http://localhost:4000/api/v1/crm/customers/by-email?email=' + encodeURIComponent($json.sender_email || '') }}",
         "options": {}
       }
     },
@@ -109,7 +109,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/crm/customers",
+        "url": "http://localhost:4000/api/v1/crm/customers",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  fullName: $json.clean_name,\n  email: $json.sender_email,\n  phone: $json.clean_phone,\n  companyName: $json.clean_company,\n  leadScore: $json.lead_score\n}) }}",
@@ -128,7 +128,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/crm/deals",
+        "url": "http://localhost:4000/api/v1/crm/deals",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  email: $('6. AI Lead Scoring Engine Code').first().json.sender_email,\n  dealName: 'Cơ hội: ' + $('6. AI Lead Scoring Engine Code').first().json.clean_company,\n  expectedBudget: $('6. AI Lead Scoring Engine Code').first().json.extracted_budget,\n  stage: 'NEW_INQUIRY',\n  campaignTag: $('6. AI Lead Scoring Engine Code').first().json.campaign_tag,\n  assignedSalesRep: 'Nguyễn Văn An'\n}) }}",
@@ -185,7 +185,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "https://email-automation-api-a377.onrender.com/api/v1/audit/logs",
+        "url": "http://localhost:4000/api/v1/audit/logs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
