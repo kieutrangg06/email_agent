@@ -56,6 +56,11 @@ export class DraftsService implements OnModuleInit {
         INSERT INTO system_settings (key, value)
         VALUES ('approval_mode', '{"mode": "HUMAN", "debounce_seconds": 30, "confidence_threshold": 75}'::jsonb)
         ON CONFLICT (key) DO NOTHING;
+
+        -- Chuẩn hóa tự động toàn bộ điểm tin cậy cũ (0.95 -> 95.0)
+        UPDATE email_drafts 
+        SET confidence_score = confidence_score * 100 
+        WHERE confidence_score > 0 AND confidence_score <= 1.0;
       `);
       this.logger.log('Database schema for Dual-Mode & Thread-Aware Drafts initialized successfully.');
     } catch (err: any) {
@@ -110,7 +115,7 @@ export class DraftsService implements OnModuleInit {
         const pendingRes = await this.db.query(
           `SELECT * FROM email_drafts 
            WHERE status = 'PENDING_APPROVAL' 
-             AND COALESCE(confidence_score, 0) >= $1`,
+             AND (COALESCE(confidence_score, 0) >= $1 OR (COALESCE(confidence_score, 0) <= 1.0 AND COALESCE(confidence_score, 0) * 100 >= $1))`,
           [updated.confidence_threshold || 75]
         );
         for (const draft of pendingRes.rows) {
@@ -298,7 +303,8 @@ export class DraftsService implements OnModuleInit {
         <p style="font-size: 13px; color: #777;">Trân trọng,<br/><strong>Enterprise Support Team</strong></p>
       </div>`;
 
-    const confidenceScore = Number(payload.confidence_score) || 95.0;
+    const rawScore = Number(payload.confidence_score);
+    const confidenceScore = !isNaN(rawScore) && rawScore > 0 ? (rawScore <= 1.0 ? rawScore * 100 : rawScore) : 95.0;
     const initialStatus = 'PENDING_APPROVAL';
 
     // 2.2. LƯU BẢN NHÁP MỚI VÀO CƠ SỞ DỮ LIỆU
@@ -405,8 +411,8 @@ export class DraftsService implements OnModuleInit {
           }
 
           await this.db.query(
-            `INSERT INTO system_audit_logs (event_type, severity, details)
-             VALUES ('AI_AUTONOMOUS_EMAIL_DISPATCHED', 'INFO', $1)`,
+            `INSERT INTO system_audit_logs (event_type, description, payload)
+             VALUES ('AI_AUTONOMOUS_EMAIL_DISPATCHED', 'AI Auto-Pilot tự động chuyển phát thư qua SMTP/Brevo', $1)`,
             [JSON.stringify({ draft_id: created.id, recipient_email: recipientEmail, confidence_score: confidenceScore, version: newVersion })]
           ).catch(() => {});
 
@@ -430,8 +436,8 @@ export class DraftsService implements OnModuleInit {
         // Safety-net kích hoạt: Độ tin cậy thấp, giữ lại hàng chờ duyệt thủ công
         this.logger.warn(`[AI Safety-Net] Draft #${created.id} held for human review (Confidence: ${confidenceScore}% < ${threshold}%)`);
         await this.db.query(
-          `INSERT INTO system_audit_logs (event_type, severity, details)
-           VALUES ('AI_SAFETY_NET_TRIGGERED', 'WARNING', $1)`,
+          `INSERT INTO system_audit_logs (event_type, description, payload)
+           VALUES ('AI_SAFETY_NET_TRIGGERED', 'Độ tin cậy dưới ngưỡng an toàn, giữ lại hàng chờ kiểm duyệt thủ công', $1)`,
           [JSON.stringify({ draft_id: created.id, confidence_score: confidenceScore, reason: 'Confidence score below safe threshold' })]
         ).catch(() => {});
 
@@ -577,8 +583,21 @@ export class DraftsService implements OnModuleInit {
 
     // Gửi email thật qua SMTP khi trạng thái là SENT / APPROVED_SENT
     if (updated && isSent) {
-      // Thư phúc đáp đã được n8n Luồng 5 (Node 5) gửi độc quyền qua SMTP
-      this.logger.log(`Draft ${updated.ticket_code} approved. Outbound email is handled exclusively by n8n Flow 05.`);
+      try {
+        if (!updated.recipient_email && updated.ticket_code) {
+          const tRes = await this.db.query(
+            'SELECT customer_email, sender_email FROM tickets WHERE ticket_code = $1',
+            [updated.ticket_code],
+          );
+          if (tRes.rows.length > 0) {
+            updated.recipient_email = tRes.rows[0].customer_email || tRes.rows[0].sender_email;
+          }
+        }
+        await this.mailService.sendApprovedReplyToCustomer(updated);
+        this.logger.log(`Draft ${updated.ticket_code} approved & dispatched to ${updated.recipient_email || updated.customer_email}`);
+      } catch (err: any) {
+        this.logger.warn(`Could not dispatch approved reply via mailService: ${err.message}`);
+      }
     }
 
     // Cập nhật ticket thành RESOLVED

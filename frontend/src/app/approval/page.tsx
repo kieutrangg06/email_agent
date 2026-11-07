@@ -177,7 +177,11 @@ export default function ApprovalPage() {
     const rejected = allDrafts.filter((d) => d.status === 'REJECTED').length;
     const superseded = allDrafts.filter((d) => d.status === 'SUPERSEDED').length;
     const avgScore = total > 0
-      ? (allDrafts.reduce((acc, d) => acc + (Number(d.confidence_score) || 92), 0) / total).toFixed(1)
+      ? (allDrafts.reduce((acc, d) => {
+          const raw = Number(d.confidence_score) || 92;
+          const normalized = raw <= 1.0 ? raw * 100 : raw;
+          return acc + normalized;
+        }, 0) / total).toFixed(1)
       : '93.5';
     return { total, pending, sent, rejected, superseded, avgScore };
   }, [allDrafts]);
@@ -675,7 +679,12 @@ export default function ApprovalPage() {
                       <span>
                         Độ tin cậy AI:{' '}
                         <strong className="text-purple-700 font-bold font-mono">
-                          {draft.confidence_score ? `${Number(draft.confidence_score).toFixed(1)}%` : '92.0%'}
+                          {(() => {
+                            const raw = Number(draft.confidence_score);
+                            if (isNaN(raw) || raw === 0) return '92.0%';
+                            const normalized = raw <= 1.0 ? raw * 100 : raw;
+                            return `${normalized.toFixed(1)}%`;
+                          })()}
                         </strong>
                       </span>
                     </div>
