@@ -12,6 +12,8 @@ cd "$DIR"
 echo "======================================================================"
 echo "🚀 [1/3] Khởi động Cơ sở dữ liệu PostgreSQL 16 & n8n Engine..."
 echo "======================================================================"
+# Dọn dẹp container cũ nếu có xung đột tên trước khi khởi động
+docker rm -f enterprise_db enterprise_n8n 2>/dev/null || true
 docker compose up -d
 
 echo ""

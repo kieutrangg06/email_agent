@@ -581,23 +581,10 @@ export class DraftsService implements OnModuleInit {
 
     const updated = res.rows[0];
 
-    // Gửi email thật qua SMTP khi trạng thái là SENT / APPROVED_SENT
+    // Ghi nhận trạng thái: Khi duyệt thủ công (HITL), email đã được n8n Luồng 5 (Node 5) gửi qua SMTP.
+    // Tránh gửi kép (duplicate email) bằng cách không kích hoạt mailService gửi lần 2 tại đây.
     if (updated && isSent) {
-      try {
-        if (!updated.recipient_email && updated.ticket_code) {
-          const tRes = await this.db.query(
-            'SELECT customer_email, sender_email FROM tickets WHERE ticket_code = $1',
-            [updated.ticket_code],
-          );
-          if (tRes.rows.length > 0) {
-            updated.recipient_email = tRes.rows[0].customer_email || tRes.rows[0].sender_email;
-          }
-        }
-        await this.mailService.sendApprovedReplyToCustomer(updated);
-        this.logger.log(`Draft ${updated.ticket_code} approved & dispatched to ${updated.recipient_email || updated.customer_email}`);
-      } catch (err: any) {
-        this.logger.warn(`Could not dispatch approved reply via mailService: ${err.message}`);
-      }
+      this.logger.log(`Draft ${updated.ticket_code} approved & updated to ${finalStatus}. Outbound dispatch managed by n8n Flow 05.`);
     }
 
     // Cập nhật ticket thành RESOLVED

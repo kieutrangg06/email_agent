@@ -24,7 +24,8 @@ echo ""
 echo "======================================================================"
 echo "🛑 [3/3] Đang dừng Docker Containers (PostgreSQL & n8n)..."
 echo "======================================================================"
-docker compose down
+docker compose down 2>/dev/null || true
+docker rm -f enterprise_db enterprise_n8n 2>/dev/null || true
 echo "✅ Cơ sở dữ liệu và n8n đã dừng an toàn."
 
 echo ""
